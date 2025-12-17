@@ -1,6 +1,6 @@
 {
   "name": "@solidstarters/solidctl",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "author": "",
   "private": false,
@@ -8,12 +8,12 @@
   "bin": {
     "solidctl": "dist/main.js"
   },
-  "files":[
+  "files": [
     "dist"
   ],
   "publishConfig": {
     "access": "public"
-  },  
+  },
   "scripts": {
     "build": "nest build",
     "postbuild": "chmod +x dist/main.js",
@@ -31,7 +31,7 @@
     "prepare": "npm run build",
     "publish:patch": "node publish.js patch",
     "publish:minor": "node publish.js minor",
-    "publish:major": "node publish.js major"    
+    "publish:major": "node publish.js major"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
