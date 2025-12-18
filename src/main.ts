@@ -2,7 +2,8 @@
 import { NestFactory } from '@nestjs/core';
 import { Command } from 'commander';
 import { AppModule } from './app.module';
-import { register } from 'module';
+import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
+import { registerRebuildCommand } from './commands/rebuild.command';
 import { registerUpgradeCommand } from './commands/upgrade.command';
 
 async function bootstrap() {
@@ -27,6 +28,8 @@ async function bootstrap() {
     });
 
   registerUpgradeCommand(program);
+  registerRebuildCommand(program);
+  registerLocalUpgradeCommand(program);
   await program.parseAsync(process.argv);
 
   await appContext.close();
