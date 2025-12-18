@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { validateProjectRoot } from 'src/helper';
 
 function exec(cmd: string, cwd?: string) {
   execSync(cmd, { cwd, stdio: 'inherit' });
@@ -66,6 +67,7 @@ export function registerLocalUpgradeCommand(program: Command) {
     .option('--code-builder', 'Upgrade solid-code-builder')
     .option('--skip-seed', 'Skip rebuild & seed')
     .action((options) => {
+      validateProjectRoot();
       ensureEnv([
         'SOLID_CORE_MODULE_PATH',
         'SOLID_UI_PATH',
@@ -111,7 +113,9 @@ export function registerLocalUpgradeCommand(program: Command) {
 
       if (doCore && !options.skipSeed) {
         console.log('\n▶ Rebuilding & seeding solid-api');
-        exec('./rebuild.sh', './solid-api');
+        // Use the solidctl rebuild-api command to build the project
+        exec('npx @solidstarters/solidctl rebuild-api');
+        // exec('./rebuild.sh', './solid-api');
         exec('solid seed', './solid-api');
         console.log('✅ Solid seed completed.');
       }

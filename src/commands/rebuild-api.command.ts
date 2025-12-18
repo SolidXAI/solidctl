@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { execSync, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { validateProjectRoot } from 'src/helper';
 
 function exec(cmd: string, cwd?: string) {
   execSync(cmd, {
@@ -20,21 +21,26 @@ function chmodIfExists(file: string) {
 
 export function registerRebuildCommand(program: Command) {
   program
-    .command('rebuild')
+    .command('rebuild-api')
     .description('Rebuild Solid API and ensure solid CLI is available')
     .action(() => {
+      validateProjectRoot();
       const projectRoot = process.cwd();
 
       console.log('▶ Building project');
-      exec('npm run build');
+      exec('npm run build', `${projectRoot}/solid-api`);
 
       console.log('▶ Ensuring CLI files are executable');
-      chmodIfExists(path.join(projectRoot, 'dist/main-cli.js'));
-      chmodIfExists(path.join(projectRoot, 'bin/solid'));
+      const mainCli = path.join(projectRoot, 'solid-api', 'dist', 'main-cli.js');
+      const binSolid = path.join(projectRoot, 'solid-api', 'bin', 'solid');
+
+      // console.log(`-- ${mainCli}`);
+      // console.log(`-- ${binSolid}`);
+      chmodIfExists(mainCli);
+      chmodIfExists(binSolid);
 
       console.log('▶ Adding local bin to PATH');
-      process.env.PATH = `${path.join(projectRoot, 'bin')}${path.delimiter}${process.env.PATH}`;
-
+      process.env.PATH = `${path.join(projectRoot, 'solid-api', 'bin')}${path.delimiter}${process.env.PATH}`;
       console.log('▶ Verifying solid CLI availability');
       const result = spawnSync('solid', ['--help'], {
         stdio: 'ignore',

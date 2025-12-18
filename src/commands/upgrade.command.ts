@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { execSync } from 'child_process';
+import { validateProjectRoot } from 'src/helper';
 
 export function registerUpgradeCommand(program: Command) {
   program
@@ -7,6 +8,7 @@ export function registerUpgradeCommand(program: Command) {
     .description('Upgrade Solid API and UI dependencies')
     .option('--dry-run', 'Show commands without executing')
     .action((options) => {
+      validateProjectRoot();
       const commands = [
         {
           label: 'Upgrade solid-api core',
