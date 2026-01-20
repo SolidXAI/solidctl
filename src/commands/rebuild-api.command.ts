@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { execSync, spawnSync } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { validateProjectRoot } from 'src/helper';
 
@@ -12,6 +13,8 @@ function exec(cmd: string, cwd?: string) {
   });
 }
 
+const SOLID_BIN_CONTENT = "#!/usr/bin/env node\nrequire('../dist/main-cli');\n";
+
 function chmodIfExists(file: string) {
   if (!fs.existsSync(file)) {
     throw new Error(`Required file not found: ${file}`);
@@ -19,6 +22,117 @@ function chmodIfExists(file: string) {
   fs.chmodSync(file, 0o755);
 }
 
+function ensureSolidBin(binSolid: string) {
+  if (!fs.existsSync(binSolid)) {
+    fs.mkdirSync(path.dirname(binSolid), { recursive: true });
+    fs.writeFileSync(binSolid, SOLID_BIN_CONTENT, { encoding: 'utf8', mode: 0o755 });
+  }
+  fs.chmodSync(binSolid, 0o755);
+}
+
+function ensureSolidShim(binSolid: string) {
+  const homeDir = os.homedir();
+  const solidctlDir = path.join(homeDir, '.solidctl');
+  const solidctlBinDir = path.join(solidctlDir, 'bin');
+  fs.mkdirSync(solidctlBinDir, { recursive: true });
+
+  const pointerFile = path.join(solidctlDir, 'solid-current');
+  fs.writeFileSync(pointerFile, `${binSolid}\n`, 'utf8');
+
+  const shimJs = path.join(solidctlBinDir, 'solid-shim.js');
+  const shimJsContent = [
+    "const fs = require('fs');",
+    "const os = require('os');",
+    "const path = require('path');",
+    "const { spawnSync } = require('child_process');",
+    '',
+    "const pointerPath = path.join(os.homedir(), '.solidctl', 'solid-current');",
+    "if (!fs.existsSync(pointerPath)) {",
+    "  console.error('solidctl: solid target not set. Run `solidctl rebuild-api` in a project.');",
+    '  process.exit(1);',
+    '}',
+    "const target = fs.readFileSync(pointerPath, 'utf8').trim();",
+    'if (!target) {',
+    "  console.error('solidctl: solid target is empty. Run `solidctl rebuild-api` again.');",
+    '  process.exit(1);',
+    '}',
+    'const result = spawnSync(process.execPath, [target, ...process.argv.slice(2)], {',
+    "  stdio: 'inherit',",
+    '});',
+    'if (result.error) {',
+    "  console.error(`solidctl: failed to launch solid: ${result.error.message}`);",
+    '  process.exit(1);',
+    '}',
+    'process.exit(typeof result.status === \'number\' ? result.status : 1);',
+    '',
+  ].join('\n');
+  fs.writeFileSync(shimJs, shimJsContent, 'utf8');
+
+  const shimPosix = path.join(solidctlBinDir, 'solid');
+  const shimPosixContent = "#!/usr/bin/env node\nrequire('./solid-shim.js');\n";
+  fs.writeFileSync(shimPosix, shimPosixContent, { encoding: 'utf8', mode: 0o755 });
+  fs.chmodSync(shimPosix, 0o755);
+
+  const shimCmd = path.join(solidctlBinDir, 'solid.cmd');
+  const shimCmdContent = '@echo off\r\nnode "%~dp0solid-shim.js" %*\r\n';
+  fs.writeFileSync(shimCmd, shimCmdContent, 'utf8');
+
+  return { solidctlBinDir, shimPosix, shimCmd };
+}
+
+function isWritableDir(dir: string) {
+  try {
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+      return false;
+    }
+    fs.accessSync(dir, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ensureGlobalSolid(shimPosix: string, shimCmd: string, shimDir: string) {
+
+  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  // console.log('▶ Examining path');
+  // console.log(JSON.stringify(pathEntries, null, 4));
+
+  if (pathEntries.includes(shimDir)) {
+    return { linked: true, location: shimDir, viaPath: true };
+  }
+
+  for (const dir of pathEntries) {
+    if (!isWritableDir(dir)) {
+      continue;
+    }
+
+    const dest = path.join(dir, process.platform === 'win32' ? 'solid.cmd' : 'solid');
+    try {
+      fs.rmSync(dest, { force: true });
+      if (process.platform === 'win32') {
+        console.log(`▶ [WIN32] Copying file ${shimPosix} -> ${dest}`);
+        fs.copyFileSync(shimCmd, dest);
+      } else {
+        console.log(`▶ [POSIX] Creating symlink ${dest} -> ${shimPosix}`);
+        fs.symlinkSync(shimPosix, dest);
+      }
+      return { linked: true, location: dir, viaPath: false };
+    } catch {
+      continue;
+    }
+  }
+
+  return { linked: false, location: shimDir, viaPath: false };
+}
+
+/**
+ * 1. Create symlink or copy to one of the below executables from the 1st writable PATH directory
+ * 2. ~/.solidctl/bin/solid or ~/.solidctl/bin/solid.cmd 
+ * 3. Both of these simply execute ~/.solidctl/bin/solid-shim.js 
+ * 4. ~/.solidctl/bin/solid-shim.js uses ~/.solidctl/solid-current to point to the respective solid file in <consuming-project-root>/solid-api/bin/solid
+ * @param program 
+ */
 export function registerRebuildCommand(program: Command) {
   program
     .command('rebuild-api')
@@ -37,10 +151,19 @@ export function registerRebuildCommand(program: Command) {
       // console.log(`-- ${mainCli}`);
       // console.log(`-- ${binSolid}`);
       chmodIfExists(mainCli);
-      chmodIfExists(binSolid);
+      ensureSolidBin(binSolid);
+
+      console.log('▶ Updating solid CLI shim');
+      const { solidctlBinDir, shimPosix, shimCmd } = ensureSolidShim(binSolid);
+
+      console.log('▶ Linking solid CLI for global use');
+      const linkResult = ensureGlobalSolid(shimPosix, shimCmd, solidctlBinDir);
+      if (!linkResult.linked) {
+        console.warn(`⚠️  Add ${solidctlBinDir} to PATH to use "solid" globally.`);
+      }
 
       console.log('▶ Adding local bin to PATH');
-      process.env.PATH = `${path.join(projectRoot, 'solid-api', 'bin')}${path.delimiter}${process.env.PATH}`;
+      process.env.PATH = `${solidctlBinDir}${path.delimiter}${process.env.PATH || ''}`;
       console.log('▶ Verifying solid CLI availability');
       const result = spawnSync('solid', ['--help'], {
         stdio: 'ignore',
