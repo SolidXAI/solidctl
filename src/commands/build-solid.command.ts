@@ -99,10 +99,10 @@ function ensureGlobalSolid(shimPosix: string, shimCmd: string, shimDir: string) 
  * 4. ~/.solidctl/bin/solid-shim.js uses ~/.solidctl/solid-current to point directly to <consuming-project-root>/solid-api/dist/main-cli.js
  * @param program
  */
-export function registerRebuildCommand(program: Command) {
+export function registerBuildCommand(program: Command) {
   program
-    .command('rebuild-api')
-    .description('Rebuild Solid API and ensure solid CLI is available')
+    .command('build-solid')
+    .description('Build Solid API and set up Solid CLI')
     .action(() => {
       validateProjectRoot();
       const projectRoot = process.cwd();

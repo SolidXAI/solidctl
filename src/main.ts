@@ -3,7 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { Command } from 'commander';
 import { AppModule } from './app.module';
 import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
-import { registerRebuildCommand } from './commands/rebuild-api.command';
+import { registerBuildCommand } from './commands/build-solid.command';
 import { registerUpgradeCommand } from './commands/upgrade.command';
 
 async function bootstrap() {
@@ -28,7 +28,7 @@ async function bootstrap() {
     });
 
   registerUpgradeCommand(program);
-  registerRebuildCommand(program);
+  registerBuildCommand(program);
   registerLocalUpgradeCommand(program);
   await program.parseAsync(process.argv);
 
