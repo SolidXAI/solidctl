@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
 import { registerBuildCommand } from './commands/build-solid.command';
 import { registerUpgradeCommand } from './commands/upgrade.command';
+import { registerSeedCommand } from './commands/seed.command';
 
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(
@@ -22,6 +23,7 @@ async function bootstrap() {
   registerUpgradeCommand(program);
   registerBuildCommand(program);
   registerLocalUpgradeCommand(program);
+  registerSeedCommand(program);
   await program.parseAsync(process.argv);
 
   await appContext.close();
