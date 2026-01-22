@@ -61,8 +61,18 @@ function packAndInstall(packagePath: string, installPath: string) {
 export function registerLocalUpgradeCommand(program: Command) {
   program
     .command('local-upgrade')
-    .description('Upgrade Solid dependencies from local packages')
-    .option('--core', 'Upgrade solid-core')
+    .description(
+      'Upgrade Solid using locally checked-out Solid core repositories'
+    )
+    .addHelpText(
+      'after',
+      `
+Required environment variables:
+  SOLID_CORE_MODULE_PATH     Path to Solid core repository
+  SOLID_UI_PATH              Path to Solid UI repository
+  SOLID_CODE_BUILDER_PATH    Path to Solid code builder repository
+`
+    ).option('--core', 'Upgrade solid-core')
     .option('--ui', 'Upgrade solid-ui')
     .option('--code-builder', 'Upgrade solid-code-builder')
     .action((options) => {
