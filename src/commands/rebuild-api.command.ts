@@ -13,8 +13,6 @@ function exec(cmd: string, cwd?: string) {
   });
 }
 
-const SOLID_BIN_CONTENT = "#!/usr/bin/env node\nrequire('../dist/main-cli');\n";
-
 function chmodIfExists(file: string) {
   if (!fs.existsSync(file)) {
     throw new Error(`Required file not found: ${file}`);
@@ -22,22 +20,14 @@ function chmodIfExists(file: string) {
   fs.chmodSync(file, 0o755);
 }
 
-function ensureSolidBin(binSolid: string) {
-  if (!fs.existsSync(binSolid)) {
-    fs.mkdirSync(path.dirname(binSolid), { recursive: true });
-    fs.writeFileSync(binSolid, SOLID_BIN_CONTENT, { encoding: 'utf8', mode: 0o755 });
-  }
-  fs.chmodSync(binSolid, 0o755);
-}
-
-function ensureSolidShim(binSolid: string) {
+function ensureSolidShim(mainCliPath: string) {
   const homeDir = os.homedir();
   const solidctlDir = path.join(homeDir, '.solidctl');
   const solidctlBinDir = path.join(solidctlDir, 'bin');
   fs.mkdirSync(solidctlBinDir, { recursive: true });
 
   const pointerFile = path.join(solidctlDir, 'solid-current');
-  fs.writeFileSync(pointerFile, `${binSolid}\n`, 'utf8');
+  fs.writeFileSync(pointerFile, `${mainCliPath}\n`, 'utf8');
 
   const shimJs = path.join(solidctlBinDir, 'solid-shim.js');
   const shimJsContent = [
@@ -128,10 +118,10 @@ function ensureGlobalSolid(shimPosix: string, shimCmd: string, shimDir: string) 
 
 /**
  * 1. Create symlink or copy to one of the below executables from the 1st writable PATH directory
- * 2. ~/.solidctl/bin/solid or ~/.solidctl/bin/solid.cmd 
- * 3. Both of these simply execute ~/.solidctl/bin/solid-shim.js 
- * 4. ~/.solidctl/bin/solid-shim.js uses ~/.solidctl/solid-current to point to the respective solid file in <consuming-project-root>/solid-api/bin/solid
- * @param program 
+ * 2. ~/.solidctl/bin/solid or ~/.solidctl/bin/solid.cmd
+ * 3. Both of these simply execute ~/.solidctl/bin/solid-shim.js
+ * 4. ~/.solidctl/bin/solid-shim.js uses ~/.solidctl/solid-current to point directly to <consuming-project-root>/solid-api/dist/main-cli.js
+ * @param program
  */
 export function registerRebuildCommand(program: Command) {
   program
@@ -146,15 +136,10 @@ export function registerRebuildCommand(program: Command) {
 
       console.log('▶ Ensuring CLI files are executable');
       const mainCli = path.join(projectRoot, 'solid-api', 'dist', 'main-cli.js');
-      const binSolid = path.join(projectRoot, 'solid-api', 'bin', 'solid');
-
-      // console.log(`-- ${mainCli}`);
-      // console.log(`-- ${binSolid}`);
       chmodIfExists(mainCli);
-      ensureSolidBin(binSolid);
 
       console.log('▶ Updating solid CLI shim');
-      const { solidctlBinDir, shimPosix, shimCmd } = ensureSolidShim(binSolid);
+      const { solidctlBinDir, shimPosix, shimCmd } = ensureSolidShim(mainCli);
 
       console.log('▶ Linking solid CLI for global use');
       const linkResult = ensureGlobalSolid(shimPosix, shimCmd, solidctlBinDir);
