@@ -19,14 +19,6 @@ async function bootstrap() {
     .description('Solidctl tool')
     .version('0.1.0');
 
-  program
-    .command('hello')
-    .description('Say hello')
-    .option('-n, --name <name>', 'Name', 'World')
-    .action((options) => {
-      console.log(`Hello ${options.name}!`);
-    });
-
   registerUpgradeCommand(program);
   registerBuildCommand(program);
   registerLocalUpgradeCommand(program);

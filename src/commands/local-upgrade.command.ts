@@ -62,7 +62,7 @@ export function registerLocalUpgradeCommand(program: Command) {
   program
     .command('local-upgrade')
     .description('Upgrade Solid dependencies from local packages')
-    .option('--core', 'Upgrade solid-core-module')
+    .option('--core', 'Upgrade solid-core')
     .option('--ui', 'Upgrade solid-ui')
     .option('--code-builder', 'Upgrade solid-code-builder')
     .action((options) => {
