@@ -9,10 +9,11 @@ export function registerSeedCommand(program: Command) {
     .action(() => {
       validateProjectRoot();
       const projectRoot = process.cwd();
+      const solidApiDir = `${projectRoot}/solid-api`;
 
       console.log('▶ Running solid seed');
       const result = spawnSync('solid', ['seed'], {
-        cwd: projectRoot,
+        cwd: solidApiDir,
         stdio: 'inherit',
         env: process.env,
       });
