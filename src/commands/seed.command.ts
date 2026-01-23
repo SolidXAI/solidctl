@@ -5,6 +5,7 @@ import { validateProjectRoot } from 'src/helper';
 interface SeedOptions {
   conf?: string;
   seeder: string;
+  verbose?: boolean;
 }
 
 export function registerSeedCommand(program: Command) {
@@ -13,6 +14,7 @@ export function registerSeedCommand(program: Command) {
     .description('Bootstrap SolidX metadata, settings, and the system user')
     .option('-c, --conf [configuration json]', 'A configuration json, pass a valid json string.')
     .option('-s, --seeder [seeder name]', 'The seeder to run.', 'ModuleMetadataSeederService')
+    .option('-v, --verbose', 'Enable verbose logging')
     .action((options: SeedOptions) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
@@ -24,6 +26,9 @@ export function registerSeedCommand(program: Command) {
       }
       if (options.conf) {
         args.push('-c', options.conf);
+      }
+      if (options.verbose) {
+        args.push('-v');
       }
 
       console.log('▶ Running solid seed');
