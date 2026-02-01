@@ -2,10 +2,10 @@ import { Command } from 'commander';
 import { spawnSync } from 'child_process';
 import { validateProjectRoot } from 'src/helper';
 
-export function registerSeedCommand(program: Command) {
+export function registerTestDataCommand(program: Command) {
   program
-    .command('seed')
-    .description('Bootstrap SolidX metadata, settings, and the system user')
+    .command('test-data')
+    .description('Proxy to solid test-data')
     .helpOption(false)
     .allowUnknownOption(true)
     .allowExcessArguments(true)
@@ -15,11 +15,11 @@ export function registerSeedCommand(program: Command) {
       const solidApiDir = `${projectRoot}/solid-api`;
 
       const rawArgs = command.parent ? command.parent.rawArgs : process.argv;
-      const seedIndex = rawArgs.lastIndexOf('seed');
-      const passthroughArgs = seedIndex >= 0 ? rawArgs.slice(seedIndex + 1) : [];
-      const args = ['seed', ...passthroughArgs];
+      const cmdIndex = rawArgs.lastIndexOf('test-data');
+      const passthroughArgs = cmdIndex >= 0 ? rawArgs.slice(cmdIndex + 1) : [];
+      const args = ['test-data', ...passthroughArgs];
 
-      console.log('▶ Running solid seed');
+      console.log('▶ Running solid test-data');
       const result = spawnSync('solid', args, {
         cwd: solidApiDir,
         stdio: 'inherit',
@@ -27,15 +27,15 @@ export function registerSeedCommand(program: Command) {
       });
 
       if (result.error) {
-        console.error('❌ Failed to run solid seed:', result.error.message);
+        console.error('❌ Failed to run solid test-data:', result.error.message);
         process.exit(1);
       }
 
       if (result.status !== 0) {
-        console.error('❌ solid seed exited with code', result.status);
+        console.error('❌ solid test-data exited with code', result.status);
         process.exit(result.status ?? 1);
       }
 
-      console.log('✔ solid seed completed');
+      console.log('✔ solid test-data completed');
     });
 }

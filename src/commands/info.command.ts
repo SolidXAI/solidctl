@@ -2,24 +2,22 @@ import { Command } from 'commander';
 import { spawnSync } from 'child_process';
 import { validateProjectRoot } from 'src/helper';
 
-interface InfoOptions {
-  detailed?: boolean;
-}
-
 export function registerInfoCommand(program: Command) {
   program
     .command('info')
     .description('Prints information about the consuming project')
-    .option('-d, --detailed', 'Print more details about the consuming project')
-    .action((options: InfoOptions) => {
+    .helpOption(false)
+    .allowUnknownOption(true)
+    .allowExcessArguments(true)
+    .action((_options, command) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
       const solidApiDir = `${projectRoot}/solid-api`;
 
-      const args = ['info'];
-      if (options.detailed) {
-        args.push('-d');
-      }
+      const rawArgs = command.parent ? command.parent.rawArgs : process.argv;
+      const infoIndex = rawArgs.lastIndexOf('info');
+      const passthroughArgs = infoIndex >= 0 ? rawArgs.slice(infoIndex + 1) : [];
+      const args = ['info', ...passthroughArgs];
 
       console.log('▶ Running solid info');
       const result = spawnSync('solid', args, {
