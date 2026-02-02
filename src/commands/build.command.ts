@@ -101,7 +101,7 @@ function ensureGlobalSolid(shimPosix: string, shimCmd: string, shimDir: string) 
  */
 export function registerBuildCommand(program: Command) {
   program
-    .command('build-solid')
+    .command('build')
     .description('Build Solid API and set up Solid CLI')
     .action(() => {
       validateProjectRoot();

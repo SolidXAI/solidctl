@@ -3,7 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { Command } from 'commander';
 import { AppModule } from './app.module';
 import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
-import { registerBuildCommand } from './commands/build-solid.command';
+import { registerBuildCommand } from './commands/build.command';
 import { registerUpgradeCommand } from './commands/upgrade.command';
 import { registerSeedCommand } from './commands/seed.command';
 import { registerInfoCommand } from './commands/info.command';

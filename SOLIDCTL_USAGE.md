@@ -11,23 +11,23 @@ This document lists the exact commands exposed by `solidctl` and practical usage
 
 ## Commands
 
-### 1) build-solid
+### 1) build
 
 Builds the Solid API, sets up a `solid` shim in `~/.solidctl/bin`, and makes the `solid` CLI available locally (and globally if a writable PATH dir is found).
 
 Usage:
 
 ```bash
-npx @solidstarters/solidctl build-solid
+npx @solidstarters/solidctl build
 ```
 
 Example workflow:
 
 ```bash
 # from your SolidX project root
-solidctl build-solid
+solidctl build
 
-# verify the shim works (build-solid already does this internally)
+# verify the shim works (build already does this internally)
 solid --help
 ```
 
