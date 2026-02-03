@@ -17,7 +17,7 @@ function chmodIfExists(file: string) {
   if (!fs.existsSync(file)) {
     throw new Error(`Required file not found: ${file}`);
   }
-  fs.chmodSync(file, 0o755);
+    fs.chmodSync(file, 0o755);
 }
 
 function ensureSolidShim(mainCliPath: string) {
@@ -34,16 +34,30 @@ function ensureSolidShim(mainCliPath: string) {
   const shimJsContent = fs.readFileSync(shimJsSource, 'utf8');
   fs.writeFileSync(shimJs, shimJsContent, 'utf8');
 
-  const shimPosix = path.join(solidctlBinDir, 'solid');
-  const shimPosixContent = "#!/usr/bin/env node\nrequire('./solid-shim.js');\n";
-  fs.writeFileSync(shimPosix, shimPosixContent, { encoding: 'utf8', mode: 0o755 });
-  fs.chmodSync(shimPosix, 0o755);
+  if (process.platform === 'win32') {
+    // Windows: Create .cmd and .ps1 files
+    const shimCmd = path.join(solidctlBinDir, 'solid.cmd');
+    const shimCmdContent = '@echo off\r\nnode "%~dp0solid-shim.js" %*\r\n';
+    fs.writeFileSync(shimCmd, shimCmdContent, 'utf8');
 
-  const shimCmd = path.join(solidctlBinDir, 'solid.cmd');
-  const shimCmdContent = '@echo off\r\nnode "%~dp0solid-shim.js" %*\r\n';
-  fs.writeFileSync(shimCmd, shimCmdContent, 'utf8');
+    const shimPs1 = path.join(solidctlBinDir, 'solid.ps1');
+    const shimPs1Content = `#!/usr/bin/env pwsh
+$shimPath = Join-Path $PSScriptRoot "solid-shim.js"
+& node $shimPath @args
+exit $LASTEXITCODE
+`;
+    fs.writeFileSync(shimPs1, shimPs1Content, 'utf8');
 
-  return { solidctlBinDir, shimPosix, shimCmd };
+    return { solidctlBinDir, shimCmd, shimPs1 };
+  } else {
+    // POSIX: Create executable shell script
+    const shimPosix = path.join(solidctlBinDir, 'solid');
+    const shimPosixContent = "#!/usr/bin/env node\nrequire('./solid-shim.js');\n";
+    fs.writeFileSync(shimPosix, shimPosixContent, 'utf8');
+    fs.chmodSync(shimPosix, 0o755);
+
+    return { solidctlBinDir, shimPosix };
+  }
 }
 
 function isWritableDir(dir: string) {
@@ -58,10 +72,9 @@ function isWritableDir(dir: string) {
   }
 }
 
-function ensureGlobalSolid(shimPosix: string, shimCmd: string, shimDir: string) {
-
+function ensureGlobalSolid(shimFiles: any, shimDir: string) {
   const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  // console.log('▶ Examining path');
+    // console.log('▶ Examining path');
   // console.log(JSON.stringify(pathEntries, null, 4));
 
   if (pathEntries.includes(shimDir)) {
@@ -73,17 +86,32 @@ function ensureGlobalSolid(shimPosix: string, shimCmd: string, shimDir: string) 
       continue;
     }
 
-    const dest = path.join(dir, process.platform === 'win32' ? 'solid.cmd' : 'solid');
     try {
-      fs.rmSync(dest, { force: true });
       if (process.platform === 'win32') {
-        console.log(`▶ [WIN32] Copying file ${shimPosix} -> ${dest}`);
-        fs.copyFileSync(shimCmd, dest);
+        // Windows: Copy both .cmd and .ps1 files
+        const destCmd = path.join(dir, 'solid.cmd');
+        const destPs1 = path.join(dir, 'solid.ps1');
+
+        fs.rmSync(destCmd, { force: true });
+        fs.rmSync(destPs1, { force: true });
+
+        console.log(`▶ [WIN32] Copying ${shimFiles.shimCmd} -> ${destCmd}`);
+        fs.copyFileSync(shimFiles.shimCmd, destCmd);
+
+        console.log(`▶ [WIN32] Copying ${shimFiles.shimPs1} -> ${destPs1}`);
+        fs.copyFileSync(shimFiles.shimPs1, destPs1);
+
+        return { linked: true, location: dir, viaPath: false };
       } else {
-        console.log(`▶ [POSIX] Creating symlink ${dest} -> ${shimPosix}`);
-        fs.symlinkSync(shimPosix, dest);
+        // POSIX: Create symlink
+        const dest = path.join(dir, 'solid');
+        fs.rmSync(dest, { force: true });
+
+        console.log(`▶ [POSIX] Creating symlink ${dest} -> ${shimFiles.shimPosix}`);
+        fs.symlinkSync(shimFiles.shimPosix, dest);
+
+        return { linked: true, location: dir, viaPath: false };
       }
-      return { linked: true, location: dir, viaPath: false };
     } catch {
       continue;
     }
@@ -94,8 +122,9 @@ function ensureGlobalSolid(shimPosix: string, shimCmd: string, shimDir: string) 
 
 /**
  * 1. Create symlink or copy to one of the below executables from the 1st writable PATH directory
- * 2. ~/.solidctl/bin/solid or ~/.solidctl/bin/solid.cmd
- * 3. Both of these simply execute ~/.solidctl/bin/solid-shim.js
+ * 2. Windows: ~/.solidctl/bin/solid.cmd and ~/.solidctl/bin/solid.ps1
+ *    POSIX: ~/.solidctl/bin/solid
+ * 3. All of these execute ~/.solidctl/bin/solid-shim.js
  * 4. ~/.solidctl/bin/solid-shim.js uses ~/.solidctl/solid-current to point directly to <consuming-project-root>/solid-api/dist/main-cli.js
  * @param program
  */
@@ -115,20 +144,22 @@ export function registerBuildCommand(program: Command) {
       chmodIfExists(mainCli);
 
       console.log('▶ Updating solid CLI shim');
-      const { solidctlBinDir, shimPosix, shimCmd } = ensureSolidShim(mainCli);
+      const shimFiles = ensureSolidShim(mainCli);
 
       console.log('▶ Linking solid CLI for global use');
-      const linkResult = ensureGlobalSolid(shimPosix, shimCmd, solidctlBinDir);
+      const linkResult = ensureGlobalSolid(shimFiles, shimFiles.solidctlBinDir);
       if (!linkResult.linked) {
-        console.warn(`⚠️  Add ${solidctlBinDir} to PATH to use "solid" globally.`);
+        console.warn(`⚠️  Add ${shimFiles.solidctlBinDir} to PATH to use "solid" globally.`);
       }
 
       console.log('▶ Adding local bin to PATH');
-      process.env.PATH = `${solidctlBinDir}${path.delimiter}${process.env.PATH || ''}`;
+      process.env.PATH = `${shimFiles.solidctlBinDir}${path.delimiter}${process.env.PATH || ''}`;
       console.log('▶ Verifying solid CLI availability');
-      const result = spawnSync('solid', ['--help'], {
+      const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
+      const result = spawnSync(solidCommand, ['--help'], {
         stdio: 'ignore',
         env: process.env,
+        shell: process.platform === 'win32' ? true : false, 
       });
 
       if (result.error) {

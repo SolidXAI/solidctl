@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { execSync } from 'child_process';
+import { execSync,ExecSyncOptions } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { validateProjectRoot } from 'src/helper';
@@ -29,10 +29,11 @@ function packAndInstall(packagePath: string, installPath: string) {
 
   console.log(`\n▶ Packing ${absPackagePath}`);
 
-  // 1) clean tgz
-  fs.readdirSync(absPackagePath)
-    .filter(f => f.endsWith('.tgz'))
-    .forEach(f => fs.unlinkSync(path.join(absPackagePath, f)));
+  // 1) clean tgz files
+  const tgzFiles = fs.readdirSync(absPackagePath).filter(f => f.endsWith('.tgz'));
+  tgzFiles.forEach(f => {
+    fs.rmSync(path.join(absPackagePath, f), { force: true });
+  });
 
   // 2) npm pack
   exec('npm pack', absPackagePath);
