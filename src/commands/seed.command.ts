@@ -20,11 +20,13 @@ export function registerSeedCommand(program: Command) {
       const args = ['seed', ...passthroughArgs];
 
       console.log('▶ Running solid seed');
-      const result = spawnSync('solid', args, {
+      const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
+      const result = spawnSync(solidCommand, args, {
         cwd: solidApiDir,
         stdio: 'inherit',
         env: process.env,
-      });
+        shell: process.platform === 'win32' ? true : false, 
+        });
 
       if (result.error) {
         console.error('❌ Failed to run solid seed:', result.error.message);

@@ -20,10 +20,12 @@ export function registerInfoCommand(program: Command) {
       const args = ['info', ...passthroughArgs];
 
       console.log('▶ Running solid info');
-      const result = spawnSync('solid', args, {
+      const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
+      const result = spawnSync(solidCommand, args, {
         cwd: solidApiDir,
         stdio: 'inherit',
         env: process.env,
+        shell: process.platform === 'win32' ? true : false, 
       });
 
       if (result.error) {
