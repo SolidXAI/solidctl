@@ -37,8 +37,8 @@ export function registerSeedCommand(program: Command) {
         cwd: solidApiDir,
         stdio: 'inherit',
         env: process.env,
-        shell: true,
-      });
+        shell: process.platform === 'win32' ? true : false, 
+        });
 
       if (result.error) {
         console.error('❌ Failed to run solid seed:', result.error.message);

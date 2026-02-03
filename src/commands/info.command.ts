@@ -27,7 +27,7 @@ export function registerInfoCommand(program: Command) {
         cwd: solidApiDir,
         stdio: 'inherit',
         env: process.env,
-        shell: process.platform === 'win32',
+        shell: process.platform === 'win32' ? true : false, 
       });
 
       if (result.error) {
