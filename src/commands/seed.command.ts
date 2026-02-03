@@ -2,34 +2,22 @@ import { Command } from 'commander';
 import { spawnSync } from 'child_process';
 import { validateProjectRoot } from 'src/helper';
 
-interface SeedOptions {
-  conf?: string;
-  seeder: string;
-  verbose?: boolean;
-}
-
 export function registerSeedCommand(program: Command) {
   program
     .command('seed')
     .description('Bootstrap SolidX metadata, settings, and the system user')
-    .option('-c, --conf [configuration json]', 'A configuration json, pass a valid json string.')
-    .option('-s, --seeder [seeder name]', 'The seeder to run.', 'ModuleMetadataSeederService')
-    .option('-v, --verbose', 'Enable verbose logging')
-    .action((options: SeedOptions) => {
+    .helpOption(false)
+    .allowUnknownOption(true)
+    .allowExcessArguments(true)
+    .action((_options, command) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
       const solidApiDir = `${projectRoot}/solid-api`;
 
-      const args = ['seed'];
-      if (options.seeder) {
-        args.push('-s', options.seeder);
-      }
-      if (options.conf) {
-        args.push('-c', options.conf);
-      }
-      if (options.verbose) {
-        args.push('-v');
-      }
+      const rawArgs = command.parent ? command.parent.rawArgs : process.argv;
+      const seedIndex = rawArgs.lastIndexOf('seed');
+      const passthroughArgs = seedIndex >= 0 ? rawArgs.slice(seedIndex + 1) : [];
+      const args = ['seed', ...passthroughArgs];
 
       console.log('▶ Running solid seed');
       const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
