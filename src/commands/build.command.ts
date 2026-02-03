@@ -37,12 +37,12 @@ function ensureSolidShim(mainCliPath: string) {
   if (process.platform === 'win32') {
     // Windows: Create .cmd and .ps1 files
     const shimCmd = path.join(solidctlBinDir, 'solid.cmd');
-    const shimCmdContent = '@echo off\r\nnode "%~dp0solid-shim.js" %*\r\n';
+    const shimCmdContent = `@echo off\r\nnode "${shimJs}" %*\r\n`;
     fs.writeFileSync(shimCmd, shimCmdContent, 'utf8');
 
     const shimPs1 = path.join(solidctlBinDir, 'solid.ps1');
     const shimPs1Content = `#!/usr/bin/env pwsh
-$shimPath = Join-Path $PSScriptRoot "solid-shim.js"
+$shimPath = "${shimJs}"  
 & node $shimPath @args
 exit $LASTEXITCODE
 `;
