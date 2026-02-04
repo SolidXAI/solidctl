@@ -75,6 +75,7 @@ Required environment variables:
     ).option('--core', 'Upgrade solid-core')
     .option('--ui', 'Upgrade solid-ui')
     .option('--code-builder', 'Upgrade solid-code-builder')
+    .option('--new-ui', 'Upgrade new-solid-ui')
     .action((options) => {
       validateProjectRoot();
       ensureEnv([
@@ -85,6 +86,7 @@ Required environment variables:
 
       const buildCore = options.core;
       const buildUi = options.ui;
+      const buildNewUi = options.newUi;
       const buildCodeBuilder = options.codeBuilder;
 
       const nothingSelected =
@@ -107,6 +109,14 @@ Required environment variables:
         packAndInstall(
           process.env.SOLID_UI_PATH!,
           './solid-ui'
+        );
+      }
+
+      if (buildNewUi) {
+        console.log('\n=== solid-ui → new-solid-ui ===');
+        packAndInstall(
+          process.env.SOLID_UI_PATH!,
+          './new-solid-ui'
         );
       }
 
