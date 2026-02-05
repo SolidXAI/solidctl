@@ -56,7 +56,7 @@ solidctl upgrade --dry-run
 What it runs (in order):
 
 - `npm upgrade @solidxai/core` in `solid-api`
-- `npm upgrade @solidxai/solid-code-builder` in `solid-api`
+- `npm upgrade @solidxai/code-builder` in `solid-api`
 - `npm upgrade @solidxai/core-ui` in `solid-ui`
 - `npm run postinstall` in `solid-ui`
 

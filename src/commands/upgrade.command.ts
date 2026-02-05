@@ -17,7 +17,7 @@ export function registerUpgradeCommand(program: Command) {
         },
         {
           label: 'Upgrade solid-api code-builder',
-          cmd: 'npm upgrade @solidxai/solid-code-builder',
+          cmd: 'npm upgrade @solidxai/code-builder',
           cwd: 'solid-api',
         },
         {
