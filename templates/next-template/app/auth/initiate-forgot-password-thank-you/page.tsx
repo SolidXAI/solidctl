@@ -1,6 +1,6 @@
 "use client"
 
-import { ForgotPasswordThankYou } from "@solidstarters/solid-core-ui";
+import { ForgotPasswordThankYou } from "@solidx/solid-core-ui";
 
 const InitiateForgotPasswordThankYou = () => {
     return (

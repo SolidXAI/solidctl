@@ -1,5 +1,5 @@
 
-import { SolidResetPassword } from "@solidstarters/solid-core-ui";
+import { SolidResetPassword } from "@solidx/solid-core-ui";
 import React from "react";
 
 const ResetPasswordPage = () => {

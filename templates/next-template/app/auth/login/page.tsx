@@ -1,5 +1,5 @@
 "use client"
-import {SolidLogin} from "@solidstarters/solid-core-ui";
+import {SolidLogin} from "@solidx/solid-core-ui";
 
 const LoginPage = () => {
   return (

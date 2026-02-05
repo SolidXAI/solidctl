@@ -1,5 +1,5 @@
 "use client"
-import { SolidListView } from "@solidstarters/solid-core-ui";
+import { SolidListView } from "@solidx/solid-core-ui";
 import { camelCase } from "change-case";
 
 type SolidViewParams = {

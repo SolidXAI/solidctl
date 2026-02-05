@@ -1,6 +1,6 @@
 # solidctl CLI usage (SolidX developer workflow)
 
-Package: @solidstarters/solidctl
+Package: @solidx/solidctl
 
 This document lists the exact commands exposed by `solidctl` and practical usage examples for SolidX developers.
 
@@ -18,7 +18,7 @@ Builds the Solid API, sets up a `solid` shim in `~/.solidctl/bin`, and makes the
 Usage:
 
 ```bash
-npx @solidstarters/solidctl build
+npx @solidx/solidctl build
 ```
 
 Example workflow:
@@ -40,7 +40,7 @@ Upgrades Solid dependencies used by both `solid-api` and `solid-ui`.
 Usage:
 
 ```bash
-npx @solidstarters/solidctl upgrade [--dry-run]
+npx @solidx/solidctl upgrade [--dry-run]
 ```
 
 Examples:
@@ -55,9 +55,9 @@ solidctl upgrade --dry-run
 
 What it runs (in order):
 
-- `npm upgrade @solidstarters/solid-core` in `solid-api`
-- `npm upgrade @solidstarters/solid-code-builder` in `solid-api`
-- `npm upgrade @solidstarters/solid-core-ui` in `solid-ui`
+- `npm upgrade @solidx/solid-core` in `solid-api`
+- `npm upgrade @solidx/solid-code-builder` in `solid-api`
+- `npm upgrade @solidx/solid-core-ui` in `solid-ui`
 - `npm run postinstall` in `solid-ui`
 
 ---
@@ -75,7 +75,7 @@ Required environment variables:
 Usage:
 
 ```bash
-npx @solidstarters/solidctl local-upgrade [--core] [--ui] [--code-builder]
+npx @solidx/solidctl local-upgrade [--core] [--ui] [--code-builder]
 ```
 
 Examples:
@@ -85,16 +85,16 @@ Examples:
 export SOLID_CORE_MODULE_PATH=~/code/solid-core
 export SOLID_UI_PATH=~/code/solid-ui
 export SOLID_CODE_BUILDER_PATH=~/code/solid-code-builder
-npx @solidstarters/solidctl local-upgrade
+npx @solidx/solidctl local-upgrade
 
 # upgrade only solid-core
-npx @solidstarters/solidctl local-upgrade --core
+npx @solidx/solidctl local-upgrade --core
 
 # upgrade only solid-ui
-npx @solidstarters/solidctl local-upgrade --ui
+npx @solidx/solidctl local-upgrade --ui
 
 # upgrade only solid-code-builder
-npx @solidstarters/solidctl local-upgrade --code-builder
+npx @solidx/solidctl local-upgrade --code-builder
 ```
 
 Notes:
@@ -111,7 +111,7 @@ Bootstraps SolidX metadata, settings, and the system user by running the `solid`
 Usage:
 
 ```bash
-npx @solidstarters/solidctl seed [-s|--seeder <seeder-name>] [-c|--conf <json-string>]
+npx @solidx/solidctl seed [-s|--seeder <seeder-name>] [-c|--conf <json-string>]
 ```
 
 Options:

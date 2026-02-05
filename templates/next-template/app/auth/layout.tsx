@@ -1,4 +1,4 @@
-import { AuthLayout } from "@solidstarters/solid-core-ui";
+import { AuthLayout } from "@solidx/solid-core-ui";
 
 const AuthLayoutContainer = ({ children }: { children: React.ReactNode }) => {
     return (

@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import * as SolidCoreModuleExports from '@solidstarters/solid-core';
-import { DatasourceType, getDynamicModuleNames, ISolidDatabaseModule, parseBooleanEnv, SolidDatabaseModule } from '@solidstarters/solid-core';
+import * as SolidCoreModuleExports from '@solidx/solid-core';
+import { DatasourceType, getDynamicModuleNames, ISolidDatabaseModule, parseBooleanEnv, SolidDatabaseModule } from '@solidx/solid-core';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { join } from 'path';
 import { getMetadataArgsStorage } from 'typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { Logger } from 'winston';
-import { WinstonTypeORMLogger } from '@solidstarters/solid-core'; // Assuming you have this custom logger
+import { WinstonTypeORMLogger } from '@solidx/solid-core'; // Assuming you have this custom logger
 
 function getEntitiesFromExports(exports: Record<string, any>) {
     const metadataStorage = getMetadataArgsStorage();

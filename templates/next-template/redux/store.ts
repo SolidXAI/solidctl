@@ -5,7 +5,7 @@ import {
   solidApiSlices,
   solidReducers,
   createSolidEntityApi
-} from "@solidstarters/solid-core-ui";
+} from "@solidx/solid-core-ui";
 
 export function initializeStore(entities: string[] = []) {
 

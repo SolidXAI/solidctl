@@ -1,4 +1,4 @@
-import { SolidModuleHome } from '@solidstarters/solid-core-ui';
+import { SolidModuleHome } from '@solidx/solid-core-ui';
 import { capitalCase } from 'change-case';
 
 type SolidViewParams = {
