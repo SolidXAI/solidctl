@@ -245,33 +245,6 @@ function generateJwtSecret(): string {
   return crypto.randomBytes(64).toString('hex');
 }
 
-export function installSolidAsGlobalBinary(cwd: string, showLogs: boolean) {
-  try {
-    execSync('npm run build', {
-      stdio: showLogs ? 'inherit' : 'ignore',
-      cwd,
-    });
-
-    const nodeVersion = process.version;
-    const homeDir = os.homedir();
-    const binaryPath = path.join(
-      homeDir,
-      `.nvm/versions/node/${nodeVersion}/bin/solid`,
-    );
-    fs.rmSync(binaryPath, { force: true });
-
-    const shellForWindow = process.platform === 'win32';
-    execSync('npm i -g', {
-      stdio: showLogs ? 'inherit' : 'ignore',
-      cwd,
-      shell: shellForWindow ? 'cmd.exe' : undefined,
-    });
-  } catch (error: any) {
-    console.error(chalk.red('Error during installation:', error.message));
-    process.exit(1);
-  }
-}
-
 export function prettyOutput(
   label: string,
   value: string,

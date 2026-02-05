@@ -14,7 +14,7 @@ import { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
-
+import { configurePgInt8TypeParser } from './database.utils';
 
 import qs from 'qs';
 
@@ -109,11 +109,7 @@ async function bootstrap() {
 
   app.enableCors(buildDefaultCorsOptions());
 
-  // https://github.com/typeorm/typeorm/issues/8583
-  const types = require('pg').types;
-  types.setTypeParser(types.builtins.INT8, function (val) {
-    return parseInt(val)
-  });
+  configurePgInt8TypeParser();
 
   await app.listen(port);
 }
