@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { validateProjectRoot } from 'src/helper';
+import { validateProjectRoot } from '../helper';
 
 function exec(cmd: string, cwd?: string) {
   execSync(cmd, { cwd, stdio: 'inherit' });
