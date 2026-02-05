@@ -3,7 +3,7 @@ import { execSync, spawnSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { validateProjectRoot } from 'src/helper';
+import { validateProjectRoot } from '../helper';
 
 function exec(cmd: string, cwd?: string) {
   execSync(cmd, {

@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
-import { validateProjectRoot } from 'src/helper';
+import { validateProjectRoot } from '../helper';
 
 export function registerSeedCommand(program: Command) {
   program
