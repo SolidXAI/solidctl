@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import fs from 'fs-extra';
 import path from 'path';
-import { setupQuestions, SetupAnswers } from './setup-questions.js';
+import { setupQuestions, SetupAnswers } from './setup-questions';
 import {
   copyAndInstallTemplate,
   copyTemplate,
@@ -19,7 +19,7 @@ import {
   TARGET_FOLDER_UI,
   updatePackageName,
   updatePortInPackageJson,
-} from './helpers.js';
+} from './helpers';
 
 function kebabCase(str: string): string {
   return str

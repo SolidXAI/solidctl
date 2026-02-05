@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
-import { SetupAnswers } from './setup-questions.js';
+import { SetupAnswers } from './setup-questions';
 
 export const HIDDEN_TEMPLATES_FOLDER = 'dot-templates';
 export const SOURCE_TEMPLATE_FOLDER_API = 'nest-template';
