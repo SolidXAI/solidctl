@@ -27,7 +27,7 @@ const nextConfig = {
     remotePatterns: getRemotePatterns(),
   },
   productionBrowserSourceMaps: true,
-  transpilePackages: ['@solidx/solid-core-ui'],
+  transpilePackages: ['@solidxai/core-ui'],
   experimental: {
     externalDir: true,
   },

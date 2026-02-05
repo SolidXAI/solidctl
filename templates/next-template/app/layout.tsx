@@ -1,13 +1,13 @@
-import "@solidx/solid-core-ui";
-import "@solidx/solid-core-ui";
-import "@solidx/solid-core-ui"
+import "@solidxai/core-ui";
+import "@solidxai/core-ui";
+import "@solidxai/core-ui"
 import "primeicons/primeicons.css";
 import "primeflex/primeflex.css";
 import { Inter } from "next/font/google";
 import { GlobalProvider } from "./GlobalProvider";
 import { PrimeReactProvider } from "primereact/api";
-import { LayoutProvider } from "@solidx/solid-core-ui";
-import { SolidThemeProvider } from "@solidx/solid-core-ui";
+import { LayoutProvider } from "@solidxai/core-ui";
+import { SolidThemeProvider } from "@solidxai/core-ui";
 
 const inter = Inter({
   subsets: ["latin"],

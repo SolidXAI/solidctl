@@ -21,11 +21,11 @@
             "sourceMaps": true,
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js",
-                "${workspaceFolder}/solid-api/node_modules/@solidx/solid-core-module/dist/**/*.js"
+                "${workspaceFolder}/solid-api/node_modules/@solidxai/core-module/dist/**/*.js"
             ],
             "resolveSourceMapLocations": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/solid-api/node_modules/@solidx/solid-core/**"
+                "${workspaceFolder}/solid-api/node_modules/@solidxai/core/**"
             ],
             "cwd": "${workspaceFolder}/solid-api",
             "console": "integratedTerminal",

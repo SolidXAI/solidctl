@@ -9,7 +9,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { buildDefaultCorsOptions, buildDefaultSecurityHeaderOptions, buildPermissionsPolicyHeader, WrapResponseInterceptor } from '@solidx/solid-core';
+import { buildDefaultCorsOptions, buildDefaultSecurityHeaderOptions, buildPermissionsPolicyHeader, WrapResponseInterceptor } from '@solidxai/core';
 import { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';

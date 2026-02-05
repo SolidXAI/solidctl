@@ -1,4 +1,4 @@
-import {SolidForgotPassword} from "@solidx/solid-core-ui";
+import {SolidForgotPassword} from "@solidxai/core-ui";
 
 const InitiateForgotPassword = () => {
   return (

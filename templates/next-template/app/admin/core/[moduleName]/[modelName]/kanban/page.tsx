@@ -1,5 +1,5 @@
 "use client"
-import { SolidKanbanView } from "@solidx/solid-core-ui";
+import { SolidKanbanView } from "@solidxai/core-ui";
 import { camelCase } from "change-case";
 
 type SolidViewParams = {

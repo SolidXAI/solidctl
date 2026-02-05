@@ -1,4 +1,4 @@
-import { GoogleAuthChecking } from "@solidx/solid-core-ui";
+import { GoogleAuthChecking } from "@solidxai/core-ui";
 
 const InitiateGoogleOAuth = () => {
     return (

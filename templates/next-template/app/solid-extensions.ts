@@ -1,4 +1,4 @@
-import { registerExtensionComponent, registerExtensionFunction } from "@solidx/solid-core-ui";
+import { registerExtensionComponent, registerExtensionFunction } from "@solidxai/core-ui";
 
 // Registering a custom component
 // registerExtensionComponent("BookFormViewDynamicComponent", ImageGrid12Column);

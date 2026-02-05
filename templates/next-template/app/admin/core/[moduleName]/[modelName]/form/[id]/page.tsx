@@ -1,5 +1,5 @@
 "use client"
-import { SolidFormLayouts } from "@solidx/solid-core-ui";
+import { SolidFormLayouts } from "@solidxai/core-ui";
 
 type SolidViewParams = {
   params: {

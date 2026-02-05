@@ -12,17 +12,17 @@ export function registerUpgradeCommand(program: Command) {
       const commands = [
         {
           label: 'Upgrade solid-api core',
-          cmd: 'npm upgrade @solidx/solid-core',
+          cmd: 'npm upgrade @solidxai/core',
           cwd: 'solid-api',
         },
         {
           label: 'Upgrade solid-api code-builder',
-          cmd: 'npm upgrade @solidx/solid-code-builder',
+          cmd: 'npm upgrade @solidxai/solid-code-builder',
           cwd: 'solid-api',
         },
         {
           label: 'Upgrade solid-ui core-ui',
-          cmd: 'npm upgrade @solidx/solid-core-ui',
+          cmd: 'npm upgrade @solidxai/core-ui',
           cwd: 'solid-ui',
         },
         {
