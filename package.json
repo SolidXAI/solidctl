@@ -1,6 +1,6 @@
 {
-  "name": "@solidstarters/solidctl",
-  "version": "0.0.12",
+  "name": "@solidxai/solidctl",
+  "version": "0.0.0",
   "description": "",
   "author": "",
   "private": false,
@@ -30,9 +30,15 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prepare": "npm run build",
-    "publish:patch": "node publish.js patch",
-    "publish:minor": "node publish.js minor",
-    "publish:major": "node publish.js major"
+    "release": "npx ts-node src/main.ts release",
+    "release:patch": "npx ts-node src/main.ts release patch",
+    "release:minor": "npx ts-node src/main.ts release minor",
+    "release:major": "npx ts-node src/main.ts release major",
+    "release:alpha": "npx ts-node src/main.ts release --preid=alpha",
+    "release:beta": "npx ts-node src/main.ts release --preid=beta",
+    "release:rc": "npx ts-node src/main.ts release --preid=rc",
+    "release:alpha:minor": "npx ts-node src/main.ts release minor --preid=alpha",
+    "release:alpha:major": "npx ts-node src/main.ts release major --preid=alpha"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

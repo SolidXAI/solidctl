@@ -1,5 +1,5 @@
 "use client"
-import {SolidResetPassword} from "@solidstarters/solid-core-ui";
+import {SolidResetPassword} from "@solidxai/core-ui";
 
 const ForgotPasswordPage = () => {
   return (

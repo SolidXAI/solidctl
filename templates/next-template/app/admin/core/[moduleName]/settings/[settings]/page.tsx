@@ -1,6 +1,6 @@
 "use client"
 
-import { GeneralSettings } from "@solidstarters/solid-core-ui"
+import { GeneralSettings } from "@solidxai/core-ui"
 
 const Page = () => {
     return (

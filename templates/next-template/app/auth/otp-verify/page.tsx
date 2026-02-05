@@ -1,4 +1,4 @@
-import {SolidOTPVerify} from "@solidstarters/solid-core-ui";
+import {SolidOTPVerify} from "@solidxai/core-ui";
 import React from "react";
 
 const SolidOTPVerifyPage = () => {

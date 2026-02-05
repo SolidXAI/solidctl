@@ -9,6 +9,7 @@ import { registerSeedCommand } from './commands/seed.command';
 import { registerInfoCommand } from './commands/info.command';
 import { registerTestDataCommand } from './commands/test-data.command';
 import { registerCreateAppCommand } from './commands/create-app/create-app.command';
+import { registerReleaseCommand } from './commands/release.command';
 
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(
@@ -30,6 +31,7 @@ async function bootstrap() {
   registerInfoCommand(program);
   registerTestDataCommand(program);
   registerCreateAppCommand(program);
+  registerReleaseCommand(program);
   await program.parseAsync(process.argv);
 
   await appContext.close();

@@ -1,5 +1,5 @@
 "use client"
-import { SolidInitialLoginOtp } from "@solidstarters/solid-core-ui";
+import { SolidInitialLoginOtp } from "@solidxai/core-ui";
 import { useSearchParams } from "next/navigation";
 
 const InitiateLoginConfirm = () => {

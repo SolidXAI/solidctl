@@ -1,4 +1,4 @@
-import { AdminLayout } from "@solidstarters/solid-core-ui";
+import { AdminLayout } from "@solidxai/core-ui";
 const layout = ({ children }: { children: React.ReactNode }) => {
 
   return (

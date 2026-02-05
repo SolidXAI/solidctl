@@ -128,13 +128,13 @@ export function registerCreateAppCommand(program: Command) {
         console.log(chalk.cyan('\nNext steps:'));
         console.log(
           prettyOutput(
-            ' npx @solidstarters/solidctl@latest build',
+            ' npx @solidxai/solidctl@latest build',
             'This will build the Solid project',
           ),
         );
         console.log(
           prettyOutput(
-            ' npx @solidstarters/solidctl@latest seed',
+            ' npx @solidxai/solidctl@latest seed',
             'This will seed the database with the required metadata',
           ),
         );

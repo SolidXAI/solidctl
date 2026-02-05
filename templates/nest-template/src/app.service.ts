@@ -1,5 +1,5 @@
 import { DynamicModule, Injectable, Logger } from '@nestjs/common';
-import { getDynamicModuleNames } from '@solidstarters/solid-core';
+import { getDynamicModuleNames } from '@solidxai/core';
 
 
 @Injectable()

@@ -1,7 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { SolidCoreModule, WinstonLoggerConfig } from '@solidstarters/solid-core';
+import { SolidCoreModule, WinstonLoggerConfig } from '@solidxai/core';
 import { WinstonModule } from 'nest-winston';
 import { ClsModule } from 'nestjs-cls';
 import { DefaultDBModule } from './app-default-database.module';

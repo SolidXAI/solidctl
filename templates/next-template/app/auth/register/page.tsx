@@ -1,5 +1,5 @@
 "use client";
-import { SolidRegister } from "@solidstarters/solid-core-ui";
+import { SolidRegister } from "@solidxai/core-ui";
 
 const RegisterPage = () => {
   return (

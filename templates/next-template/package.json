@@ -1,9 +1,9 @@
 {
   "name": "next-template",
-  "version": "0.1.2",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "postinstall": "copyfiles -u 5 \"node_modules/@solidstarters/solid-core-ui/dist/resources/themes/**/*\" public",
+    "postinstall": "copyfiles -u 5 \"node_modules/@solidxai/core-ui/dist/resources/themes/**/*\" public",
     "build": "next build",
     "lint": "next lint",
     "seeder": "tsc seeder/seeder.ts --outDir .temp && node .temp/seeder/seeder.js && rm -rf .temp",
@@ -16,7 +16,7 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@hello-pangea/dnd": "^17.0.0",
     "@reduxjs/toolkit": "^1.9.5",
-    "@solidstarters/solid-core-ui": "^1.1.204",
+    "@solidxai/core-ui": "^1.1.204",
     "@uiw/react-codemirror": "^4.23.3",
     "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",

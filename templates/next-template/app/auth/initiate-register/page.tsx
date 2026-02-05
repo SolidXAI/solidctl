@@ -1,5 +1,5 @@
 "use client"
-import { SolidInitiateRegisterOtp } from "@solidstarters/solid-core-ui";
+import { SolidInitiateRegisterOtp } from "@solidxai/core-ui";
 
 import { useSearchParams } from "next/navigation";
 

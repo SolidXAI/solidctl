@@ -1,5 +1,5 @@
 "use client";
-import { SolidAdmin } from "@solidstarters/solid-core-ui"
+import { SolidAdmin } from "@solidxai/core-ui"
 
 const page = () => {
   return (
