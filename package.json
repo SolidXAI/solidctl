@@ -32,7 +32,12 @@
     "prepare": "npm run build",
     "publish:patch": "node publish.js patch",
     "publish:minor": "node publish.js minor",
-    "publish:major": "node publish.js major"
+    "publish:major": "node publish.js major",
+    "publish:alpha": "node publish.js --preid=alpha",
+    "publish:beta": "node publish.js --preid=beta",
+    "publish:rc": "node publish.js --preid=rc",
+    "publish:alpha:minor": "node publish.js minor --preid=alpha",
+    "publish:alpha:major": "node publish.js major --preid=alpha"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
