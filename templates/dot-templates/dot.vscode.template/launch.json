@@ -21,7 +21,7 @@
             "sourceMaps": true,
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js",
-                "${workspaceFolder}/solid-api/node_modules/@solidxai/core-module/dist/**/*.js"
+                "${workspaceFolder}/solid-api/node_modules/@solidxai/core/dist/**/*.js"
             ],
             "resolveSourceMapLocations": [
                 "${workspaceFolder}/**",
