@@ -4,8 +4,52 @@ import fs from 'fs';
 import path from 'path';
 import { validateProjectRoot } from '../helper';
 
-function exec(cmd: string, cwd?: string) {
-  execSync(cmd, { cwd, stdio: 'inherit' });
+type ExecOptions = {
+  quiet?: boolean;
+  env?: NodeJS.ProcessEnv;
+};
+
+function exec(cmd: string, cwd?: string, options?: ExecOptions) {
+  const quiet = options?.quiet ?? false;
+  const env = { ...process.env, ...(options?.env ?? {}) };
+
+  try {
+    if (quiet) {
+      execSync(cmd, {
+        cwd,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        encoding: 'utf8',
+      });
+      return;
+    }
+
+    execSync(cmd, { cwd, env, stdio: 'inherit' });
+  } catch (error: any) {
+    if (quiet) {
+      const stdout = error?.stdout ? String(error.stdout) : '';
+      const stderr = error?.stderr ? String(error.stderr) : '';
+      if (stdout) process.stdout.write(stdout);
+      if (stderr) process.stderr.write(stderr);
+    }
+    throw error;
+  }
+}
+
+function execNpm(cmd: string, cwd?: string, showLogs?: boolean) {
+  if (showLogs) {
+    exec(cmd, cwd);
+    return;
+  }
+
+  exec(cmd, cwd, {
+    quiet: true,
+    env: {
+      npm_config_loglevel: 'error',
+      npm_config_fund: 'false',
+      npm_config_audit: 'false',
+    },
+  });
 }
 
 function ensureEnv(vars: string[]) {
@@ -18,7 +62,11 @@ function ensureEnv(vars: string[]) {
   }
 }
 
-function packAndInstall(packagePath: string, installPath: string) {
+function packAndInstall(
+  packagePath: string,
+  installPath: string,
+  showNpmLogs?: boolean
+) {
   if (!packagePath || !installPath) {
     throw new Error('packagePath and installPath are required');
   }
@@ -35,7 +83,7 @@ function packAndInstall(packagePath: string, installPath: string) {
     .forEach(f => fs.unlinkSync(path.join(absPackagePath, f)));
 
   // 2) npm pack
-  exec('npm pack', absPackagePath);
+  execNpm('npm pack', absPackagePath, showNpmLogs);
 
   // 3) find latest tgz
   const tgz = fs.readdirSync(absPackagePath)
@@ -55,7 +103,7 @@ function packAndInstall(packagePath: string, installPath: string) {
   fs.copyFileSync(srcTgz, dstTgz);
 
   console.log(`▶ Installing ${dstTgz}`);
-  exec(`npm i "${dstTgz}"`, absInstallPath);
+  execNpm(`npm i "${dstTgz}"`, absInstallPath, showNpmLogs);
 }
 
 export function registerLocalUpgradeCommand(program: Command) {
@@ -75,7 +123,7 @@ Required environment variables:
     ).option('--core', 'Upgrade solid-core')
     .option('--ui', 'Upgrade solid-ui')
     .option('--code-builder', 'Upgrade solid-code-builder')
-    .option('--new-ui', 'Upgrade new-solid-ui')
+    .option('--npm-logs', 'Show npm output')
     .action((options) => {
       validateProjectRoot();
       ensureEnv([
@@ -86,11 +134,10 @@ Required environment variables:
 
       const buildCore = options.core;
       const buildUi = options.ui;
-      const buildNewUi = options.newUi;
       const buildCodeBuilder = options.codeBuilder;
+      const showNpmLogs = Boolean(options.npmLogs);
 
-      const nothingSelected =
-        !buildCore && !buildUi && !buildCodeBuilder;
+      const nothingSelected = !buildCore && !buildUi && !buildCodeBuilder;
 
       const doCore = buildCore || nothingSelected;
       const doUi = buildUi || nothingSelected;
@@ -98,34 +145,17 @@ Required environment variables:
 
       if (doCore) {
         console.log('\n=== solid-core-module → solid-api ===');
-        packAndInstall(
-          process.env.SOLID_CORE_MODULE_PATH!,
-          './solid-api'
-        );
+        packAndInstall(process.env.SOLID_CORE_MODULE_PATH!, './solid-api', showNpmLogs);
       }
 
       if (doUi) {
         console.log('\n=== solid-ui → solid-ui ===');
-        packAndInstall(
-          process.env.SOLID_UI_PATH!,
-          './solid-ui'
-        );
-      }
-
-      if (buildNewUi) {
-        console.log('\n=== solid-ui → new-solid-ui ===');
-        packAndInstall(
-          process.env.SOLID_UI_PATH!,
-          './new-solid-ui'
-        );
+        packAndInstall(process.env.SOLID_UI_PATH!, './solid-ui', showNpmLogs);
       }
 
       if (doCodeBuilder) {
         console.log('\n=== solid-code-builder → solid-api ===');
-        packAndInstall(
-          process.env.SOLID_CODE_BUILDER_PATH!,
-          './solid-api'
-        );
+        packAndInstall(process.env.SOLID_CODE_BUILDER_PATH!, './solid-api', showNpmLogs);
       }
 
       console.log('\n✅ Local dependency upgrade complete.');
