@@ -1,0 +1,7 @@
+{
+    "main": "./progressbar.cjs.js",
+    "module": "./progressbar.esm.js",
+    "unpkg": "./progressbar.min.js",
+    "types": "./progressbar.d.ts",
+    "sideEffects": false
+}

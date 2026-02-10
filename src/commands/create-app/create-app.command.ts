@@ -32,14 +32,14 @@ export function registerCreateAppCommand(program: Command) {
   program
     .command('create-app')
     .description(
-      'Scaffold a new Solid project with backend (NestJS) and frontend (Next.js)',
+      'Scaffold a new SolidX project with backend (NestJS) and frontend (Next.js)',
     )
     .option('--verbose', 'Show detailed logs during installation')
     .action(async (options) => {
       try {
         const showLogs: boolean = options.verbose || false;
 
-        console.log(chalk.cyan("Hello, Let's setup your Solid project!"));
+        console.log(chalk.cyan("Hello, Let's setup your SolidX project!"));
 
         const answers: SetupAnswers = await inquirer.prompt(setupQuestions);
 
@@ -128,59 +128,52 @@ export function registerCreateAppCommand(program: Command) {
         console.log(chalk.cyan('\nNext steps:'));
         console.log(
           prettyOutput(
-            ' npx @solidxai/solidctl@latest build',
-            'This will build the Solid project',
+            `cd ${projectName}`,
+            'Navigate into the project root directory',
           ),
         );
         console.log(
           prettyOutput(
-            ' npx @solidxai/solidctl@latest seed',
-            'This will seed the database with the required metadata',
+            'npx @solidxai/solidctl@latest build && npx @solidxai/solidctl@latest seed',
+            'This will build the SolidX project and seed the database with the required metadata',
           ),
         );
 
-        console.log(chalk.cyan('\nRun the api:'));
+        console.log(chalk.cyan('\nRun the api and frontend in separate terminals:'));
+
+        console.log(chalk.cyan('\n  Terminal 1 (API):'));
         console.log(
           prettyOutput(
-            `cd ${projectName}/${TARGET_FOLDER_API}`,
-            'Navigate into api directory',
-          ),
-        );
-        console.log(
-          prettyOutput(
-            'npm run solidx:dev',
-            `Starts the backend in development mode with live reload on @http://localhost:${answers.solidApiPort}`,
-          ),
-        );
-        console.log(
-          prettyOutput(
-            'npm run build && npm run start',
-            `Builds and starts the backend in production mode on @http://localhost:${answers.solidApiPort}`,
-          ),
-        );
-        console.log(
-          chalk.cyan(
-            `Api documentation is available on @http://localhost:${answers.solidApiPort}/docs`,
+            `cd ${TARGET_FOLDER_API} && npm run solidx:dev`,
+            `Starts the backend at http://localhost:${answers.solidApiPort} (docs at /docs)`,
           ),
         );
 
-        console.log(chalk.cyan('\nRun the frontend:'));
+        console.log(chalk.cyan('\n  Terminal 2 (Frontend):'));
         console.log(
           prettyOutput(
-            `cd ${projectName}/${TARGET_FOLDER_UI}`,
-            'Navigate into ui directory',
+            `cd ${TARGET_FOLDER_UI} && npm run solidx:dev`,
+            `Starts the frontend at http://localhost:${answers.solidUiPort}`,
           ),
         );
+
+        console.log(
+          chalk.cyan('\nFor production builds:'),
+        );
+
+        console.log(chalk.cyan('\n  API:'));
         console.log(
           prettyOutput(
-            'npm run solidx:dev',
-            `Starts the frontend in development mode with live reload on @http://localhost:${answers.solidUiPort}`,
+            `cd ${TARGET_FOLDER_API} && npm run build && npm run start`,
+            `Builds and starts the API server at http://localhost:${answers.solidApiPort}`,
           ),
         );
+
+        console.log(chalk.cyan('\n  Frontend:'));
         console.log(
           prettyOutput(
-            'npm run build && npm run start',
-            `Builds and starts the frontend in production mode on @http://localhost:${answers.solidUiPort}`,
+            `cd ${TARGET_FOLDER_UI} && npm run build`,
+            `Builds the frontend — serve ${TARGET_FOLDER_UI}/dist with your web server (Nginx, Apache, etc.)`,
           ),
         );
       } catch (err) {

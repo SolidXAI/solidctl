@@ -1,0 +1,42 @@
+{
+  "name": "ui-template",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "sync-themes": "cp -R node_modules/@solidxai/core-ui/dist/resources/themes public",
+    "postinstall": "npm run sync-themes",
+    "solidx:dev": "npm run dev"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^1.9.7",
+    "@solidxai/core-ui": "^0.1.0",
+    "axios": "^1.13.2",
+    "primeflex": "^4.0.0",
+    "primeicons": "^7.0.0",
+    "primereact": "^10.9.7",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-redux": "^8.1.2",
+    "react-router-dom": "^7.13.0",
+    "sass": "^1.97.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "18.2.45",
+    "@types/react-dom": "18.2.18",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^7.2.4"
+  }
+}
