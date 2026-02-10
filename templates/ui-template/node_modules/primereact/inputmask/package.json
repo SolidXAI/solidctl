@@ -1,0 +1,7 @@
+{
+    "main": "./inputmask.cjs.js",
+    "module": "./inputmask.esm.js",
+    "unpkg": "./inputmask.min.js",
+    "types": "./inputmask.d.ts",
+    "sideEffects": false
+}

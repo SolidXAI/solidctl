@@ -1,0 +1,7 @@
+{
+    "main": "./inputswitch.cjs.js",
+    "module": "./inputswitch.esm.js",
+    "unpkg": "./inputswitch.min.js",
+    "types": "./inputswitch.d.ts",
+    "sideEffects": false
+}

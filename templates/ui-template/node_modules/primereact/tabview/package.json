@@ -1,0 +1,7 @@
+{
+    "main": "./tabview.cjs.js",
+    "module": "./tabview.esm.js",
+    "unpkg": "./tabview.min.js",
+    "types": "./tabview.d.ts",
+    "sideEffects": false
+}

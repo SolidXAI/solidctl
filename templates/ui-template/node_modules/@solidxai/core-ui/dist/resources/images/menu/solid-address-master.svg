@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="16" viewBox="0 0 18 16">
+    <!-- Rectangular module body -->
+    <rect x="1" y="1" width="16" height="14" fill="#4CAF50" stroke="#000" strokeWidth="1" rx="2" ry="2"/>
+    
+    <!-- Address icon (house-like shape) -->
+    <polygon points="9,4 13,7 9,10 5,7" fill="#fff" stroke="#000" strokeWidth="1"/>
+    
+    <!-- Text Label -->
+    <text x="9" y="14" font-family="Arial" font-size="3" fill="#fff" text-anchor="middle">Addr Master</text>
+  </svg>
