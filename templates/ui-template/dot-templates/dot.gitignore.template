@@ -5,9 +5,12 @@ node_modules/
 dist/
 build/
 
+# Vite cache
+.vite/
+
 # =========================
 # Logs
-# =================================
+# =========================
 logs/
 *.log
 npm-debug.log*
@@ -17,14 +20,14 @@ yarn-error.log*
 lerna-debug.log*
 
 # =========================
-# Environment variables
+# Environment files
 # =========================
 .env
 .env.*
 !.env.example
 
 # =========================
-# OS files
+# OS / system files
 # =========================
 .DS_Store
 Thumbs.db
@@ -58,11 +61,11 @@ coverage/
 # =========================
 # Temporary files
 # =========================
-.temp/
 .tmp/
+.temp/
 
 # =========================
-# Runtime data
+# Runtime / process files
 # =========================
 pids/
 *.pid
@@ -73,3 +76,8 @@ pids/
 # Diagnostic reports
 # =========================
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# =========================
+# App-specific ignored paths
+# =========================
+local_packages/

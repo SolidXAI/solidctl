@@ -1,0 +1,75 @@
+# =========================
+# Dependencies & build output
+# =========================
+node_modules/
+dist/
+build/
+
+# =========================
+# Temporary & archive files
+# =========================
+*.log
+*.tmp
+logs/
+*.tgz
+
+# =========================
+# Environment files (never publish secrets)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# IDE / editor files
+# =========================
+.vscode/
+.idea/
+*.swp
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Debugging & tool logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Tests & coverage
+# =========================
+coverage/
+jest-report.xml
+*.test-results.xml
+
+# =========================
+# Git internals (never needed in npm package)
+# =========================
+.git/
+.gitignore
+.gitattributes
+
+# =========================
+# Template-specific exclusions
+# =========================
+templates/**/node_modules/
+templates/**/dist/
+templates/**/build/
+templates/**/.env
+templates/**/.env.*
+templates/**/coverage/
+templates/**/.DS_Store
+
+# Lockfiles inside templates (generated per-user)
+templates/**/package-lock.json
+templates/**/yarn.lock
+templates/**/pnpm-lock.yaml
+
+# App-specific assets not meant for boilerplate consumers
+templates/next-template/public/themes

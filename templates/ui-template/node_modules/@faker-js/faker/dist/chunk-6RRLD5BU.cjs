@@ -1,1 +1,0 @@
-"use strict";Object.defineProperty(exports, "__esModule", {value: true});var _chunkVT2XJBFXcjs = require('./chunk-VT2XJBFX.cjs');var _chunkCK6HCXEPcjs = require('./chunk-CK6HCXEP.cjs');var _chunk6BEEDJJTcjs = require('./chunk-6BEEDJJT.cjs');var i=new (0, _chunk6BEEDJJTcjs.n)({locale:[_chunkVT2XJBFXcjs.a,_chunkCK6HCXEPcjs.a,_chunk6BEEDJJTcjs.o]});exports.a = i;

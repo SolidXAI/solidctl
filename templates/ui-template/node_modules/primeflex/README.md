@@ -1,1 +1,0 @@
-Visit [https://primeflex.org](PrimeFlex) website for demos and documentation.

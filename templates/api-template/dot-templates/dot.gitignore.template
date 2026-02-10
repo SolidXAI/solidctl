@@ -1,10 +1,14 @@
-# compiled output
-/dist
-/node_modules
-/build
+# =========================
+# Build / compiled output
+# =========================
+dist/
+build/
+node_modules/
 
+# =========================
 # Logs
-logs
+# =========================
+logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
@@ -12,15 +16,29 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
 # OS
+# =========================
 .DS_Store
+Thumbs.db
 
-# Tests
-/coverage
-/.nyc_output
+# =========================
+# Tests / coverage
+# =========================
+coverage/
+.nyc_output/
 
+# =========================
 # IDEs and editors
-/.idea
+# =========================
+.idea/
 .project
 .classpath
 .c9/
@@ -28,29 +46,37 @@ lerna-debug.log*
 .settings/
 *.sublime-workspace
 
-# IDE - VSCode
+# =========================
+# VS Code (keep workspace config)
+# =========================
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# ignore environment variable files
-.env*
+# =========================
+# Temporary files
+# =========================
+.temp/
+.tmp/
 
-# temp directory
-.temp
-.tmp
-
+# =========================
 # Runtime data
-pids
+# =========================
+pids/
 *.pid
-*.seed
 *.pid.lock
+*.seed
 
-# Diagnostic reports (https://nodejs.org/api/report.html)
+# =========================
+# Diagnostic reports
+# =========================
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-media-uploads
-media-files-storage
-local_packages
+# =========================
+# App-specific paths
+# =========================
+media-uploads/
+media-files-storage/
+local_packages/
