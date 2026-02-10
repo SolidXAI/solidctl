@@ -1,0 +1,9 @@
+export type Session = {
+  user?: {
+    accessToken: string;
+    refreshToken: string;
+    accessTokenExpires?: number;
+    [key: string]: any;
+  };
+  error?: string | null;
+} | null;

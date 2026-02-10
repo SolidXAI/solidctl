@@ -1,0 +1,79 @@
+.SolidDashboardTitle {
+    margin: 4.3px 0 !important
+}
+
+.SolidDashboardContentWrapper {
+    background-color: var(--hightlight-bg-secondary);
+    height: calc(100vh - 64px) !important;
+}
+
+.SolidChartCardWrapper {
+    box-shadow: 0px 6px 15px 1px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    background-color: var(--surface-card);
+}
+
+.SolidChartTitle {
+    color: var(--solid-dark-title);
+}
+
+.SolidDashboardDateRangeFilterWrapper {
+    border: 1px solid var(--gray-300);
+    border-radius: 6px;
+}
+
+.SolidDashboardDateRangeFilter input {
+    border: none !important;
+}
+
+
+.SolidDashboardPageContentWrapper {
+    transition: width 0.3s ease;
+    min-width: 0;
+    border-right: 1px solid var(--primary-light-color);
+}
+
+.SolidXAIFloatingBtn {
+    position: absolute;
+    top: 50%;
+    right: -1px;
+    /* transform: translateY(-50%) rotate(-90deg); */
+    z-index: 1000;
+    font-size: 0.875rem;
+    background-color: #eff1f4;
+    color: var(--secondary-dark-color);
+    white-space: nowrap;
+    padding: 0.75rem 0.5rem;
+    border-radius: 4px 4px 4px 0;
+    border-top: 1px solid var(--primary-light-color);
+    border-right: 1px solid var(--primary-light-color);
+    border-bottom: 1px solid var(--primary-light-color);
+    border-left: none;
+    display: inline-block;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    width: 30px;
+    transition: right 0.3s;
+    margin-top: -50px;
+    cursor: pointer;
+    box-shadow:
+        0 -4px 6px -4px rgba(0, 0, 0, 0.1),
+        4px 0 6px -4px rgba(0, 0, 0, 0.1),
+        0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.SolidXAIListPanel {
+    position: fixed !important;
+    top: 0;
+    right: -380px;
+    /* Hidden by default */
+    width: 380px;
+    height: 100vh;
+    transition: right 0.3s ease;
+    z-index: 999;
+    border-left: 1px solid var(--primary-light-color);
+}
+
+.SolidXAIListPanelOpen {
+    right: 0;
+}

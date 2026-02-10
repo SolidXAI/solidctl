@@ -1,14 +1,13 @@
 import chalk from 'chalk';
-import crypto from 'crypto';
 import { execSync } from 'child_process';
+import crypto from 'crypto';
 import fs from 'fs-extra';
-import os from 'os';
 import path from 'path';
 import { SetupAnswers } from './setup-questions';
 
 export const HIDDEN_TEMPLATES_FOLDER = 'dot-templates';
-export const SOURCE_TEMPLATE_FOLDER_API = 'nest-template';
-export const SOURCE_TEMPLATE_FOLDER_UI = 'next-template';
+export const SOURCE_TEMPLATE_FOLDER_API = 'api-template';
+export const SOURCE_TEMPLATE_FOLDER_UI = 'ui-template';
 export const TARGET_FOLDER_API = 'solid-api';
 export const TARGET_FOLDER_UI = 'solid-ui';
 export const EXCLUDED_DIRS_FOR_INITIAL_COPY = [
@@ -156,8 +155,7 @@ export function updatePortInPackageJson(
       throw new Error(error);
     }
     const packageJson = fs.readJsonSync(packageJsonPath);
-    packageJson.scripts.dev = `next dev -p ${port}`;
-    packageJson.scripts.start = `next start -p ${port}`;
+    packageJson.scripts.dev = `vite --port ${port}`;
     fs.writeJsonSync(packageJsonPath, packageJson, { spaces: 2 });
   } catch (error) {
     console.error(chalk.red('Error in updatePortInPackageJson:'), error);
@@ -201,19 +199,11 @@ export function getBackendEnvConfig(answers: SetupAnswers) {
 export function getFrontendEnvJson(answers: SetupAnswers) {
   return {
     General: {
-      PORT: answers.solidUiPort,
-      API_URL: `http://localhost:${answers.solidApiPort}`,
-      NEXTAUTH_URL: `http://localhost:${answers.solidUiPort}`,
-      NEXT_PUBLIC_BACKEND_API_URL: `http://localhost:${answers.solidApiPort}`,
-      NEXT_PUBLIC_SOLID_ENTITIES: '',
-      NEXT_PUBLIC_SOLID_APP_TITLE: answers.projectName,
-      NEXT_PUBLIC_SOLID_APP_DESCRIPTION: '',
-      NEXT_PUBLIC_ENABLE_CUSTOM_HEADER_FOOTER: 'false',
-      NEXT_PUBLIC_DEFAULT_MENU_KEY: `${answers.projectName}-tracker`,
-      NEXT_PUBLIC_SHOW_SETTINGS: 'false',
-      NEXT_PUBLIC_LOGIN_REDIRECT_URL: '/admin/core/solid-core/user/list',
-      NEXT_PUBLIC_REMOTE_PATTERNS:
-        '[{"protocol":"http","hostname":"localhost","pathname":"/media-files-storage/**"}]',
+      VITE_BACKEND_API_URL: `http://localhost:${answers.solidApiPort}`,
+      VITE_API_URL: `http://localhost:${answers.solidApiPort}`,
+      VITE_SOLIDX_ENV: 'dev',
+      VITE_SOLID_APP_TITLE: answers.projectName,
+      VITE_SOLID_APP_DESCRIPTION: '',
     },
   };
 }

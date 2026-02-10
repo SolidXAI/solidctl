@@ -1,0 +1,7 @@
+{
+    "main": "./hooks.cjs.js",
+    "module": "./hooks.esm.js",
+    "unpkg": "./hooks.min.js",
+    "types": "./hooks.d.ts",
+    "sideEffects": false
+}

@@ -1,0 +1,7 @@
+{
+    "main": "./inputtext.cjs.js",
+    "module": "./inputtext.esm.js",
+    "unpkg": "./inputtext.min.js",
+    "types": "./inputtext.d.ts",
+    "sideEffects": false
+}
