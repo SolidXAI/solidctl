@@ -30,6 +30,12 @@ async function bootstrap() {
   const appModule = await AppModule.forRoot();
   const app = await NestFactory.create(appModule);
 
+  // Add a simple health check endpoint at the root path
+  const server = app.getHttpAdapter().getInstance();
+  server.get("/", (_req, res) => {
+    res.status(200).send("SOLID OK");
+  });
+
   // Enable Helmet middleware for security
   app.use(helmet(buildDefaultSecurityHeaderOptions()));
 
