@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "sync-themes": "cp -R node_modules/@solidxai/core-ui/dist/resources/themes public",
+    "sync-themes": "copyfiles -u 5 \"node_modules/@solidxai/core-ui/dist/resources/themes/**/*\" public",
     "postinstall": "npm run sync-themes",
     "solidx:dev": "npm run dev"
   },
@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "copyfiles": "^2.4.1",
     "@types/node": "^24.10.1",
     "@types/react": "18.2.45",
     "@types/react-dom": "18.2.18",
