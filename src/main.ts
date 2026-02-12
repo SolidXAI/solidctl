@@ -8,6 +8,7 @@ import { registerUpgradeCommand } from './commands/upgrade.command';
 import { registerSeedCommand } from './commands/seed.command';
 import { registerInfoCommand } from './commands/info.command';
 import { registerTestDataCommand } from './commands/test-data.command';
+import { registerRunTestsCommand } from './commands/run-tests.command';
 import { registerCreateAppCommand } from './commands/create-app/create-app.command';
 import { registerReleaseCommand } from './commands/release.command';
 import { registerLegacyMigrateCommand } from './commands/legacy-migrate.command';
@@ -31,6 +32,7 @@ async function bootstrap() {
   registerSeedCommand(program);
   registerInfoCommand(program);
   registerTestDataCommand(program);
+  registerRunTestsCommand(program);
   registerCreateAppCommand(program);
   registerReleaseCommand(program);
   registerLegacyMigrateCommand(program);
