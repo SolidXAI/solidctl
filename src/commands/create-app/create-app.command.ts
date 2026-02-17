@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
+import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
 import { setupQuestions, SetupAnswers } from './setup-questions';
@@ -54,35 +55,39 @@ export function registerCreateAppCommand(program: Command) {
           process.exit(1);
         }
 
-        // Step 1: Copy base templates (dot-files, shared config)
-        console.log(
-          prettyOutput('\nStep 1', 'Setting up boilerplate for the backend'),
-        );
         const templatesPath = getTemplatesPath();
+
+        const stepOutput = (stepLabel: string) => (line: string) => {
+          spinner.text = `${stepLabel} ${chalk.dim('> ' + line)}`;
+        };
+
+        // Step 1: Copy base templates and install backend
+        let spinner = ora('Step 1: Setting up boilerplate for the backend...').start();
         await copyTemplate(
           templatesPath,
           targetPath,
           EXCLUDED_DIRS_FOR_INITIAL_COPY,
         );
-
-        // Step 2: Copy and install backend (NestJS)
         await copyAndInstallTemplate(
           path.join(templatesPath, SOURCE_TEMPLATE_FOLDER_API),
           path.join(targetPath, TARGET_FOLDER_API),
           showLogs,
+          stepOutput('Step 1: Setting up boilerplate for the backend...'),
         );
+        spinner.succeed('Step 1: Backend boilerplate ready');
 
-        // Step 3: Copy and install frontend (Next.js)
-        console.log(
-          prettyOutput('Step 2', 'Setting up boilerplate for the frontend'),
-        );
+        // Step 2: Copy and install frontend
+        spinner = ora('Step 2: Setting up boilerplate for the frontend...').start();
         await copyAndInstallTemplate(
           path.join(templatesPath, SOURCE_TEMPLATE_FOLDER_UI),
           path.join(targetPath, TARGET_FOLDER_UI),
           showLogs,
+          stepOutput('Step 2: Setting up boilerplate for the frontend...'),
         );
+        spinner.succeed('Step 2: Frontend boilerplate ready');
 
-        // Step 4: Update package names
+        // Step 3: Update package names
+        spinner = ora('Step 3: Configuring project packages...').start();
         updatePackageName(
           targetPath,
           TARGET_FOLDER_UI,
@@ -94,25 +99,15 @@ export function registerCreateAppCommand(program: Command) {
           `@${projectName}/${TARGET_FOLDER_API}`,
         );
         updatePortInPackageJson(targetPath, TARGET_FOLDER_UI, answers.solidUiPort);
+        spinner.succeed('Step 3: Package configuration updated');
 
-        // Step 5: Generate .env files
+        // Step 4: Generate .env files
+        spinner = ora('Step 4: Generating environment files...').start();
         const backendPath = path.join(targetPath, TARGET_FOLDER_API);
-        console.log(
-          prettyOutput(
-            'Step 3',
-            `Generating .env file for the backend at ${chalk.cyan(backendPath)}`,
-          ),
-        );
         generateEnvFileFromConfig(backendPath, getBackendEnvConfig(answers));
-
         const frontendPath = path.join(targetPath, TARGET_FOLDER_UI);
-        console.log(
-          prettyOutput(
-            'Step 4',
-            `Generating .env file for the frontend at ${chalk.cyan(frontendPath)}`,
-          ),
-        );
         generateEnvFileFromConfig(frontendPath, getFrontendEnvJson(answers));
+        spinner.succeed('Step 4: Environment files generated');
 
         // Step 6: Print next steps
         console.log(
