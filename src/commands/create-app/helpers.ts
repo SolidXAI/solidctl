@@ -1,5 +1,8 @@
 import chalk from 'chalk';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import crypto from 'crypto';
 import fs from 'fs-extra';
 import path from 'path';
@@ -30,22 +33,37 @@ export async function copyAndInstallTemplate(
   source: string,
   target: string,
   showLogs: boolean,
+  onOutput?: (line: string) => void,
 ) {
   try {
     await copyTemplate(source, target);
-    return installTemplate(target, showLogs);
+    return installTemplate(target, showLogs, onOutput);
   } catch (error) {
     console.error(chalk.red('Error in copyAndInstallTemplate:'), error);
     throw error;
   }
 }
 
-function installTemplate(target: string, showLogs: boolean) {
+async function installTemplate(
+  target: string,
+  showLogs: boolean,
+  onOutput?: (line: string) => void,
+) {
   try {
-    execSync('npm install', {
-      stdio: showLogs ? 'inherit' : 'ignore',
-      cwd: target,
-    });
+    const child = execAsync('npm install', { cwd: target });
+    if (showLogs && child.child.stdout && child.child.stderr) {
+      child.child.stdout.pipe(process.stdout);
+      child.child.stderr.pipe(process.stderr);
+    } else if (onOutput) {
+      const handleData = (data: Buffer) => {
+        const lines = data.toString().split(/\r?\n/).filter(Boolean);
+        const last = lines[lines.length - 1]?.trim();
+        if (last) onOutput(last);
+      };
+      child.child.stdout?.on('data', handleData);
+      child.child.stderr?.on('data', handleData);
+    }
+    await child;
   } catch (error) {
     console.error(chalk.red('Error during npm install in', target));
     throw error;
