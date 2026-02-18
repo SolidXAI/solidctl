@@ -134,6 +134,10 @@ export function registerCreateAppCommand(program: Command) {
           ),
         );
 
+        console.log(chalk.yellow('Default Admin Credentials (created as part of the seed process):'));
+        console.log(chalk.magenta('Username:'), chalk.green('sa'));
+        console.log(chalk.magenta('Password:'), chalk.green('Admin@3214$'));
+
         console.log(chalk.cyan('\nRun the api and frontend in separate terminals:'));
 
         console.log(chalk.cyan('\n  Terminal 1 (API):'));
