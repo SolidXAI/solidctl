@@ -4,7 +4,13 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
-import { setupQuestions, SetupAnswers } from './setup-questions';
+import {
+  setupQuestions,
+  SetupAnswers,
+  SETUP_DEFAULTS,
+  DATABASE_CLIENTS,
+  SYNCHRONIZE_OPTIONS,
+} from './setup-questions';
 import {
   copyAndInstallTemplate,
   copyTemplate,
@@ -29,6 +35,50 @@ function kebabCase(str: string): string {
     .toLowerCase();
 }
 
+function buildAnswersFromOptions(options: Record<string, string | boolean | undefined>): SetupAnswers {
+  function validatePort(flag: string, value: string): void {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1 || n > 65535) {
+      console.error(chalk.red(`Invalid ${flag} value "${value}". Must be a port number 1–65535.`));
+      process.exit(1);
+    }
+  }
+
+  const dbClient = (options.dbClient as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseClient;
+
+  if (options.dbClient !== undefined && !DATABASE_CLIENTS.includes(dbClient as any)) {
+    console.error(chalk.red(`Invalid --db-client "${dbClient}". Must be one of: ${DATABASE_CLIENTS.join(', ')}`));
+    process.exit(1);
+  }
+
+  const dbSynchronize = (options.dbSynchronize as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseSynchronize;
+  if (options.dbSynchronize !== undefined && !SYNCHRONIZE_OPTIONS.includes(dbSynchronize as any)) {
+    console.error(chalk.red(`Invalid --db-synchronize "${dbSynchronize}". Must be one of: ${SYNCHRONIZE_OPTIONS.join(', ')}`));
+    process.exit(1);
+  }
+
+  const dbPortDefault = dbClient === 'PostgreSQL'
+    ? SETUP_DEFAULTS.solidApiDatabasePortPostgres
+    : SETUP_DEFAULTS.solidApiDatabasePortMssql;
+
+  if (options.apiPort) validatePort('--api-port', options.apiPort as string);
+  if (options.dbPort)  validatePort('--db-port',  options.dbPort  as string);
+  if (options.uiPort)  validatePort('--ui-port',  options.uiPort  as string);
+
+  return {
+    projectName:                 (options.name       as string | undefined) ?? SETUP_DEFAULTS.projectName,
+    solidApiPort:                (options.apiPort    as string | undefined) ?? SETUP_DEFAULTS.solidApiPort,
+    solidApiDatabaseClient:      dbClient,
+    solidApiDatabaseHost:        (options.dbHost     as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseHost,
+    solidApiDatabasePort:        (options.dbPort     as string | undefined) ?? dbPortDefault,
+    solidApiDatabaseName:        (options.dbName     as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseName,
+    solidApiDatabaseUsername:    (options.dbUsername as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseUsername,
+    solidApiDatabasePassword:    (options.dbPassword as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabasePassword,
+    solidApiDatabaseSynchronize: dbSynchronize,
+    solidUiPort:                 (options.uiPort     as string | undefined) ?? SETUP_DEFAULTS.solidUiPort,
+  };
+}
+
 export function registerCreateAppCommand(program: Command) {
   program
     .command('create-app')
@@ -36,13 +86,30 @@ export function registerCreateAppCommand(program: Command) {
       'Scaffold a new SolidX project with backend (NestJS) and frontend (Next.js)',
     )
     .option('--verbose', 'Show detailed logs during installation')
+    .option('--no-interactive', 'Skip all prompts and use defaults (or provided flags)')
+    .option('--name <name>',             `Project name (default: "${SETUP_DEFAULTS.projectName}")`)
+    .option('--api-port <port>',         `Backend API port (default: ${SETUP_DEFAULTS.solidApiPort})`)
+    .option('--db-client <client>',      `Database: PostgreSQL or MSSQL (default: ${SETUP_DEFAULTS.solidApiDatabaseClient})`)
+    .option('--db-host <host>',          `Database host (default: ${SETUP_DEFAULTS.solidApiDatabaseHost})`)
+    .option('--db-port <port>',          'Database port (default: 5432/PostgreSQL, 1433/MSSQL)')
+    .option('--db-name <name>',          `Database name (default: ${SETUP_DEFAULTS.solidApiDatabaseName})`)
+    .option('--db-username <username>',  `Database username (default: ${SETUP_DEFAULTS.solidApiDatabaseUsername})`)
+    .option('--db-password <password>',  `Database password (default: ${SETUP_DEFAULTS.solidApiDatabasePassword})`)
+    .option('--db-synchronize <yes|no>', `Auto-sync DB schema: Yes or No (default: ${SETUP_DEFAULTS.solidApiDatabaseSynchronize})`)
+    .option('--ui-port <port>',          `Frontend port (default: ${SETUP_DEFAULTS.solidUiPort})`)
     .action(async (options) => {
       try {
         const showLogs: boolean = options.verbose || false;
+        const isNonInteractive: boolean = options.interactive === false;
 
-        console.log(chalk.cyan("Hello, Let's setup your SolidX project!"));
+        let answers: SetupAnswers;
 
-        const answers: SetupAnswers = await inquirer.prompt(setupQuestions);
+        if (isNonInteractive) {
+          answers = buildAnswersFromOptions(options);
+        } else {
+          console.log(chalk.cyan("Hello, Let's setup your SolidX project!"));
+          answers = await inquirer.prompt(setupQuestions);
+        }
 
         const projectName = kebabCase(answers.projectName.trim());
         const targetPath = path.join(process.cwd(), projectName);

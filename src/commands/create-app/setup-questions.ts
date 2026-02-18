@@ -11,6 +11,23 @@ export interface SetupAnswers {
   solidUiPort: string;
 }
 
+export const SETUP_DEFAULTS = {
+  projectName:                  'my-solid-app',
+  solidApiPort:                 '3000',
+  solidApiDatabaseClient:       'PostgreSQL',
+  solidApiDatabaseHost:         'localhost',
+  solidApiDatabasePortPostgres: '5432',
+  solidApiDatabasePortMssql:    '1433',
+  solidApiDatabaseName:         'solidx_app_db',
+  solidApiDatabaseUsername:     'solidx_app_user',
+  solidApiDatabasePassword:     'strongpassword',
+  solidApiDatabaseSynchronize:  'Yes',
+  solidUiPort:                  '3001',
+} as const;
+
+export const DATABASE_CLIENTS = ['PostgreSQL', 'MSSQL'] as const;
+export const SYNCHRONIZE_OPTIONS = ['Yes', 'No'] as const;
+
 export const setupQuestions = [
   {
     type: 'input',
