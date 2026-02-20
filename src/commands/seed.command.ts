@@ -19,7 +19,7 @@ export function registerSeedCommand(program: Command) {
       const passthroughArgs = seedIndex >= 0 ? rawArgs.slice(seedIndex + 1) : [];
       const args = ['seed', ...passthroughArgs];
 
-      console.log('▶ Running solid seed');
+      // console.log('▶ Running solid seed');
       const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
       const result = spawnSync(solidCommand, args, {
         cwd: solidApiDir,
@@ -38,6 +38,6 @@ export function registerSeedCommand(program: Command) {
         process.exit(result.status ?? 1);
       }
 
-      console.log('✔ solid seed completed');
+      // console.log('✔ solid seed completed');
     });
 }
