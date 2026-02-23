@@ -2,18 +2,18 @@
 import { NestFactory } from '@nestjs/core';
 import { Command } from 'commander';
 import { AppModule } from './app.module';
-import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
 import { registerBuildCommand } from './commands/build.command';
-import { registerUpgradeCommand } from './commands/upgrade.command';
-import { registerSeedCommand } from './commands/seed.command';
-import { registerInfoCommand } from './commands/info.command';
-import { registerTestCommand } from './commands/test.command';
 import { registerCreateAppCommand } from './commands/create-app/create-app.command';
-import { registerReleaseCommand } from './commands/release.command';
-import { registerLegacyMigrateCommand } from './commands/legacy-migrate.command';
-import { register } from 'module';
 import { registerGenerateCommand } from './commands/generate.command';
+import { registerInfoCommand } from './commands/info.command';
+import { registerLegacyMigrateCommand } from './commands/legacy-migrate.command';
+import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
 import { registerMcpCommand } from './commands/mcp.command';
+import { registerMigrateCommand } from './commands/migrate/migrate.command';
+import { registerReleaseCommand } from './commands/release.command';
+import { registerSeedCommand } from './commands/seed.command';
+import { registerTestCommand } from './commands/test.command';
+import { registerUpgradeCommand } from './commands/upgrade.command';
 
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(
@@ -39,6 +39,7 @@ async function bootstrap() {
   registerLegacyMigrateCommand(program);
   registerGenerateCommand(program);
   registerMcpCommand(program);
+  registerMigrateCommand(program);
   await program.parseAsync(process.argv);
 
   await appContext.close();

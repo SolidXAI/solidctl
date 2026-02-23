@@ -1,0 +1,9 @@
+[
+  {
+    "id": "add.playwright.dev.dependency.2026.02.23.00.00",
+    "srNo": 1,
+    "description": "Add playwright (>=1.0.0) as a devDependency to solid-ui/package.json",
+    "step": "AddPlaywrightDevDependencyMigration",
+    "publishedOn": "2026-02-23 00:00:00"
+  }
+]
