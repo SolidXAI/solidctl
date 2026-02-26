@@ -7,7 +7,7 @@ import { ISolidxMigration } from '../interfaces/solidx-migration.interface';
  * isApplied checks whether the entry already exists, making this fully idempotent.
  */
 export class AddPlaywrightDevDependencyMigration implements ISolidxMigration {
-  private readonly targetSubProject = 'solid-ui';
+  private readonly targetSubProject = 'solid-api';
   private readonly packageName = 'playwright';
   private readonly packageVersion = '>=1.0.0';
 
