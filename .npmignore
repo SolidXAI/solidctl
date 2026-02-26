@@ -71,5 +71,9 @@ templates/**/package-lock.json
 templates/**/yarn.lock
 templates/**/pnpm-lock.yaml
 
+# Explicit node_modules exclusions for api-template and ui-template
+templates/api-template/node_modules/
+templates/ui-template/node_modules/
+
 # App-specific assets not meant for boilerplate consumers
 templates/next-template/public/themes
