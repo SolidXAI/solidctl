@@ -7,22 +7,36 @@ export function registerUpgradeCommand(program: Command) {
     .command('upgrade')
     .description('Upgrade Solid API and UI dependencies')
     .option('--dry-run', 'Show commands without executing')
+    .option('--tag <tag>', 'Install a pre-release tag instead of latest stable (e.g. beta, alpha, rc)')
+    .addHelpText('after', `
+Examples:
+  $ solidctl upgrade              # upgrade to latest stable
+  $ solidctl upgrade --tag beta   # upgrade to latest beta pre-release
+  $ solidctl upgrade --tag alpha  # upgrade to latest alpha pre-release
+`)
     .action((options) => {
       validateProjectRoot();
+
+      const tag = options.tag as string | undefined;
+
+      function installCmd(pkg: string): string {
+        return tag ? `npm install ${pkg}@${tag}` : `npm upgrade ${pkg}`;
+      }
+
       const commands = [
         {
-          label: 'Upgrade solid-api core',
-          cmd: 'npm upgrade @solidxai/core',
+          label: `Upgrade solid-api core${tag ? ` (${tag})` : ''}`,
+          cmd: installCmd('@solidxai/core'),
           cwd: 'solid-api',
         },
         {
-          label: 'Upgrade solid-api code-builder',
-          cmd: 'npm upgrade @solidxai/code-builder',
+          label: `Upgrade solid-api code-builder${tag ? ` (${tag})` : ''}`,
+          cmd: installCmd('@solidxai/code-builder'),
           cwd: 'solid-api',
         },
         {
-          label: 'Upgrade solid-ui core-ui',
-          cmd: 'npm upgrade @solidxai/core-ui',
+          label: `Upgrade solid-ui core-ui${tag ? ` (${tag})` : ''}`,
+          cmd: installCmd('@solidxai/core-ui'),
           cwd: 'solid-ui',
         },
         {
