@@ -5,37 +5,39 @@ import { validateProjectRoot } from '../helper';
 export function registerUpgradeCommand(program: Command) {
   program
     .command('upgrade')
-    .description('Upgrade Solid API and UI dependencies')
+    .description('Upgrade Solid API and UI dependencies (defaults to beta pre-release)')
     .option('--dry-run', 'Show commands without executing')
-    .option('--tag <tag>', 'Install a pre-release tag instead of latest stable (e.g. beta, alpha, rc)')
+    .option('--stable', 'Upgrade to latest stable release instead of beta')
+    .option('--tag <tag>', 'Install a specific pre-release tag (e.g. alpha, rc)')
     .addHelpText('after', `
 Examples:
-  $ solidctl upgrade              # upgrade to latest stable
-  $ solidctl upgrade --tag beta   # upgrade to latest beta pre-release
-  $ solidctl upgrade --tag alpha  # upgrade to latest alpha pre-release
+  $ solidctl upgrade              # upgrade to latest beta (default)
+  $ solidctl upgrade --stable     # upgrade to latest stable release
+  $ solidctl upgrade --tag alpha  # upgrade to a specific pre-release tag
 `)
     .action((options) => {
       validateProjectRoot();
 
-      const tag = options.tag as string | undefined;
+      const tag: string = options.stable ? 'latest' : (options.tag ?? 'beta');
+      const isStable = options.stable as boolean;
 
       function installCmd(pkg: string): string {
-        return tag ? `npm install ${pkg}@${tag}` : `npm upgrade ${pkg}`;
+        return isStable ? `npm upgrade ${pkg}` : `npm install ${pkg}@${tag}`;
       }
 
       const commands = [
         {
-          label: `Upgrade solid-api core${tag ? ` (${tag})` : ''}`,
+          label: `Upgrade solid-api core${isStable ? ' (stable)' : ` (${tag})`}`,
           cmd: installCmd('@solidxai/core'),
           cwd: 'solid-api',
         },
         {
-          label: `Upgrade solid-api code-builder${tag ? ` (${tag})` : ''}`,
+          label: `Upgrade solid-api code-builder${isStable ? ' (stable)' : ` (${tag})`}`,
           cmd: installCmd('@solidxai/code-builder'),
           cwd: 'solid-api',
         },
         {
-          label: `Upgrade solid-ui core-ui${tag ? ` (${tag})` : ''}`,
+          label: `Upgrade solid-ui core-ui${isStable ? ' (stable)' : ` (${tag})`}`,
           cmd: installCmd('@solidxai/core-ui'),
           cwd: 'solid-ui',
         },
