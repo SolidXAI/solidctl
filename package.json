@@ -10,7 +10,8 @@
   },
   "files": [
     "dist",
-    "templates"
+    "templates",
+    "solidx-migrations.json"
   ],
   "publishConfig": {
     "access": "public"
