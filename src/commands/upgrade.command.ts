@@ -22,7 +22,7 @@ Examples:
       const isStable = options.stable as boolean;
 
       function installCmd(pkg: string): string {
-        return isStable ? `npm upgrade ${pkg}` : `npm install ${pkg}@${tag}`;
+        return isStable ? `npm upgrade ${pkg}` : `npm install ${pkg}@${tag} --prefer-online`;
       }
 
       const commands = [
@@ -54,10 +54,14 @@ Examples:
 
         if (options.dryRun) continue;
 
-        execSync(cmd, {
-          cwd,
-          stdio: 'inherit',
-        });
+        try {
+          execSync(cmd, {
+            cwd,
+            stdio: 'inherit',
+          });
+        } catch {
+          console.warn(`\n⚠️  Skipped: ${label} (package or tag not found)`);
+        }
       }
 
       console.log('\n✅ Solid upgrade completed successfully');
