@@ -73,9 +73,9 @@ npx @solidxai/solidctl create-app [options]
 | `--db-client <client>` | `postgres` | Database client (`postgres`, `mysql`, etc.) |
 | `--db-host <host>` | `localhost` | Database host |
 | `--db-port <port>` | `5432` | Database port |
-| `--db-name <name>` | — | Database name |
-| `--db-username <user>` | — | Database username |
-| `--db-password <pass>` | — | Database password |
+| `--db-name <name>` | `solidx_app_db` | Database name |
+| `--db-username <user>` | `solidx_app_user` | Database username |
+| `--db-password <pass>` | `strongpassword` | Database password |
 | `--db-synchronize` | `false` | Enable TypeORM schema auto-sync |
 | `--no-interactive` | — | Skip prompts and use flag values / defaults |
 
