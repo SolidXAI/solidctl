@@ -1,98 +1,219 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# solidctl
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+> The developer CLI for the SolidX platform — scaffold, build, seed, generate, and release your SolidX application from a single tool.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+`solidctl` is the command-line interface that ties the SolidX ecosystem together. Whether you are starting a new project, upgrading core dependencies, or regenerating code after a model change using the command line, `solidctl` is the entry point.
 
-## Description
+[![npm version](https://img.shields.io/npm/v/@solidxai/solidctl)](https://www.npmjs.com/package/@solidxai/solidctl)
+[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](https://opensource.org/licenses/BSL-1.1)
+[![Documentation](https://img.shields.io/badge/docs-solidxai.com-blue)](https://docs.solidxai.com/docs)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Usage
+
+The recommended way to run `solidctl` is via `npx`, which ensures you are always using the latest version without needing a global install:
 
 ```bash
-$ npm install
+npx @solidxai/solidctl <command>
 ```
 
-## Compile and run the project
+All examples in this README use `npx`. If you prefer a global install:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install -g @solidxai/solidctl
+solidctl <command>
 ```
 
-## Run tests
+However please note that a global install may become outdated, so we recommend using `npx` for the best experience.
+
+---
+
+## Quick start
+
+Scaffold a new SolidX project with a single command:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npx @solidxai/solidctl create-app
 ```
 
-## Deployment
+The interactive wizard will ask for your project name, database connection details, and port configuration, then scaffold a complete project structure:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+```
+my-solid-app/
+├── solid-api/    # NestJS backend powered by @solidxai/core
+└── solid-ui/     # React frontend powered by @solidxai/core-ui
+```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Once created, build the API and bootstrap the database:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+cd my-solid-app
+npx @solidxai/solidctl build   # compiles solid-api and sets up the local solid CLI
+npx @solidxai/solidctl seed    # seeds the database with SolidX metadata and system defaults
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## Commands
 
-Check out a few resources that may come in handy when working with NestJS:
+### `create-app`
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Scaffolds a new SolidX project. Runs an interactive setup wizard by default; all options can also be passed as flags for non-interactive use.
 
-## Support
+```bash
+npx @solidxai/solidctl create-app [options]
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+| Flag | Default | Description |
+|---|---|---|
+| `--name <name>` | `my-solid-app` | Project directory name |
+| `--api-port <port>` | `3000` | Port for the NestJS API |
+| `--ui-port <port>` | `3001` | Port for the React frontend |
+| `--db-client <client>` | `postgres` | Database client (`postgres`, `mysql`, etc.) |
+| `--db-host <host>` | `localhost` | Database host |
+| `--db-port <port>` | `5432` | Database port |
+| `--db-name <name>` | — | Database name |
+| `--db-username <user>` | — | Database username |
+| `--db-password <pass>` | — | Database password |
+| `--db-synchronize` | `false` | Enable TypeORM schema auto-sync |
+| `--no-interactive` | — | Skip prompts and use flag values / defaults |
 
-## Stay in touch
+---
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### `build`
+
+Builds the NestJS API and sets up the local `solid` CLI shim so subsequent `solidctl` commands that proxy into the API (like `seed`, `generate`, and `test`) work correctly. Run this after project creation and after any changes to `solid-api`.
+
+```bash
+npx @solidxai/solidctl build
+```
+
+This command:
+1. Runs `npm run build` inside `solid-api/`
+2. Creates a local `solid` CLI shim that points to the compiled output
+3. Verifies the shim is working correctly
+
+> Must be run from the project root (the directory containing both `solid-api/` and `solid-ui/`).
+
+---
+
+### `seed`
+
+Seeds the database with SolidX system metadata, permissions, default settings, and the initial admin user. Run once after the database is created and after any module metadata changes.
+
+```bash
+npx @solidxai/solidctl seed
+```
+
+Proxies to the `solid seed` command inside `solid-api/`. Any additional arguments are passed through.
+
+---
+
+### `generate`
+
+Regenerates NestJS boilerplate (entity, service, controller, repository, DTOs) for a model or an entire module based on the current metadata. Safe to run repeatedly — existing custom logic in generated files is preserved.
+
+```bash
+# Regenerate a single model and its related models
+npx @solidxai/solidctl generate model <model-name>
+
+# Regenerate all models within a module
+npx @solidxai/solidctl generate module <module-name>
+```
+
+Under the hood, this proxies to `solid refresh-model` / `solid refresh-module`, which invokes `@solidxai/code-builder` to perform AST-level file updates.
+
+---
+
+### `upgrade`
+
+Upgrades the core SolidX dependencies in both `solid-api` and `solid-ui` to the latest available version.
+
+```bash
+# Upgrade to the latest beta pre-release (default)
+npx @solidxai/solidctl upgrade
+
+# Upgrade to the latest stable release
+npx @solidxai/solidctl upgrade --stable
+
+# Upgrade to a specific dist-tag
+npx @solidxai/solidctl upgrade --tag next
+
+# Preview what would change without installing
+npx @solidxai/solidctl upgrade --dry-run
+```
+
+Packages upgraded:
+- `solid-api`: `@solidxai/core`, `@solidxai/code-builder`
+- `solid-ui`: `@solidxai/core-ui`
+
+---
+
+### `test`
+
+Runs the SolidX metadata-driven test suite defined in your module metadata. Proxies to `solid test` inside `solid-api/`.
+
+```bash
+npx @solidxai/solidctl test [args]
+```
+
+All arguments are passed through to the underlying `solid test` command. See the [testing framework documentation](https://docs.solidxai.com/docs) for details on writing test scenarios.
+
+---
+
+### `info`
+
+Prints information about the current SolidX project — versions, configuration, and environment. Useful for debugging and support.
+
+```bash
+npx @solidxai/solidctl info
+```
+
+---
+
+## Project structure
+
+A project created by `solidctl create-app` follows this layout:
+
+```
+my-solid-app/
+├── solid-api/                  # NestJS backend
+│   ├── src/
+│   │   ├── app.module.ts       # Root module importing SolidCoreModule
+│   │   ├── main.ts             # Application entry point
+│   │   └── {your-modules}/     # Generated modules live here
+│   ├── module-metadata/        # Metadata JSON files driving code generation
+│   └── package.json
+│
+└── solid-ui/                   # React frontend
+    ├── src/
+    │   ├── main.tsx            # App entry point
+    │   └── App.tsx             # Root component with SolidX providers
+    └── package.json
+```
+
+---
+
+## Part of the SolidX Platform
+
+`solidctl` is the developer interface to the full SolidX package ecosystem:
+
+| Package | Role |
+|---|---|
+| [`@solidxai/core`](https://www.npmjs.com/package/@solidxai/core) | NestJS backend module — auth, CRUD, IAM, notifications, queues |
+| [`@solidxai/core-ui`](https://www.npmjs.com/package/@solidxai/core-ui) | React admin panel — metadata-driven views, auth UI, Redux store |
+| [`@solidxai/code-builder`](https://www.npmjs.com/package/@solidxai/code-builder) | Code generation engine — produces NestJS files from metadata |
+| `@solidxai/solidctl` | This CLI — scaffolds, builds, generates, and upgrades |
+
+| | |
+|---|---|
+| Website | [solidxai.com](https://solidxai.com) |
+| Documentation | [docs.solidxai.com](https://docs.solidxai.com/docs) |
+| Support | support@solidxai.com |
+
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+BSL-1.1 © [Logicloop](https://logicloop.io)
