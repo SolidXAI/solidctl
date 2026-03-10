@@ -2,9 +2,10 @@
 
 > The developer CLI for the SolidX platform — scaffold, build, seed, generate, and release your SolidX application from a single tool.
 
-`solidctl` is the command-line interface that ties the SolidX ecosystem together. Whether you are starting a new project, regenerating code after a model change, upgrading core dependencies, or cutting a release, `solidctl` is the entry point.
+`solidctl` is the command-line interface that ties the SolidX ecosystem together. Whether you are starting a new project, upgrading core dependencies, or regenerating code after a model change using the command line, `solidctl` is the entry point.
 
 [![npm version](https://img.shields.io/npm/v/@solidxai/solidctl)](https://www.npmjs.com/package/@solidxai/solidctl)
+[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](https://opensource.org/licenses/BSL-1.1)
 [![Documentation](https://img.shields.io/badge/docs-solidxai.com-blue)](https://docs.solidxai.com/docs)
 
 ---
@@ -23,6 +24,8 @@ All examples in this README use `npx`. If you prefer a global install:
 npm install -g @solidxai/solidctl
 solidctl <command>
 ```
+
+However please note that a global install may become outdated, so we recommend using `npx` for the best experience.
 
 ---
 
@@ -159,32 +162,6 @@ All arguments are passed through to the underlying `solid test` command. See the
 
 ---
 
-### `release`
-
-Bumps the version, creates a git tag, and publishes to npm. Handles both stable and pre-release workflows with branch enforcement.
-
-```bash
-npx @solidxai/solidctl release <type> [options]
-```
-
-Where `<type>` is one of: `patch`, `minor`, `major`, `alpha`, `beta`, `rc`.
-
-| Flag | Description |
-|---|---|
-| `--dry-run` | Preview the release without publishing or tagging |
-| `--preid <id>` | Pre-release identifier (e.g. `beta`, `rc`) |
-| `--force` | Skip branch validation |
-| `--no-merge` | Skip merging main → dev after a stable release |
-| `--main-branch <branch>` | Main branch name (default: `main`) |
-| `--dev-branch <branch>` | Dev branch name (default: `dev`) |
-
-**Branch rules:**
-- Stable releases (`patch`, `minor`, `major`) must be run from the main branch
-- Pre-releases (`alpha`, `beta`, `rc`) must be run from the dev branch
-- After a stable release, main is automatically merged back into dev
-
----
-
 ### `info`
 
 Prints information about the current SolidX project — versions, configuration, and environment. Useful for debugging and support.
@@ -239,4 +216,4 @@ my-solid-app/
 
 ## License
 
-UNLICENSED © [Logicloop](https://logicloop.io)
+BSL-1.1 © [Logicloop](https://logicloop.io)
