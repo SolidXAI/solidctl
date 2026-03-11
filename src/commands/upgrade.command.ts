@@ -50,6 +50,7 @@ Examples:
 
       if (!options.dryRun) {
         execSync('rm -f package-lock.json && rm -rf node_modules/@solidxai', { cwd: 'solid-api' });
+        execSync('rm -f package-lock.json && rm -rf node_modules/@solidxai', { cwd: 'solid-ui' });
       }
 
       for (const { label, cmd, cwd } of commands) {
