@@ -6,17 +6,9 @@ import { CommandFactory } from "nest-commander";
 import { resolve } from "path";
 import { AppModule } from "./app.module";
 import { configurePgInt8TypeParser } from "./database.utils";
+import "./suppress-warnings";
 
 const logger = new Logger("Bootstrap");
-
-// Suppress punycode deprecation warning from dependencies
-process.removeAllListeners('warning');
-process.on('warning', (warning) => {
-  if (warning.name === 'DeprecationWarning' && warning.message.includes('punycode')) {
-    return; // Ignore known punycode deprecation from dependencies
-  }
-  console.warn(warning); // Still show other warnings
-});
 
 // ---- Global safety nets (must be first) ----
 process.on('unhandledRejection', (reason, promise) => {

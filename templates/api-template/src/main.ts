@@ -15,6 +15,7 @@ import helmet from 'helmet';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
 import { configurePgInt8TypeParser } from './database.utils';
+import './suppress-warnings';
 
 import qs from 'qs';
 
