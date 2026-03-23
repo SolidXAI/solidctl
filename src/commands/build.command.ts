@@ -132,12 +132,12 @@ export function registerBuildCommand(program: Command) {
   program
     .command('build')
     .description('Build Solid API and set up Solid CLI')
-    .option('--build-ui', 'Build only solid-ui and skip solid-api build')
-    .action((options: { buildUi?: boolean }) => {
+    .option('--ui-only', 'Build only solid-ui and skip solid-api build')
+    .action((options: { uiOnly?: boolean }) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
 
-      if (options.buildUi) {
+      if (options.uiOnly) {
         const solidUiDir = path.join(projectRoot, 'solid-ui');
         if (!fs.existsSync(solidUiDir)) {
           throw new Error(`Required folder not found: ${solidUiDir}`);
