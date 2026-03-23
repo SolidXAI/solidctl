@@ -132,9 +132,21 @@ export function registerBuildCommand(program: Command) {
   program
     .command('build')
     .description('Build Solid API and set up Solid CLI')
-    .action(() => {
+    .option('--build-ui', 'Build only solid-ui and skip solid-api build')
+    .action((options: { buildUi?: boolean }) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
+
+      if (options.buildUi) {
+        const solidUiDir = path.join(projectRoot, 'solid-ui');
+        if (!fs.existsSync(solidUiDir)) {
+          throw new Error(`Required folder not found: ${solidUiDir}`);
+        }
+
+        console.log('▶ Building solid-ui');
+        exec('npm run build', solidUiDir);
+        return;
+      }
 
       console.log('▶ Building solid-api');
       exec('npm run build', `${projectRoot}/solid-api`);
@@ -168,11 +180,5 @@ export function registerBuildCommand(program: Command) {
       }
 
       console.log('✔ solid CLI ready');
-
-      const solidUiDir = path.join(projectRoot, 'solid-ui');
-      if (fs.existsSync(solidUiDir)) {
-        console.log('▶ Building solid-ui');
-        exec('npm run build', solidUiDir);
-      }
     });
 }
