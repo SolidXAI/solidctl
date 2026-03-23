@@ -136,7 +136,7 @@ export function registerBuildCommand(program: Command) {
       validateProjectRoot();
       const projectRoot = process.cwd();
 
-      console.log('▶ Building project');
+      console.log('▶ Building solid-api');
       exec('npm run build', `${projectRoot}/solid-api`);
 
       console.log('▶ Ensuring CLI files are executable');
@@ -168,5 +168,11 @@ export function registerBuildCommand(program: Command) {
       }
 
       console.log('✔ solid CLI ready');
+
+      const solidUiDir = path.join(projectRoot, 'solid-ui');
+      if (fs.existsSync(solidUiDir)) {
+        console.log('▶ Building solid-ui');
+        exec('npm run build', solidUiDir);
+      }
     });
 }
