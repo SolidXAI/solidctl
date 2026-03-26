@@ -27,6 +27,14 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
 });
 
+// Suppress pg deprecation warning caused by TypeORM's internal query scheduling
+process.on('warning', (warning) => {
+    if (warning.name === 'DeprecationWarning' && warning.message.includes('client.query()')) {
+        return;
+    }
+    console.warn(warning);
+});
+
 async function bootstrap() {
   const appModule = await AppModule.forRoot();
   const app = await NestFactory.create(appModule);
@@ -51,7 +59,6 @@ async function bootstrap() {
   });
 
   // setup winston as the default logger.
-  // const app = await NestFactory.create(AppModule);
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   // Making the port dynamic

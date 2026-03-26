@@ -18,6 +18,14 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
 });
 
+// Suppress pg deprecation warning caused by TypeORM's internal query scheduling
+process.on('warning', (warning) => {
+    if (warning.name === 'DeprecationWarning' && warning.message.includes('client.query()')) {
+        return;
+    }
+    console.warn(warning);
+});
+
 async function bootstrap() {
   // setup log levels...
   const showLogs = process.argv.includes('--verbose') || process.argv.includes('-v');
