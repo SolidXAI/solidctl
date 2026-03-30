@@ -70,7 +70,7 @@ async function bootstrap() {
     if (req.query) {
       req.query = qs.parse(req.url.split('?')[1], {
         allowDots: true,  // Allows dot notation ($eq, $or, etc.)
-        depth: 10,        // Supports deeply nested structures
+        depth: 20,        // Supports deeply nested structures
         arrayLimit: 100,  // Prevents indexed arrays from becoming objects
       });
     }
