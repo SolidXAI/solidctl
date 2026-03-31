@@ -14,6 +14,7 @@ import { registerLegacyMigrateCommand } from './commands/legacy-migrate.command'
 import { register } from 'module';
 import { registerGenerateCommand } from './commands/generate.command';
 import { registerMcpCommand } from './commands/mcp.command';
+import { registerAgentCommand } from './commands/agent.command';
 
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(
@@ -39,6 +40,7 @@ async function bootstrap() {
   registerLegacyMigrateCommand(program);
   registerGenerateCommand(program);
   registerMcpCommand(program);
+  registerAgentCommand(program);
   await program.parseAsync(process.argv);
 
   await appContext.close();
