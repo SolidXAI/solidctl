@@ -20,6 +20,7 @@ export function registerAgentCommand(program: Command) {
       const env = {
         ...process.env,
         SOLIDX_PROJECT_ROOT: projectRoot,
+        DATABASE_URL: process.env.DATABASE_URL,
       };
 
       console.log(`▶ Starting SolidX AI Agent server on ${options.host}:${options.port}`);
@@ -60,6 +61,7 @@ export function registerAgentCommand(program: Command) {
       const env = {
         ...process.env,
         SOLIDX_PROJECT_ROOT: projectRoot,
+        DATABASE_URL: process.env.DATABASE_URL,
       };
 
       const args = [task];
