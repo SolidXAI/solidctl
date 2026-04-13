@@ -1,6 +1,27 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
+import path from 'path';
+import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
+
+/**
+ * Build a DATABASE_URL from the consuming project's individual DB env vars,
+ * unless DATABASE_URL is already explicitly set.
+ */
+function resolveDatabaseUrl(): string | undefined {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+
+  const host = process.env.DEFAULT_DATABASE_HOST;
+  const port = process.env.DEFAULT_DATABASE_PORT;
+  const user = process.env.DEFAULT_DATABASE_USER;
+  const password = process.env.DEFAULT_DATABASE_PASSWORD;
+  const name = process.env.DEFAULT_DATABASE_NAME;
+
+  if (host && port && user && name) {
+    return `postgresql://${user}${password ? ':' + password : ''}@${host}:${port}/${name}`;
+  }
+  return undefined;
+}
 
 export function registerAgentCommand(program: Command) {
   const agent = program
@@ -17,10 +38,14 @@ export function registerAgentCommand(program: Command) {
       validateProjectRoot();
       const projectRoot = process.cwd();
 
-      const env = {
-        ...process.env,
+      // Load consuming project's .env (lives in solid-api/)
+      loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
+
+      const databaseUrl = resolveDatabaseUrl();
+      const env: Record<string, string> = {
+        ...process.env as Record<string, string>,
         SOLIDX_PROJECT_ROOT: projectRoot,
-        DATABASE_URL: process.env.DATABASE_URL,
+        ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
       };
 
       console.log(`▶ Starting SolidX AI Agent server on ${options.host}:${options.port}`);
@@ -58,10 +83,14 @@ export function registerAgentCommand(program: Command) {
       validateProjectRoot();
       const projectRoot = process.cwd();
 
-      const env = {
-        ...process.env,
+      // Load consuming project's .env (lives in solid-api/)
+      loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
+
+      const databaseUrl = resolveDatabaseUrl();
+      const env: Record<string, string> = {
+        ...process.env as Record<string, string>,
         SOLIDX_PROJECT_ROOT: projectRoot,
-        DATABASE_URL: process.env.DATABASE_URL,
+        ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
       };
 
       const args = [task];
