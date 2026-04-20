@@ -46,7 +46,15 @@ export function registerAgentCommand(program: Command) {
         ...process.env as Record<string, string>,
         SOLIDX_PROJECT_ROOT: projectRoot,
         ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+        ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
+        ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
       };
+
+      const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'APP_ENCRYPTION_KEY'];
+      const bridged = bridgedKeys.filter((k) => env[k]);
+      const missing = bridgedKeys.filter((k) => !env[k]);
+      console.log(`✔ Bridged env: ${bridged.join(', ') || 'none'}`);
+      if (missing.length) console.warn(`⚠ Missing env: ${missing.join(', ')}`);
 
       console.log(`▶ Starting SolidX AI Agent server on ${options.host}:${options.port}`);
 
@@ -91,6 +99,8 @@ export function registerAgentCommand(program: Command) {
         ...process.env as Record<string, string>,
         SOLIDX_PROJECT_ROOT: projectRoot,
         ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+        ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
+        ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
       };
 
       const args = [task];
@@ -98,6 +108,12 @@ export function registerAgentCommand(program: Command) {
         args.push('--mode', options.mode);
       }
       args.push('--log-level', options.logLevel);
+
+      const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'APP_ENCRYPTION_KEY'];
+      const bridged = bridgedKeys.filter((k) => env[k]);
+      const missing = bridgedKeys.filter((k) => !env[k]);
+      console.log(`✔ Bridged env: ${bridged.join(', ') || 'none'}`);
+      if (missing.length) console.warn(`⚠ Missing env: ${missing.join(', ')}`);
 
       console.log(`▶ Running SolidX AI Agent: ${task}`);
 
