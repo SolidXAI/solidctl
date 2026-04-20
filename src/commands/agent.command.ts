@@ -46,6 +46,8 @@ export function registerAgentCommand(program: Command) {
         ...process.env as Record<string, string>,
         SOLIDX_PROJECT_ROOT: projectRoot,
         ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+        ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
+        ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
       };
 
       console.log(`▶ Starting SolidX AI Agent server on ${options.host}:${options.port}`);
@@ -91,6 +93,8 @@ export function registerAgentCommand(program: Command) {
         ...process.env as Record<string, string>,
         SOLIDX_PROJECT_ROOT: projectRoot,
         ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+        ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
+        ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
       };
 
       const args = [task];
