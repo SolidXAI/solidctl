@@ -6,6 +6,9 @@ const execAsync = promisify(exec);
 import crypto from 'crypto';
 import fs from 'fs-extra';
 import path from 'path';
+import { Client as PgClient } from 'pg';
+import mysql from 'mysql2/promise';
+import mssql from 'mssql';
 import { SetupAnswers } from './setup-questions';
 
 export const HIDDEN_TEMPLATES_FOLDER = 'dot-templates';
@@ -178,6 +181,47 @@ export function updatePortInPackageJson(
   } catch (error) {
     console.error(chalk.red('Error in updatePortInPackageJson:'), error);
     throw error;
+  }
+}
+
+export async function createDatabaseIfNotExists(answers: SetupAnswers): Promise<void> {
+  const { solidApiDatabaseClient: client, solidApiDatabaseHost: host, solidApiDatabasePort: port,
+          solidApiDatabaseName: dbName, solidApiDatabaseUsername: user, solidApiDatabasePassword: password } = answers;
+
+  if (client === 'PostgreSQL') {
+    const pg = new PgClient({ host, port: parseInt(port), user, password, database: 'postgres' });
+    await pg.connect();
+    try {
+      const res = await pg.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [dbName]);
+      if (res.rowCount === 0) {
+        await pg.query(`CREATE DATABASE "${dbName}"`);
+        console.log(chalk.green(`Database "${dbName}" created successfully.`));
+      }
+    } finally {
+      await pg.end();
+    }
+  } else if (client === 'MySQL') {
+    const conn = await mysql.createConnection({ host, port: parseInt(port), user, password });
+    try {
+      await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+      console.log(chalk.green(`Database \`${dbName}\` created successfully.`));
+    } finally {
+      await conn.end();
+    }
+  } else if (client === 'MSSQL') {
+    const pool = await mssql.connect({
+      server: host, port: parseInt(port), user, password,
+      database: 'master',
+      options: { trustServerCertificate: true },
+    });
+    try {
+      await pool.request().query(
+        `IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'${dbName}') CREATE DATABASE [${dbName}]`
+      );
+      console.log(chalk.green(`Database [${dbName}] created successfully.`));
+    } finally {
+      await pool.close();
+    }
   }
 }
 
