@@ -1,0 +1,22 @@
+{
+  "name": "solidctl",
+  "version": "0.1.24",
+  "description": "CLI wrapper for @solidxai/solidctl",
+  "author": "SolidXAI",
+  "license": "UNLICENSED",
+  "bin": {
+    "solidctl": "bin/solidctl.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "scripts": {
+    "postinstall": "node -e \"console.log('solidctl is ready. Run: solidctl --help')\""
+  },
+  "dependencies": {
+    "@solidxai/solidctl": "*"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
