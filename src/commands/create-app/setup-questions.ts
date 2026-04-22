@@ -8,6 +8,7 @@ export interface SetupAnswers {
   solidApiDatabaseUsername: string;
   solidApiDatabasePassword: string;
   solidApiDatabaseSynchronize: string;
+  databaseExists: boolean;
   solidUiPort: string;
 }
 
@@ -18,6 +19,7 @@ export const SETUP_DEFAULTS = {
   solidApiDatabaseHost:         'localhost',
   solidApiDatabasePortPostgres: '5432',
   solidApiDatabasePortMssql:    '1433',
+  solidApiDatabasePortMysql:    '3306',
   solidApiDatabaseName:         'solidx_app_db',
   solidApiDatabaseUsername:     'solidx_app_user',
   solidApiDatabasePassword:     'strongpassword',
@@ -25,7 +27,7 @@ export const SETUP_DEFAULTS = {
   solidUiPort:                  '3001',
 } as const;
 
-export const DATABASE_CLIENTS = ['PostgreSQL', 'MSSQL'] as const;
+export const DATABASE_CLIENTS = ['PostgreSQL', 'MySQL', 'MSSQL'] as const;
 export const SYNCHRONIZE_OPTIONS = ['Yes', 'No'] as const;
 
 export const setupQuestions = [
@@ -45,7 +47,7 @@ export const setupQuestions = [
     type: 'list',
     name: 'solidApiDatabaseClient',
     message: 'Select your database?',
-    choices: ['PostgreSQL', 'MSSQL'],
+    choices: ['PostgreSQL', 'MySQL', 'MSSQL'],
     default: 'PostgreSQL',
   },
   {
@@ -59,7 +61,9 @@ export const setupQuestions = [
     name: 'solidApiDatabasePort',
     message: 'Enter your database port',
     default: (answers: SetupAnswers) => {
-      return answers.solidApiDatabaseClient === 'PostgreSQL' ? '5432' : '1433';
+      if (answers.solidApiDatabaseClient === 'PostgreSQL') return '5432';
+      if (answers.solidApiDatabaseClient === 'MySQL') return '3306';
+      return '1433';
     },
   },
   {
@@ -87,6 +91,12 @@ export const setupQuestions = [
       'Automatically update database schema when models change? (Not recommended for production)',
     choices: ['Yes', 'No'],
     default: 'Yes',
+  },
+  {
+    type: 'confirm',
+    name: 'databaseExists',
+    message: 'Does this database already exist?',
+    default: true,
   },
   {
     type: 'input',
