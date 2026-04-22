@@ -4,7 +4,7 @@
   "description": "",
   "author": "",
   "private": false,
-  "license": "UNLICENSED",
+  "license": "BUSL-1.1",
   "bin": {
     "solidctl": "dist/main.js"
   },
