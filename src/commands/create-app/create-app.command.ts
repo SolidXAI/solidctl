@@ -14,6 +14,7 @@ import {
 import {
   copyAndInstallTemplate,
   copyTemplate,
+  createDatabaseIfNotExists,
   EXCLUDED_DIRS_FOR_INITIAL_COPY,
   generateEnvFileFromConfig,
   getBackendEnvConfig,
@@ -59,7 +60,9 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
 
   const dbPortDefault = dbClient === 'PostgreSQL'
     ? SETUP_DEFAULTS.solidApiDatabasePortPostgres
-    : SETUP_DEFAULTS.solidApiDatabasePortMssql;
+    : dbClient === 'MySQL'
+      ? SETUP_DEFAULTS.solidApiDatabasePortMysql
+      : SETUP_DEFAULTS.solidApiDatabasePortMssql;
 
   if (options.apiPort) validatePort('--api-port', options.apiPort as string);
   if (options.dbPort)  validatePort('--db-port',  options.dbPort  as string);
@@ -75,6 +78,7 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
     solidApiDatabaseUsername:    (options.dbUsername as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseUsername,
     solidApiDatabasePassword:    (options.dbPassword as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabasePassword,
     solidApiDatabaseSynchronize: dbSynchronize,
+    databaseExists:              true,
     solidUiPort:                 (options.uiPort     as string | undefined) ?? SETUP_DEFAULTS.solidUiPort,
   };
 }
@@ -89,7 +93,7 @@ export function registerCreateAppCommand(program: Command) {
     .option('--no-interactive', 'Skip all prompts and use defaults (or provided flags)')
     .option('--name <name>',             `Project name (default: "${SETUP_DEFAULTS.projectName}")`)
     .option('--api-port <port>',         `Backend API port (default: ${SETUP_DEFAULTS.solidApiPort})`)
-    .option('--db-client <client>',      `Database: PostgreSQL or MSSQL (default: ${SETUP_DEFAULTS.solidApiDatabaseClient})`)
+    .option('--db-client <client>',      `Database: PostgreSQL, MySQL or MSSQL (default: ${SETUP_DEFAULTS.solidApiDatabaseClient})`)
     .option('--db-host <host>',          `Database host (default: ${SETUP_DEFAULTS.solidApiDatabaseHost})`)
     .option('--db-port <port>',          'Database port (default: 5432/PostgreSQL, 1433/MSSQL)')
     .option('--db-name <name>',          `Database name (default: ${SETUP_DEFAULTS.solidApiDatabaseName})`)
@@ -109,6 +113,17 @@ export function registerCreateAppCommand(program: Command) {
         } else {
           console.log(chalk.cyan("Hello, Let's setup your SolidX project!"));
           answers = await inquirer.prompt(setupQuestions);
+        }
+
+        if (!answers.databaseExists) {
+          const dbSpinner = ora(`Creating database "${answers.solidApiDatabaseName}"...`).start();
+          try {
+            await createDatabaseIfNotExists(answers);
+            dbSpinner.succeed(`Database "${answers.solidApiDatabaseName}" created`);
+          } catch (err: any) {
+            dbSpinner.fail(`Failed to create database: ${err?.message ?? err}`);
+            process.exit(1);
+          }
         }
 
         const projectName = kebabCase(answers.projectName.trim());
