@@ -5,7 +5,7 @@
 `solidctl` is the command-line interface that ties the SolidX ecosystem together. Whether you are starting a new project, upgrading core dependencies, or regenerating code after a model change using the command line, `solidctl` is the entry point.
 
 [![npm version](https://img.shields.io/npm/v/@solidxai/solidctl)](https://www.npmjs.com/package/@solidxai/solidctl)
-[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](https://opensource.org/licenses/BSL-1.1)
+[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](https://mariadb.com/bsl11/)
 [![Documentation](https://img.shields.io/badge/docs-solidxai.com-blue)](https://docs.solidxai.com/docs)
 
 ---
@@ -210,6 +210,7 @@ my-solid-app/
 |---|---|
 | Website | [solidxai.com](https://solidxai.com) |
 | Documentation | [docs.solidxai.com](https://docs.solidxai.com/docs) |
+| Discord | [discord.gg/yh4KZf8c](https://discord.gg/yh4KZf8c) |
 | Support | support@solidxai.com |
 
 ---
