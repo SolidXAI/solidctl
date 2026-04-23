@@ -7,7 +7,7 @@
 [![npm version](https://img.shields.io/npm/v/@solidxai/solidctl)](https://www.npmjs.com/package/@solidxai/solidctl)
 [![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](https://mariadb.com/bsl11/)
 [![Documentation](https://img.shields.io/badge/docs-solidxai.com-blue)](https://docs.solidxai.com/docs)
-[![Discord](https://img.shields.io/badge/discord-online-brightgreen.svg)](https://discord.gg/yh4KZf8c)
+[![Discord](https://img.shields.io/badge/discord-online-brightgreen.svg)](https://discord.gg/ATQW4CEksA)
 
 ---
 
@@ -211,7 +211,7 @@ my-solid-app/
 |---|---|
 | Website | [solidxai.com](https://solidxai.com) |
 | Documentation | [docs.solidxai.com](https://docs.solidxai.com/docs) |
-| Discord | [discord.gg/yh4KZf8c](https://discord.gg/yh4KZf8c) |
+| Discord | [discord.gg/ATQW4CEksA](https://discord.gg/ATQW4CEksA) |
 | Support | support@solidxai.com |
 
 ---
