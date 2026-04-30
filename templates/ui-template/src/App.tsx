@@ -9,7 +9,6 @@ import { LayoutProvider, SolidThemeProvider, StoreProvider, AppEventListener } f
 import { AppRoutes } from "./AppRoutes";
 import { solidUiModuleRuntime } from "./solid-ui-modules";
 import "./index.css";
-import { Toaster } from "sonner";
 
 function App() {
   return (
@@ -20,7 +19,6 @@ function App() {
             <SolidThemeProvider />
             <AppEventListener />
             <AppRoutes />
-            <Toaster position="top-center" richColors />
           </LayoutProvider>
         </PrimeReactProvider>
       </StoreProvider>
