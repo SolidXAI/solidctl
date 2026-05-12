@@ -132,6 +132,37 @@ solidctl seed --conf "{\"modulesToSeed\": [\"onboarding\"]}"
 
 ---
 
+### 5) start:dev
+
+Runs both consuming-project dev servers in one supervised terminal session.
+
+Usage:
+
+```bash
+npx @solidxai/solidctl start:dev [--plain]
+```
+
+What it runs:
+
+- `npm run solidx:dev` in `solid-api`
+- `npm run solidx:dev` in `solid-ui`
+
+Interactive shortcuts:
+
+- `a` restart API only
+- `u` restart UI only
+- `r` restart both
+- `c` clear the terminal
+- `q` quit
+
+Notes:
+
+- Must be run from the SolidX project root.
+- Both `solid-api/package.json` and `solid-ui/package.json` must define `scripts.solidx:dev`.
+- `--plain` disables the pinned control footer and prints merged logs only.
+
+---
+
 ## Common help
 
 ```bash

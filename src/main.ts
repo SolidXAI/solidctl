@@ -11,10 +11,10 @@ import { registerTestCommand } from './commands/test.command';
 import { registerCreateAppCommand } from './commands/create-app/create-app.command';
 import { registerReleaseCommand } from './commands/release.command';
 import { registerLegacyMigrateCommand } from './commands/legacy-migrate.command';
-import { register } from 'module';
 import { registerGenerateCommand } from './commands/generate.command';
 import { registerMcpCommand } from './commands/mcp.command';
 import { registerAgentCommand } from './commands/agent.command';
+import { registerStartCommand } from './commands/start.command';
 
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(
@@ -41,6 +41,7 @@ async function bootstrap() {
   registerGenerateCommand(program);
   registerMcpCommand(program);
   registerAgentCommand(program);
+  registerStartCommand(program);
   await program.parseAsync(process.argv);
 
   await appContext.close();

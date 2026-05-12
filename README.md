@@ -173,6 +173,31 @@ npx @solidxai/solidctl info
 
 ---
 
+### `start:dev`
+
+Starts both consuming-project dev servers in one supervised terminal session with merged logs and keyboard shortcuts.
+
+```bash
+npx @solidxai/solidctl start:dev
+```
+
+Keyboard shortcuts in interactive terminals:
+- `a` restart `solid-api`
+- `u` restart `solid-ui`
+- `r` restart both
+- `c` clear the terminal
+- `q` stop both and quit
+
+Use plain merged logs without the control pane:
+
+```bash
+npx @solidxai/solidctl start:dev --plain
+```
+
+This command validates that both `solid-api/package.json` and `solid-ui/package.json` define a `solidx:dev` script before starting either process.
+
+---
+
 ## Project structure
 
 A project created by `solidctl create-app` follows this layout:
