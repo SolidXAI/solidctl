@@ -198,8 +198,6 @@ class StartSupervisor {
       'r restart both',
       'a restart API',
       'u restart UI',
-      `api:${this.getServiceStatusLabel('api')}`,
-      `ui:${this.getServiceStatusLabel('ui')}`,
       `project:${path.basename(this.projectRoot)}`,
     ].join(chalk.dim(' | '));
 
@@ -275,25 +273,6 @@ class StartSupervisor {
     }
 
     return output;
-  }
-
-  private getServiceStatusLabel(serviceName: ServiceName) {
-    const state = this.serviceStates[serviceName];
-    const config = this.serviceConfigs[serviceName];
-
-    if (state.child) {
-      return config.color('running');
-    }
-
-    if (state.restartRequested) {
-      return chalk.yellow('restarting');
-    }
-
-    if (this.shuttingDown || state.stoppingForShutdown) {
-      return chalk.gray('stopping');
-    }
-
-    return chalk.red('stopped');
   }
 
   private attachSignalHandlers() {
