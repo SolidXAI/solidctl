@@ -18,7 +18,6 @@ type ServiceState = {
   restartRequested: boolean;
   stoppingForShutdown: boolean;
   outputBuffer: string;
-  startedAt: number | null;
 };
 
 type StartOptions = {
@@ -33,7 +32,6 @@ class StartSupervisor {
   private shuttingDown = false;
   private exitCode = 0;
   private stdinWasRaw = false;
-  private footerInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly projectRoot: string,
@@ -89,7 +87,6 @@ class StartSupervisor {
       restartRequested: false,
       stoppingForShutdown: false,
       outputBuffer: '',
-      startedAt: null,
     };
   }
 
@@ -99,7 +96,6 @@ class StartSupervisor {
 
     state.restartRequested = false;
     state.stoppingForShutdown = false;
-    state.startedAt = Date.now();
 
     const child = spawn(this.npmCommand, ['run', 'solidx:dev'], {
       cwd: config.cwd,
@@ -197,19 +193,88 @@ class StartSupervisor {
 
     const footer = [
       chalk.bold('Controls'),
-      `project:${this.projectRoot}`,
-      `api:${this.getServiceStatusLabel('api')} ${this.getServiceUptime('api')}`,
-      `ui:${this.getServiceStatusLabel('ui')} ${this.getServiceUptime('ui')}`,
+      'q quit',
+      'c clear',
+      'r restart both',
       'a restart API',
       'u restart UI',
-      'r restart both',
-      'c clear',
-      'q quit',
+      `api:${this.getServiceStatusLabel('api')}`,
+      `ui:${this.getServiceStatusLabel('ui')}`,
+      `project:${path.basename(this.projectRoot)}`,
     ].join(chalk.dim(' | '));
+
+    const terminalWidth = process.stdout.columns || 80;
+    const renderedFooter = chalk.inverse(` ${footer} `);
+    const safeFooter = this.truncateAnsiText(renderedFooter, terminalWidth);
 
     readline.clearLine(process.stdout, 0);
     readline.cursorTo(process.stdout, 0);
-    process.stdout.write(chalk.inverse(` ${footer} `));
+    process.stdout.write(safeFooter);
+  }
+
+  private truncateAnsiText(text: string, maxWidth: number) {
+    if (maxWidth <= 0) {
+      return '';
+    }
+
+    let visibleWidth = 0;
+    let index = 0;
+    let output = '';
+    let lastEscapeIndex = -1;
+
+    while (index < text.length) {
+      if (text[index] === '\u001b') {
+        const match = /\u001b\[[0-9;]*m/.exec(text.slice(index));
+        if (!match) {
+          break;
+        }
+        output += match[0];
+        lastEscapeIndex = output.length;
+        index += match[0].length;
+        continue;
+      }
+
+      if (visibleWidth >= maxWidth) {
+        break;
+      }
+
+      output += text[index];
+      visibleWidth += 1;
+      index += 1;
+    }
+
+    if (index < text.length && maxWidth >= 1) {
+      let visibleChars = 0;
+      let truncated = '';
+      let cursor = 0;
+
+      while (cursor < output.length) {
+        if (output[cursor] === '\u001b') {
+          const match = /\u001b\[[0-9;]*m/.exec(output.slice(cursor));
+          if (!match) {
+            break;
+          }
+          truncated += match[0];
+          cursor += match[0].length;
+          continue;
+        }
+
+        if (visibleChars >= Math.max(0, maxWidth - 1)) {
+          break;
+        }
+
+        truncated += output[cursor];
+        visibleChars += 1;
+        cursor += 1;
+      }
+
+      output = `${truncated}\u2026`;
+      if (lastEscapeIndex !== -1 && !output.endsWith('\u001b[0m')) {
+        output += '\u001b[0m';
+      }
+    }
+
+    return output;
   }
 
   private getServiceStatusLabel(serviceName: ServiceName) {
@@ -231,25 +296,6 @@ class StartSupervisor {
     return chalk.red('stopped');
   }
 
-  private getServiceUptime(serviceName: ServiceName) {
-    const state = this.serviceStates[serviceName];
-
-    if (!state.child || !state.startedAt) {
-      return chalk.gray('00:00:00');
-    }
-
-    return chalk.green(this.formatDuration(Date.now() - state.startedAt));
-  }
-
-  private formatDuration(durationMs: number) {
-    const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
-  }
-
   private attachSignalHandlers() {
     process.on('SIGINT', () => {
       this.shutdown(0);
@@ -269,9 +315,6 @@ class StartSupervisor {
     this.stdinWasRaw = Boolean(process.stdin.isRaw);
     process.stdin.setRawMode?.(true);
     process.stdin.resume();
-    this.footerInterval = setInterval(() => {
-      this.renderFooter();
-    }, 1000);
 
     process.stdin.on('keypress', (_str, key) => {
       if (key.ctrl && key.name === 'c') {
@@ -382,10 +425,6 @@ class StartSupervisor {
 
     readline.clearLine(process.stdout, 0);
     readline.cursorTo(process.stdout, 0);
-    if (this.footerInterval) {
-      clearInterval(this.footerInterval);
-      this.footerInterval = null;
-    }
     if (!this.stdinWasRaw) {
       process.stdin.setRawMode?.(false);
     }
