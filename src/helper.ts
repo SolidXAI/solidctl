@@ -8,7 +8,10 @@ export function validateProjectRoot() {
 
   for (const file of requiredProjectFiles) {
     if (!fs.existsSync(path.join(cwd, file))) {
-      console.error(`Ensure you are running this command from the SolidX project root. Missing file: ${file}`);
+      console.error(
+        `Ensure you are running this command from the SolidX project root. Missing file: ${file}\n` +
+        `Run this command from the directory containing your SolidX project (with solid-api/ and solid-ui/ subdirectories).`,
+      );
       process.exit(1);
     }
   }

@@ -18,6 +18,7 @@ type ServiceState = {
   restartRequested: boolean;
   stoppingForShutdown: boolean;
   outputBuffer: string;
+  startedAt: number | null;
 };
 
 type StartOptions = {
@@ -32,6 +33,7 @@ class StartSupervisor {
   private shuttingDown = false;
   private exitCode = 0;
   private stdinWasRaw = false;
+  private footerInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly projectRoot: string,
@@ -87,6 +89,7 @@ class StartSupervisor {
       restartRequested: false,
       stoppingForShutdown: false,
       outputBuffer: '',
+      startedAt: null,
     };
   }
 
@@ -96,6 +99,7 @@ class StartSupervisor {
 
     state.restartRequested = false;
     state.stoppingForShutdown = false;
+    state.startedAt = Date.now();
 
     const child = spawn(this.npmCommand, ['run', 'solidx:dev'], {
       cwd: config.cwd,
@@ -193,13 +197,14 @@ class StartSupervisor {
 
     const footer = [
       chalk.bold('Controls'),
+      `project:${this.projectRoot}`,
+      `api:${this.getServiceStatusLabel('api')} ${this.getServiceUptime('api')}`,
+      `ui:${this.getServiceStatusLabel('ui')} ${this.getServiceUptime('ui')}`,
       'a restart API',
       'u restart UI',
       'r restart both',
       'c clear',
       'q quit',
-      `api:${this.getServiceStatusLabel('api')}`,
-      `ui:${this.getServiceStatusLabel('ui')}`,
     ].join(chalk.dim(' | '));
 
     readline.clearLine(process.stdout, 0);
@@ -226,6 +231,25 @@ class StartSupervisor {
     return chalk.red('stopped');
   }
 
+  private getServiceUptime(serviceName: ServiceName) {
+    const state = this.serviceStates[serviceName];
+
+    if (!state.child || !state.startedAt) {
+      return chalk.gray('00:00:00');
+    }
+
+    return chalk.green(this.formatDuration(Date.now() - state.startedAt));
+  }
+
+  private formatDuration(durationMs: number) {
+    const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+  }
+
   private attachSignalHandlers() {
     process.on('SIGINT', () => {
       this.shutdown(0);
@@ -245,6 +269,9 @@ class StartSupervisor {
     this.stdinWasRaw = Boolean(process.stdin.isRaw);
     process.stdin.setRawMode?.(true);
     process.stdin.resume();
+    this.footerInterval = setInterval(() => {
+      this.renderFooter();
+    }, 1000);
 
     process.stdin.on('keypress', (_str, key) => {
       if (key.ctrl && key.name === 'c') {
@@ -355,6 +382,10 @@ class StartSupervisor {
 
     readline.clearLine(process.stdout, 0);
     readline.cursorTo(process.stdout, 0);
+    if (this.footerInterval) {
+      clearInterval(this.footerInterval);
+      this.footerInterval = null;
+    }
     if (!this.stdinWasRaw) {
       process.stdin.setRawMode?.(false);
     }
