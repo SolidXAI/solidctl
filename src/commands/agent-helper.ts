@@ -204,7 +204,7 @@ export function ensureAgentUIInstalled(): string {
     name: 'solidx-agent-ui-runner',
     private: true,
     scripts: {
-      dev: 'vite --port 8768 --host --root ./node_modules/@solidxai/agent-ui',
+      dev: 'cd ./node_modules/@solidxai/agent-ui && npx vite --port 8768 --host',
     },
   };
 

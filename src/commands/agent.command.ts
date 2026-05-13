@@ -150,7 +150,7 @@ class AgentSupervisor {
         cwd: config.cwd,
         env: this.getUiEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: false,
+        shell: true,
       });
     }
 
