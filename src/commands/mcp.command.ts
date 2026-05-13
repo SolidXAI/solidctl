@@ -3,6 +3,7 @@ import { spawnSync } from 'child_process';
 import path from 'path';
 import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
+import { ensureAgentInstalled } from './agent-helper';
 
 /**
  * Build a DATABASE_URL from the consuming project's individual DB env vars,
@@ -86,7 +87,7 @@ export function registerMcpCommand(program: Command) {
       printBridgeSummary(env);
       console.log(`▶ Starting SolidX MCP Server on ${options.host}:${options.port}`);
 
-      const agentCommand = process.platform === 'win32' ? 'solidx-agent.cmd' : 'solidx-agent';
+      const agentCommand = ensureAgentInstalled();
       const result = spawnSync(
         agentCommand,
         [
