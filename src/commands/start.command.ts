@@ -198,7 +198,7 @@ class StartSupervisor {
       'r restart both',
       'a restart API',
       'u restart UI',
-      `project:${path.basename(this.projectRoot)}`,
+      `${chalk.bold('Project')}: ${path.basename(this.projectRoot)}`,
     ].join(chalk.dim(' | '));
 
     const terminalWidth = process.stdout.columns || 80;
