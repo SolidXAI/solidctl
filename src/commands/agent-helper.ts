@@ -4,9 +4,13 @@ import path from 'path';
 import os from 'os';
 
 const AGENT_PACKAGE = 'solidx-ai-agent';
+const AGENT_UI_PACKAGE = '@solidxai/agent-ui';
 const VENV_DIR = path.join(os.homedir(), '.solidx', 'venv');
 const VENV_BIN = path.join(VENV_DIR, process.platform === 'win32' ? 'Scripts' : 'bin');
 const VENV_AGENT_BIN = path.join(VENV_BIN, process.platform === 'win32' ? 'solidx-agent.exe' : 'solidx-agent');
+const AGENT_UI_DIR = path.join(os.homedir(), '.solidx', 'agent-ui');
+const AGENT_UI_PKG_DIR = path.join(AGENT_UI_DIR, 'node_modules', '@solidxai', 'agent-ui');
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 /**
  * Check if a command exists in PATH and returns exit code 0.
@@ -177,4 +181,61 @@ export function ensureAgentInstalled(): string {
 
   console.log(`✔ ${AGENT_PACKAGE} installed successfully`);
   return VENV_AGENT_BIN;
+}
+
+/**
+ * Ensure the agent UI is installed in ~/.solidx/agent-ui/.
+ * Creates a runner project with @solidxai/agent-ui as a dependency,
+ * then runs npm install. Returns the runner directory path.
+ * Exits with an error if installation is impossible.
+ */
+export function ensureAgentUIInstalled(): string {
+  const markerFile = path.join(AGENT_UI_DIR, 'node_modules', '.package-lock.json');
+
+  if (fs.existsSync(markerFile)) {
+    return AGENT_UI_DIR;
+  }
+
+  console.log(`📦 Installing ${AGENT_UI_PACKAGE}...`);
+
+  fs.mkdirSync(AGENT_UI_DIR, { recursive: true });
+
+  const runnerPackageJson = {
+    name: 'solidx-agent-ui-runner',
+    private: true,
+    scripts: {
+      dev: 'vite --port 8768 --host --root ./node_modules/@solidxai/agent-ui',
+    },
+  };
+
+  fs.writeFileSync(
+    path.join(AGENT_UI_DIR, 'package.json'),
+    JSON.stringify(runnerPackageJson, null, 2),
+  );
+
+  const result = spawnSync(npmCommand, ['install', AGENT_UI_PACKAGE], {
+    cwd: AGENT_UI_DIR,
+    stdio: 'inherit',
+  });
+
+  if (result.status !== 0) {
+    console.error(
+      `❌ Failed to install ${AGENT_UI_PACKAGE}\n` +
+      '   Try installing manually:\n' +
+      `   cd ${AGENT_UI_DIR} && npm install ${AGENT_UI_PACKAGE}`,
+    );
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(AGENT_UI_PKG_DIR)) {
+    console.error(
+      `❌ Package installed but not found at ${AGENT_UI_PKG_DIR}\n` +
+      '   Try reinstalling:\n' +
+      `   cd ${AGENT_UI_DIR} && npm install ${AGENT_UI_PACKAGE}`,
+    );
+    process.exit(1);
+  }
+
+  console.log(`✔ ${AGENT_UI_PACKAGE} installed successfully`);
+  return AGENT_UI_DIR;
 }
