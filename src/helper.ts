@@ -1,19 +1,31 @@
-// Add a validate function which check if the current process working directly is the project root of SolidX project.
-// Do the above check
+import fs from 'fs';
+import path from 'path';
+
+const requiredProjectFiles = ['solid-api/package.json', 'solid-ui/package.json'] as const;
+
 export function validateProjectRoot() {
-  const fs = require('fs');
-  const path = require('path');
+  const cwd = process.cwd();
 
-  const requiredFiles = [
-    'solid-api/package.json',
-    'solid-ui/package.json',
-  ];
-
-    const cwd = process.cwd();
-    for (const file of requiredFiles) {
-      if (!fs.existsSync(path.join(cwd, file))) {
-        console.error(`Ensure you are running this command from the SolidX project root. Missing file: ${file}`);
-        process.exit(1);
-      }
+  for (const file of requiredProjectFiles) {
+    if (!fs.existsSync(path.join(cwd, file))) {
+      console.error(`Ensure you are running this command from the SolidX project root. Missing file: ${file}`);
+      process.exit(1);
     }
+  }
+}
+
+export function validateProjectScript(projectName: 'solid-api' | 'solid-ui', scriptName: string) {
+  validateProjectRoot();
+
+  const packageJsonPath = path.join(process.cwd(), projectName, 'package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+    scripts?: Record<string, string>;
+  };
+
+  if (!packageJson.scripts?.[scriptName]) {
+    console.error(
+      `Ensure ${projectName}/package.json defines the "${scriptName}" script before running this command.`,
+    );
+    process.exit(1);
+  }
 }
