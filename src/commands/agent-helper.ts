@@ -197,18 +197,50 @@ export function ensureAgentUIInstalled(): string {
     name: 'solidx-agent-ui-runner',
     private: true,
     scripts: {
-      dev: 'cd ./node_modules/@solidxai/agent-ui && npx vite --port 8768 --host',
+      dev: 'npx vite --port 8768 --host',
     },
   };
 
+  const runnerViteConfig = `import { defineConfig } from 'vite';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import agentUiConfig from './node_modules/@solidxai/agent-ui/vite.config.ts';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig(async (ctx) => {
+  const base = await (typeof agentUiConfig === 'function' ? agentUiConfig(ctx) : agentUiConfig);
+  return {
+    ...base,
+    root: path.join(__dirname, 'node_modules', '@solidxai', 'agent-ui'),
+    server: {
+      ...base.server,
+      fs: {
+        ...base.server?.fs,
+        allow: [
+          ...(base.server?.fs?.allow || []),
+          __dirname,
+          path.join(__dirname, 'node_modules'),
+        ],
+      },
+    },
+  };
+});
+`;
+  const viteConfigPath = path.join(AGENT_UI_DIR, 'vite.config.ts');
+
   // Re-write package.json if it doesn't exist or has stale scripts (e.g. old --root flag)
   let needsInstall = false;
-  if (!fs.existsSync(packageJsonPath)) {
+  if (!fs.existsSync(packageJsonPath) || !fs.existsSync(viteConfigPath)) {
     needsInstall = true;
   } else {
     try {
       const existing = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-      if (JSON.stringify(existing.scripts) !== JSON.stringify(runnerPackageJson.scripts)) {
+      const existingViteConfig = fs.readFileSync(viteConfigPath, 'utf-8');
+      if (
+        JSON.stringify(existing.scripts) !== JSON.stringify(runnerPackageJson.scripts) ||
+        existingViteConfig !== runnerViteConfig
+      ) {
         needsInstall = true;
       }
     } catch {
@@ -227,6 +259,11 @@ export function ensureAgentUIInstalled(): string {
   fs.writeFileSync(
     packageJsonPath,
     JSON.stringify(runnerPackageJson, null, 2),
+  );
+
+  fs.writeFileSync(
+    path.join(AGENT_UI_DIR, 'vite.config.ts'),
+    runnerViteConfig,
   );
 
   const result = spawnSync(npmCommand, ['install', AGENT_UI_PACKAGE], {
