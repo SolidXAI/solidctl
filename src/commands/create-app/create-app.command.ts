@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { kebabCase } from 'lodash';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
@@ -29,12 +30,6 @@ import {
   updatePortInPackageJson,
 } from './helpers';
 
-function kebabCase(str: string): string {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .replace(/[\s_]+/g, '-')
-    .toLowerCase();
-}
 
 function buildAnswersFromOptions(options: Record<string, string | boolean | undefined>): SetupAnswers {
   function validatePort(flag: string, value: string): void {
