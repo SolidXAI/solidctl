@@ -191,14 +191,7 @@ export function ensureAgentInstalled(): string {
  */
 export function ensureAgentUIInstalled(): string {
   const markerFile = path.join(AGENT_UI_DIR, 'node_modules', '.package-lock.json');
-
-  if (fs.existsSync(markerFile)) {
-    return AGENT_UI_DIR;
-  }
-
-  console.log(`📦 Installing ${AGENT_UI_PACKAGE}...`);
-
-  fs.mkdirSync(AGENT_UI_DIR, { recursive: true });
+  const packageJsonPath = path.join(AGENT_UI_DIR, 'package.json');
 
   const runnerPackageJson = {
     name: 'solidx-agent-ui-runner',
@@ -208,8 +201,31 @@ export function ensureAgentUIInstalled(): string {
     },
   };
 
+  // Re-write package.json if it doesn't exist or has stale scripts (e.g. old --root flag)
+  let needsInstall = false;
+  if (!fs.existsSync(packageJsonPath)) {
+    needsInstall = true;
+  } else {
+    try {
+      const existing = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      if (JSON.stringify(existing.scripts) !== JSON.stringify(runnerPackageJson.scripts)) {
+        needsInstall = true;
+      }
+    } catch {
+      needsInstall = true;
+    }
+  }
+
+  if (!needsInstall && fs.existsSync(markerFile)) {
+    return AGENT_UI_DIR;
+  }
+
+  console.log(`📦 Installing ${AGENT_UI_PACKAGE}...`);
+
+  fs.mkdirSync(AGENT_UI_DIR, { recursive: true });
+
   fs.writeFileSync(
-    path.join(AGENT_UI_DIR, 'package.json'),
+    packageJsonPath,
     JSON.stringify(runnerPackageJson, null, 2),
   );
 
