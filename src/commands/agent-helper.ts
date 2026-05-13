@@ -183,6 +183,30 @@ export function ensureAgentInstalled(): string {
   return VENV_AGENT_BIN;
 }
 
+const MIN_AGENT_UI_VERSION = '0.1.2';
+
+/**
+ * Parse a simple semver string into a comparable tuple [major, minor, patch].
+ */
+function parseVersion(version: string): [number, number, number] {
+  const match = version.replace(/^v/, '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return [0, 0, 0];
+  return [+match[1], +match[2], +match[3]];
+}
+
+/**
+ * Returns true if installedVersion >= minVersion.
+ */
+function isVersionSatisfied(installedVersion: string, minVersion: string): boolean {
+  const installed = parseVersion(installedVersion);
+  const min = parseVersion(minVersion);
+  for (let i = 0; i < 3; i++) {
+    if (installed[i] > min[i]) return true;
+    if (installed[i] < min[i]) return false;
+  }
+  return true;
+}
+
 /**
  * Ensure the agent UI is installed in ~/.solidx/agent-ui/.
  * Creates a runner project with @solidxai/agent-ui as a dependency,
@@ -192,55 +216,36 @@ export function ensureAgentInstalled(): string {
 export function ensureAgentUIInstalled(): string {
   const markerFile = path.join(AGENT_UI_DIR, 'node_modules', '.package-lock.json');
   const packageJsonPath = path.join(AGENT_UI_DIR, 'package.json');
+  const installedAgentUiPkgJson = path.join(AGENT_UI_PKG_DIR, 'package.json');
 
   const runnerPackageJson = {
     name: 'solidx-agent-ui-runner',
     private: true,
     scripts: {
-      dev: 'npx vite --port 8768 --host',
+      dev: 'vite --port 8768 --host --config ./node_modules/@solidxai/agent-ui/vite.config.ts',
     },
   };
 
-  const runnerViteConfig = `import { defineConfig } from 'vite';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import agentUiConfig from './node_modules/@solidxai/agent-ui/vite.config.ts';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-export default defineConfig(async (ctx) => {
-  const base = await (typeof agentUiConfig === 'function' ? agentUiConfig(ctx) : agentUiConfig);
-  return {
-    ...base,
-    root: path.join(__dirname, 'node_modules', '@solidxai', 'agent-ui'),
-    server: {
-      ...base.server,
-      fs: {
-        ...base.server?.fs,
-        allow: [
-          ...(base.server?.fs?.allow || []),
-          __dirname,
-          path.join(__dirname, 'node_modules'),
-        ],
-      },
-    },
-  };
-});
-`;
-  const viteConfigPath = path.join(AGENT_UI_DIR, 'vite.config.ts');
-
-  // Re-write package.json if it doesn't exist or has stale scripts (e.g. old --root flag)
   let needsInstall = false;
-  if (!fs.existsSync(packageJsonPath) || !fs.existsSync(viteConfigPath)) {
+  if (!fs.existsSync(packageJsonPath)) {
     needsInstall = true;
   } else {
     try {
       const existing = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-      const existingViteConfig = fs.readFileSync(viteConfigPath, 'utf-8');
-      if (
-        JSON.stringify(existing.scripts) !== JSON.stringify(runnerPackageJson.scripts) ||
-        existingViteConfig !== runnerViteConfig
-      ) {
+      if (JSON.stringify(existing.scripts) !== JSON.stringify(runnerPackageJson.scripts)) {
+        needsInstall = true;
+      }
+    } catch {
+      needsInstall = true;
+    }
+  }
+
+  // Check installed agent-ui version
+  if (!needsInstall && fs.existsSync(installedAgentUiPkgJson)) {
+    try {
+      const installed = JSON.parse(fs.readFileSync(installedAgentUiPkgJson, 'utf-8'));
+      if (!isVersionSatisfied(installed.version || '0.0.0', MIN_AGENT_UI_VERSION)) {
+        console.log(`📦 ${AGENT_UI_PACKAGE} v${installed.version} is outdated (need >= ${MIN_AGENT_UI_VERSION}), updating...`);
         needsInstall = true;
       }
     } catch {
@@ -261,12 +266,13 @@ export default defineConfig(async (ctx) => {
     JSON.stringify(runnerPackageJson, null, 2),
   );
 
-  fs.writeFileSync(
-    path.join(AGENT_UI_DIR, 'vite.config.ts'),
-    runnerViteConfig,
-  );
+  // Clean up stale runner vite.config.ts from older solidctl versions
+  const staleRunnerConfig = path.join(AGENT_UI_DIR, 'vite.config.ts');
+  if (fs.existsSync(staleRunnerConfig)) {
+    fs.unlinkSync(staleRunnerConfig);
+  }
 
-  const result = spawnSync(npmCommand, ['install', AGENT_UI_PACKAGE], {
+  const result = spawnSync(npmCommand, ['install', `${AGENT_UI_PACKAGE}@latest`], {
     cwd: AGENT_UI_DIR,
     stdio: 'inherit',
   });
@@ -275,7 +281,7 @@ export default defineConfig(async (ctx) => {
     console.error(
       `❌ Failed to install ${AGENT_UI_PACKAGE}\n` +
       '   Try installing manually:\n' +
-      `   cd ${AGENT_UI_DIR} && npm install ${AGENT_UI_PACKAGE}`,
+      `   cd ${AGENT_UI_DIR} && npm install ${AGENT_UI_PACKAGE}@latest`,
     );
     process.exit(1);
   }
@@ -284,7 +290,7 @@ export default defineConfig(async (ctx) => {
     console.error(
       `❌ Package installed but not found at ${AGENT_UI_PKG_DIR}\n` +
       '   Try reinstalling:\n' +
-      `   cd ${AGENT_UI_DIR} && npm install ${AGENT_UI_PACKAGE}`,
+      `   cd ${AGENT_UI_DIR} && npm install ${AGENT_UI_PACKAGE}@latest`,
     );
     process.exit(1);
   }
