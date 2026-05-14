@@ -1,6 +1,7 @@
 import { ChildProcess, spawn } from 'child_process';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import fs from 'fs-extra';
 import path from 'path';
 import readline from 'readline';
 import { validateProjectRoot, validateProjectScript } from '../helper';
@@ -25,6 +26,8 @@ type StartOptions = {
 };
 
 class StartSupervisor {
+  private readonly apiPort: string;
+  private readonly uiPort: string;
   private readonly serviceConfigs: Record<ServiceName, ServiceConfig>;
   private readonly serviceStates: Record<ServiceName, ServiceState>;
   private readonly isInteractive: boolean;
@@ -39,6 +42,8 @@ class StartSupervisor {
   ) {
     this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    this.apiPort = this.resolveApiPort();
+    this.uiPort = this.resolveUiPort();
 
     this.serviceConfigs = {
       api: {
@@ -191,6 +196,8 @@ class StartSupervisor {
       return;
     }
 
+    const apiDocsUrl = this.getApiDocsUrl();
+    const uiUrl = this.getUiUrl();
     const footer = [
       chalk.bold('Controls'),
       'q quit',
@@ -198,6 +205,8 @@ class StartSupervisor {
       'r restart both',
       'a restart API',
       'u restart UI',
+      this.createTerminalLink(`d API:${this.apiPort}/docs`, apiDocsUrl),
+      this.createTerminalLink(`o UI:${this.uiPort}`, uiUrl),
       `${chalk.bold('Project')}: ${path.basename(this.projectRoot)}`,
     ].join(chalk.dim(' | '));
 
@@ -316,6 +325,12 @@ class StartSupervisor {
           console.clear();
           this.renderFooter();
           break;
+        case 'd':
+          this.openUrlInBrowser(this.getApiDocsUrl(), 'API docs');
+          break;
+        case 'o':
+          this.openUrlInBrowser(this.getUiUrl(), 'UI');
+          break;
         case 'q':
           this.shutdown(0);
           break;
@@ -408,6 +423,82 @@ class StartSupervisor {
       process.stdin.setRawMode?.(false);
     }
     process.stdout.write('\n');
+  }
+
+  private resolveApiPort() {
+    const envPath = path.join(this.serviceConfigs?.api?.cwd ?? path.join(this.projectRoot, 'solid-api'), '.env');
+    return this.readEnvValue(envPath, 'PORT') ?? '3000';
+  }
+
+  private resolveUiPort() {
+    const packageJsonPath = path.join(this.serviceConfigs?.ui?.cwd ?? path.join(this.projectRoot, 'solid-ui'), 'package.json');
+
+    try {
+      const packageJson = fs.readJsonSync(packageJsonPath) as {
+        scripts?: Record<string, string>;
+      };
+      const devScript = packageJson.scripts?.dev ?? packageJson.scripts?.['solidx:dev'] ?? '';
+      const portMatch = /(?:^|\s)--port\s+(\d{1,5})(?:\s|$)/.exec(devScript);
+      if (portMatch) {
+        return portMatch[1];
+      }
+    } catch {
+      // Fall back to the default Vite port used by generated projects.
+    }
+
+    return '3001';
+  }
+
+  private readEnvValue(filePath: string, key: string) {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return null;
+      }
+
+      const content = fs.readFileSync(filePath, 'utf8');
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = content.match(new RegExp(`^\\s*${escapedKey}\\s*=\\s*(.+?)\\s*$`, 'm'));
+      return match?.[1]?.replace(/^['"]|['"]$/g, '') ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private getApiDocsUrl() {
+    return `http://localhost:${this.apiPort}/docs`;
+  }
+
+  private getUiUrl() {
+    return `http://localhost:${this.uiPort}`;
+  }
+
+  private createTerminalLink(label: string, url: string) {
+    return `\u001B]8;;${url}\u0007${label}\u001B]8;;\u0007`;
+  }
+
+  private openUrlInBrowser(url: string, label: string) {
+    const openCommand = process.platform === 'darwin'
+      ? 'open'
+      : process.platform === 'win32'
+        ? 'cmd'
+        : 'xdg-open';
+    const openArgs = process.platform === 'darwin'
+      ? [url]
+      : process.platform === 'win32'
+        ? ['/c', 'start', '', url]
+        : [url];
+
+    const child = spawn(openCommand, openArgs, {
+      detached: true,
+      stdio: 'ignore',
+    });
+
+    child.on('error', (error) => {
+      this.printStatus(`Failed to open ${label}: ${error.message}`);
+    });
+
+    child.unref();
+    this.printStatus(`Opening ${label} at ${url}`);
   }
 }
 
