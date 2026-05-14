@@ -196,17 +196,17 @@ class StartSupervisor {
       return;
     }
 
-    const apiDocsUrl = this.getApiDocsUrl();
-    const uiUrl = this.getUiUrl();
+    const apiServiceLabel = this.createTerminalLink(
+      `API (a restart, d open docs, :${this.apiPort})`,
+      this.getApiDocsUrl(),
+    );
+    const uiServiceLabel = this.createTerminalLink(
+      `UI (u restart, o open, :${this.uiPort})`,
+      this.getUiUrl(),
+    );
     const footer = [
-      chalk.bold('Controls'),
-      'q quit',
-      'c clear',
-      'r restart both',
-      'a restart API',
-      'u restart UI',
-      this.createTerminalLink(`d API:${this.apiPort}/docs`, apiDocsUrl),
-      this.createTerminalLink(`o UI:${this.uiPort}`, uiUrl),
+      `${chalk.bold('Controls')}: q quit & c clear`,
+      `${chalk.bold('Services')}: ${apiServiceLabel} ${uiServiceLabel}`,
       `${chalk.bold('Project')}: ${path.basename(this.projectRoot)}`,
     ].join(chalk.dim(' | '));
 
