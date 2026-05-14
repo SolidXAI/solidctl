@@ -196,17 +196,9 @@ class StartSupervisor {
       return;
     }
 
-    const apiServiceLabel = this.createTerminalLink(
-      `API (a restart, d open docs, :${this.apiPort})`,
-      this.getApiDocsUrl(),
-    );
-    const uiServiceLabel = this.createTerminalLink(
-      `UI (u restart, o open, :${this.uiPort})`,
-      this.getUiUrl(),
-    );
     const footer = [
       `${chalk.bold('Controls')}: q quit & c clear`,
-      `${chalk.bold('Services')}: ${apiServiceLabel} ${uiServiceLabel}`,
+      `${chalk.bold('Services')}: API (a restart, d open docs, :${this.apiPort})  UI (u restart, o open, :${this.uiPort})`,
       `${chalk.bold('Project')}: ${path.basename(this.projectRoot)}`,
     ].join(chalk.dim(' | '));
 
@@ -470,10 +462,6 @@ class StartSupervisor {
 
   private getUiUrl() {
     return `http://localhost:${this.uiPort}`;
-  }
-
-  private createTerminalLink(label: string, url: string) {
-    return `\u001B]8;;${url}\u0007${label}\u001B]8;;\u0007`;
   }
 
   private openUrlInBrowser(url: string, label: string) {
