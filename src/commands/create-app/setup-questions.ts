@@ -8,7 +8,7 @@ export interface SetupAnswers {
   solidApiDatabaseUsername: string;
   solidApiDatabasePassword: string;
   solidApiDatabaseSynchronize: string;
-  databaseExists: boolean;
+  databaseExists: string;
   solidUiPort: string;
 }
 
@@ -24,11 +24,13 @@ export const SETUP_DEFAULTS = {
   solidApiDatabaseUsername:     'solidx_app_user',
   solidApiDatabasePassword:     'strongpassword',
   solidApiDatabaseSynchronize:  'Yes',
+  databaseExists:               'Yes',
   solidUiPort:                  '3001',
 } as const;
 
 export const DATABASE_CLIENTS = ['PostgreSQL', 'MySQL', 'MSSQL'] as const;
 export const SYNCHRONIZE_OPTIONS = ['Yes', 'No'] as const;
+export const DATABASE_EXISTS_OPTIONS = ['Yes', 'No'] as const;
 
 export const setupQuestions = [
   {
@@ -93,10 +95,11 @@ export const setupQuestions = [
     default: 'Yes',
   },
   {
-    type: 'confirm',
+    type: 'list',
     name: 'databaseExists',
     message: 'Does this database already exist?',
-    default: true,
+    choices: ['Yes', 'No'],
+    default: 'Yes',
   },
   {
     type: 'input',
