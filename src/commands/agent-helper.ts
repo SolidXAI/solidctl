@@ -218,20 +218,20 @@ function resolveLocalAgentSource(): string {
 function installLocalAgent(agentSourceDir: string): boolean {
   const localVenvDir = path.join(agentSourceDir, '.venv');
   const localVenvBin = path.join(localVenvDir, process.platform === 'win32' ? 'Scripts' : 'bin');
-  const pipBin = path.join(localVenvBin, process.platform === 'win32' ? 'pip.exe' : 'pip');
+  const pythonBin = path.join(localVenvBin, process.platform === 'win32' ? 'python.exe' : 'python');
 
   console.log(`📦 Installing local ${AGENT_PACKAGE} from ${agentSourceDir} into ${localVenvDir}...`);
 
   const uvCmd = findUv();
   if (uvCmd) {
-    const result = spawnSync(uvCmd, ['pip', 'install', '-e', `${agentSourceDir}[full]`, '--python', pipBin], {
+    const result = spawnSync(uvCmd, ['pip', 'install', '-e', `${agentSourceDir}[full]`, '--python', pythonBin], {
       stdio: 'inherit',
     });
     if (result.status === 0) return true;
-    console.warn('⚠ uv pip install -e failed, falling back to pip');
+    console.warn('⚠ uv pip install -e failed, falling back to python -m pip');
   }
 
-  const result = spawnSync(pipBin, ['install', '-e', `${agentSourceDir}[full]`], {
+  const result = spawnSync(pythonBin, ['-m', 'pip', 'install', '-e', `${agentSourceDir}[full]`], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
@@ -303,7 +303,7 @@ export function ensureAgentInstalledLocal(): string {
     console.error(
       '❌ Failed to install local ' + AGENT_PACKAGE + '\n' +
       '   Try installing manually:\n' +
-      `   ${localVenvBin}/pip install -e ${agentSourceDir}[full]`,
+      `   ${localVenvBin}/python -m pip install -e ${agentSourceDir}[full]`,
     );
     process.exit(1);
   }
@@ -313,7 +313,7 @@ export function ensureAgentInstalledLocal(): string {
     console.error(
       '❌ Package installed but solidx-agent binary not found at ' + localAgentBin + '\n' +
       '   The package may not have installed correctly. Try:\n' +
-      `   ${localVenvBin}/pip install --force-reinstall -e ${agentSourceDir}[full]`,
+      `   ${localVenvBin}/python -m pip install --force-reinstall -e ${agentSourceDir}[full]`,
     );
     process.exit(1);
   }
