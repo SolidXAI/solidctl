@@ -5,7 +5,7 @@ import path from 'path';
 import readline from 'readline';
 import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
-import { ensureAgentInstalled, ensureAgentUIInstalled } from './agent-helper';
+import { ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled } from './agent-helper';
 
 type AgentServiceName = 'agent' | 'ui';
 
@@ -24,6 +24,7 @@ type AgentServiceState = {
 
 type AgentStartOptions = {
   plain?: boolean;
+  local?: boolean;
 };
 
 /**
@@ -498,14 +499,15 @@ export function registerAgentCommand(program: Command) {
     .option('-H, --host <host>', 'Host to bind', '0.0.0.0')
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
     .option('--plain', 'Disable interactive controls and print merged logs only')
-    .action(async (options: { port: string; host: string; logLevel: string; plain?: boolean }) => {
+    .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
+    .action(async (options: { port: string; host: string; logLevel: string; plain?: boolean; local?: boolean }) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
 
       // Load consuming project's .env (lives in solid-api/)
       loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
 
-      const agentCommand = ensureAgentInstalled();
+      const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       const agentUiDir = ensureAgentUIInstalled();
 
       const supervisor = new AgentSupervisor(projectRoot, agentCommand, agentUiDir, options);
@@ -518,6 +520,7 @@ export function registerAgentCommand(program: Command) {
     .argument('<task>', 'Task description')
     .option('-m, --mode <mode>', 'Tool mode: native or mcp')
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
+    .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
     .action((task, options) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
@@ -548,7 +551,7 @@ export function registerAgentCommand(program: Command) {
 
       console.log(`▶ Running SolidX AI Agent: ${task}`);
 
-      const agentCommand = ensureAgentInstalled();
+      const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       const result = spawnSync(agentCommand, args, {
         cwd: projectRoot,
         stdio: 'inherit',
