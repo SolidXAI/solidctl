@@ -62,10 +62,14 @@ function findPython(): string | null {
 }
 
 /**
- * Detect uv on PATH.
+ * Detect uv on PATH and verify it actually works.
  */
 function findUv(): string | null {
-  if (commandExists('uv')) {
+  if (!commandExists('uv')) {
+    return null;
+  }
+  const result = spawnSync('uv', ['--version'], { stdio: 'pipe' });
+  if (result.status === 0) {
     return 'uv';
   }
   return null;
@@ -272,9 +276,26 @@ export function ensureAgentInstalledLocal(): string {
   }
 
   const uvCmd = findUv();
+  const localPythonBin = path.join(localVenvBin, process.platform === 'win32' ? 'python.exe' : 'python');
 
   // Create local venv inside the agent source directory
-  if (!fs.existsSync(path.join(localVenvDir, 'pyvenv.cfg'))) {
+  let venvNeedsCreation = !fs.existsSync(path.join(localVenvDir, 'pyvenv.cfg'));
+
+  // Also recreate if pip is missing (e.g. uv venv without pip, or corrupted venv)
+  if (!venvNeedsCreation && fs.existsSync(localPythonBin)) {
+    const pipCheck = spawnSync(localPythonBin, ['-m', 'pip', '--version'], { stdio: 'pipe' });
+    if (pipCheck.status !== 0) {
+      console.warn(`⚠ ${localVenvDir} exists but pip is missing; recreating venv...`);
+      venvNeedsCreation = true;
+    }
+  }
+
+  if (venvNeedsCreation) {
+    // Remove any stale venv before recreating
+    if (fs.existsSync(localVenvDir)) {
+      fs.rmSync(localVenvDir, { recursive: true, force: true });
+    }
+
     console.log(`📦 Creating local virtual environment at ${localVenvDir}`);
     if (uvCmd) {
       const uvResult = spawnSync(uvCmd, ['venv', localVenvDir, '--python', pythonCmd], {
@@ -285,14 +306,14 @@ export function ensureAgentInstalledLocal(): string {
       }
     }
     if (!fs.existsSync(path.join(localVenvDir, 'pyvenv.cfg'))) {
-      const venvResult = spawnSync(pythonCmd, ['-m', 'venv', localVenvDir], {
+      const venvResult = spawnSync(pythonCmd, ['-m', 'venv', '--upgrade-deps', localVenvDir], {
         stdio: 'inherit',
       });
       if (venvResult.status !== 0) {
         console.error(
           '❌ Failed to create virtual environment at ' + localVenvDir + '\n' +
           '   Try creating it manually:\n' +
-          `   ${pythonCmd} -m venv ${localVenvDir}`,
+          `   ${pythonCmd} -m venv --upgrade-deps ${localVenvDir}`,
         );
         process.exit(1);
       }
@@ -303,7 +324,7 @@ export function ensureAgentInstalledLocal(): string {
     console.error(
       '❌ Failed to install local ' + AGENT_PACKAGE + '\n' +
       '   Try installing manually:\n' +
-      `   ${localVenvBin}/python -m pip install -e ${agentSourceDir}[full]`,
+      `   ${localPythonBin} -m pip install -e ${agentSourceDir}[full]`,
     );
     process.exit(1);
   }
@@ -313,7 +334,7 @@ export function ensureAgentInstalledLocal(): string {
     console.error(
       '❌ Package installed but solidx-agent binary not found at ' + localAgentBin + '\n' +
       '   The package may not have installed correctly. Try:\n' +
-      `   ${localVenvBin}/python -m pip install --force-reinstall -e ${agentSourceDir}[full]`,
+      `   ${localPythonBin} -m pip install --force-reinstall -e ${agentSourceDir}[full]`,
     );
     process.exit(1);
   }
