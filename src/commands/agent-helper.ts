@@ -183,6 +183,127 @@ export function ensureAgentInstalled(): string {
   return VENV_AGENT_BIN;
 }
 
+const AGENT_LOCAL_PATH_ENV = 'SOLIDX_AI_AGENT_PATH';
+const AGENT_LOCAL_CANDIDATES = [
+  '../solidx-ai-agent',
+  '../../solidx-ai-agent',
+  '../../../solidx-ai-agent',
+];
+
+/**
+ * Detect local solidx-ai-agent source directory.
+ * Checks SOLIDX_AI_AGENT_PATH env var first, then common relative paths.
+ * Returns the directory path if a valid agent repo is found, else null.
+ */
+function findLocalAgentSource(): string | null {
+  const envPath = process.env[AGENT_LOCAL_PATH_ENV];
+  if (envPath && fs.existsSync(path.join(envPath, 'pyproject.toml'))) {
+    return path.resolve(envPath);
+  }
+
+  for (const candidate of AGENT_LOCAL_CANDIDATES) {
+    const resolved = path.resolve(candidate);
+    if (fs.existsSync(path.join(resolved, 'pyproject.toml'))) {
+      return resolved;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Install solidx-ai-agent from local source in editable mode.
+ * Uses pip install -e .[full] into the dedicated venv.
+ */
+function installLocalAgent(agentSourceDir: string): boolean {
+  const pipBin = path.join(VENV_BIN, process.platform === 'win32' ? 'pip.exe' : 'pip');
+
+  console.log(`📦 Installing local ${AGENT_PACKAGE} from ${agentSourceDir}...`);
+
+  const uvCmd = findUv();
+  if (uvCmd) {
+    const result = spawnSync(uvCmd, ['pip', 'install', '-e', `${agentSourceDir}[full]`, '--python', pipBin], {
+      stdio: 'inherit',
+    });
+    if (result.status === 0) return true;
+    console.warn('⚠ uv pip install -e failed, falling back to pip');
+  }
+
+  const result = spawnSync(pipBin, ['install', '-e', `${agentSourceDir}[full]`], {
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  return result.status === 0;
+}
+
+/**
+ * Ensure the solidx-agent binary is available from a local source install.
+ * If --local is used:
+ *   1. Detect local agent source directory
+ *   2. Ensure ~/.solidx/venv exists
+ *   3. Install with pip install -e .[full]
+ *   4. Return the binary path
+ *
+ * Exits with an error if local source is not found or install fails.
+ */
+export function ensureAgentInstalledLocal(): string {
+  const existing = findAgentBinary();
+
+  const agentSourceDir = findLocalAgentSource();
+  if (!agentSourceDir) {
+    console.error(
+      '❌ Local solidx-ai-agent source not found.\n' +
+      '   Set SOLIDX_AI_AGENT_PATH to the agent repo root, or ensure it\n' +
+      '   exists at a common relative path (e.g. ../solidx-ai-agent).',
+    );
+    process.exit(1);
+  }
+
+  console.log(`📦 Using local agent source: ${agentSourceDir}`);
+
+  const pythonCmd = findPython();
+  if (!pythonCmd) {
+    console.error(
+      '❌ Python 3.11+ is required but not found.\n' +
+      '   Install Python 3.11+ and try again.',
+    );
+    process.exit(1);
+  }
+
+  const uvCmd = findUv();
+
+  if (!ensureVenv(pythonCmd, uvCmd)) {
+    console.error(
+      '❌ Failed to create virtual environment at ' + VENV_DIR + '\n' +
+      '   Try creating it manually:\n' +
+      `   ${pythonCmd} -m venv ${VENV_DIR}`,
+    );
+    process.exit(1);
+  }
+
+  if (!installLocalAgent(agentSourceDir)) {
+    console.error(
+      '❌ Failed to install local ' + AGENT_PACKAGE + '\n' +
+      '   Try installing manually:\n' +
+      `   ${VENV_BIN}/pip install -e ${agentSourceDir}[full]`,
+    );
+    process.exit(1);
+  }
+
+  // Verify the binary is now available
+  if (!fs.existsSync(VENV_AGENT_BIN)) {
+    console.error(
+      '❌ Package installed but solidx-agent binary not found at ' + VENV_AGENT_BIN + '\n' +
+      '   The package may not have installed correctly. Try:\n' +
+      `   ${VENV_BIN}/pip install --force-reinstall -e ${agentSourceDir}[full]`,
+    );
+    process.exit(1);
+  }
+
+  console.log(`✔ Local ${AGENT_PACKAGE} installed successfully`);
+  return VENV_AGENT_BIN;
+}
+
 const MIN_AGENT_UI_VERSION = '0.1.2';
 
 /**
