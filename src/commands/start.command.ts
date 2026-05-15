@@ -429,16 +429,16 @@ class StartSupervisor {
       const packageJson = fs.readJsonSync(packageJsonPath) as {
         scripts?: Record<string, string>;
       };
-      const devScript = packageJson.scripts?.dev ?? packageJson.scripts?.['solidx:dev'] ?? '';
+      const devScript = packageJson.scripts?.dev ?? '';
       const portMatch = /(?:^|\s)--port\s+(\d{1,5})(?:\s|$)/.exec(devScript);
       if (portMatch) {
         return portMatch[1];
       }
     } catch {
-      // Fall back to the default Vite port used by generated projects.
+      // Fall back to the default Vite dev port when package.json cannot be read.
     }
 
-    return '3001';
+    return '5173';
   }
 
   private readEnvValue(filePath: string, key: string) {
