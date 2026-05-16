@@ -46,8 +46,14 @@ npx @solidxai/solidctl upgrade [--dry-run]
 Examples:
 
 ```bash
-# run all upgrade commands
+# run all upgrade commands using the latest beta release
 solidctl upgrade
+
+# upgrade to the latest alpha release
+solidctl upgrade --alpha
+
+# upgrade to the latest stable release
+solidctl upgrade --stable
 
 # preview the commands without executing
 solidctl upgrade --dry-run
