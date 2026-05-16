@@ -320,7 +320,25 @@ function copyDirectoryForDockerBuild(sourcePath: string, destinationPath: string
 }
 
 function createSolidLibraryManagementDockerfile(): string {
-  return `FROM node:20-bookworm
+  return `FROM node:20-bookworm AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /workspace/agent
+
+RUN apt-get update \\
+  && apt-get install -y python3 python3-pip python3-venv supervisor \\
+  && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g @angular-devkit/schematics-cli
+
+COPY agent /workspace/agent
+
+RUN python3 -m venv /opt/agent-venv
+RUN /bin/sh -lc ". /opt/agent-venv/bin/activate && cd /workspace/agent && pip install --no-cache-dir /workspace/agent/vendor/mini-swe-agent && pip install --no-cache-dir '.[full]'"
+RUN mkdir -p /opt/prebuilt/agent-ui-dist
+RUN cd /workspace/agent/agent-ui && npm i --legacy-peer-deps && npm run build -- --outDir /opt/prebuilt/agent-ui-dist --emptyOutDir
+
+FROM node:20-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /workspace/solid-library-management
@@ -331,15 +349,8 @@ RUN apt-get update \\
 
 RUN npm install -g @angular-devkit/schematics-cli
 
-COPY solid-library-management /workspace/solid-library-management
-COPY agent /workspace/agent
-
-RUN python3 -m venv /opt/agent-venv
-RUN /bin/sh -lc ". /opt/agent-venv/bin/activate && cd /workspace/agent && pip install --no-cache-dir -e /workspace/agent/vendor/mini-swe-agent && pip install --no-cache-dir -e '.[full]'"
-RUN cd /workspace/solid-library-management/solid-api && npm i
-RUN cd /workspace/solid-library-management/solid-ui && npm i
-RUN mkdir -p /opt/prebuilt/agent-ui-dist
-RUN cd /workspace/agent/agent-ui && npm i --legacy-peer-deps && npm run build -- --outDir /opt/prebuilt/agent-ui-dist --emptyOutDir
+COPY --from=builder /opt/agent-venv /opt/agent-venv
+COPY --from=builder /opt/prebuilt/agent-ui-dist /opt/prebuilt/agent-ui-dist
 `;
 }
 
@@ -432,7 +443,6 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
   const versionCmd = getVersionCommand(versionType, preid);
   const buildContextRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'solid-library-management-release-'));
   const dockerfilePath = path.join(buildContextRoot, 'Dockerfile');
-  const releaseProjectCopyPath = path.join(buildContextRoot, 'solid-library-management');
   const agentCopyPath = path.join(buildContextRoot, 'agent');
   const versionImageTag = `${imageRepository}:${plannedVersion}`;
   const movingImageTag = `${imageRepository}:${movingDockerTag}`;
@@ -463,7 +473,6 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
 
     console.log('📦 Creating Docker build context...');
     if (!dryRun) {
-      copyDirectoryForDockerBuild(process.cwd(), releaseProjectCopyPath);
       copyDirectoryForDockerBuild(agentRepoPath, agentCopyPath);
       fs.writeFileSync(dockerfilePath, createSolidLibraryManagementDockerfile(), 'utf-8');
     }
