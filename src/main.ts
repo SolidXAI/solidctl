@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { NestFactory } from '@nestjs/core';
 import { Command } from 'commander';
+import fs from 'fs';
+import path from 'path';
 import { AppModule } from './app.module';
 import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
 import { registerBuildCommand } from './commands/build.command';
@@ -16,6 +18,17 @@ import { registerMcpCommand } from './commands/mcp.command';
 import { registerAgentCommand } from './commands/agent.command';
 import { registerStartCommand } from './commands/start.command';
 
+function getCliVersion(): string {
+  const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
+
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as { version?: string };
+    return packageJson.version || '0.1.0';
+  } catch {
+    return '0.1.0';
+  }
+}
+
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(
     AppModule,
@@ -27,7 +40,7 @@ async function bootstrap() {
   program
     .name('solidctl')
     .description('Solidctl tool')
-    .version('0.1.0');
+    .version(getCliVersion());
 
   registerUpgradeCommand(program);
   registerBuildCommand(program);
