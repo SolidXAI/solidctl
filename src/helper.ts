@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 const requiredProjectFiles = ['solid-api/package.json', 'solid-ui/package.json'] as const;
@@ -31,4 +32,19 @@ export function validateProjectScript(projectName: 'solid-api' | 'solid-ui', scr
     );
     process.exit(1);
   }
+}
+
+export function getSolidCommandEnv() {
+  const solidctlBinDir = path.join(os.homedir(), '.solidctl', 'bin');
+  const currentPath = process.env.PATH || '';
+  const pathEntries = currentPath.split(path.delimiter).filter(Boolean);
+
+  if (pathEntries.includes(solidctlBinDir)) {
+    return process.env;
+  }
+
+  return {
+    ...process.env,
+    PATH: `${solidctlBinDir}${path.delimiter}${currentPath}`,
+  };
 }

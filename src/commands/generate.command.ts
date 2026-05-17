@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
-import { validateProjectRoot } from '../helper';
+import { getSolidCommandEnv, validateProjectRoot } from '../helper';
 
 export function registerGenerateCommand(program: Command) {
   const generate = program
@@ -27,7 +27,7 @@ export function registerGenerateCommand(program: Command) {
       const result = spawnSync(solidCommand, ['refresh-model', ...passthroughArgs], {
         cwd: solidApiDir,
         stdio: 'inherit',
-        env: process.env,
+        env: getSolidCommandEnv(),
         shell: process.platform === 'win32' ? true : false,
       });
 
@@ -64,7 +64,7 @@ export function registerGenerateCommand(program: Command) {
       const result = spawnSync(solidCommand, ['refresh-module', ...passthroughArgs], {
         cwd: solidApiDir,
         stdio: 'inherit',
-        env: process.env,
+        env: getSolidCommandEnv(),
         shell: process.platform === 'win32' ? true : false,
       });
 

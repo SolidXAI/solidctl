@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
-import { validateProjectRoot } from '../helper';
+import { getSolidCommandEnv, validateProjectRoot } from '../helper';
 
 export function registerTestCommand(program: Command) {
   program
@@ -24,7 +24,7 @@ export function registerTestCommand(program: Command) {
       const result = spawnSync(solidCommand, args, {
         cwd: solidApiDir,
         stdio: 'inherit',
-        env: process.env,
+        env: getSolidCommandEnv(),
         shell: process.platform === 'win32' ? true : false,
       });
 
