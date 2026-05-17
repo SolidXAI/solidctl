@@ -336,8 +336,6 @@ COPY agent /workspace/agent
 
 RUN python3 -m venv /opt/agent-venv
 RUN /bin/sh -lc ". /opt/agent-venv/bin/activate && cd /workspace/agent && pip install --no-cache-dir -e /workspace/agent/vendor/mini-swe-agent && pip install --no-cache-dir -e '.[full]'"
-RUN cd /workspace/solid-library-management/solid-api && npm i
-RUN cd /workspace/solid-library-management/solid-ui && npm i
 RUN mkdir -p /opt/prebuilt/agent-ui-dist
 RUN cd /workspace/agent/agent-ui && npm i --legacy-peer-deps && npm run build -- --outDir /opt/prebuilt/agent-ui-dist --emptyOutDir
 `;
