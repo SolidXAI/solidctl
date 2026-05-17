@@ -323,7 +323,7 @@ function createSolidLibraryManagementDockerfile(): string {
   return `FROM node:20-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
-WORKDIR /workspace/solid-library-management
+WORKDIR /workspace/agent
 
 RUN apt-get update \\
   && apt-get install -y python3 python3-pip python3-venv supervisor \\
@@ -331,7 +331,6 @@ RUN apt-get update \\
 
 RUN npm install -g @angular-devkit/schematics-cli
 
-COPY solid-library-management /workspace/solid-library-management
 COPY agent /workspace/agent
 
 RUN python3 -m venv /opt/agent-venv
@@ -430,7 +429,6 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
   const versionCmd = getVersionCommand(versionType, preid);
   const buildContextRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'solid-library-management-release-'));
   const dockerfilePath = path.join(buildContextRoot, 'Dockerfile');
-  const releaseProjectCopyPath = path.join(buildContextRoot, 'solid-library-management');
   const agentCopyPath = path.join(buildContextRoot, 'agent');
   const versionImageTag = `${imageRepository}:${plannedVersion}`;
   const movingImageTag = `${imageRepository}:${movingDockerTag}`;
@@ -461,7 +459,6 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
 
     console.log('📦 Creating Docker build context...');
     if (!dryRun) {
-      copyDirectoryForDockerBuild(process.cwd(), releaseProjectCopyPath);
       copyDirectoryForDockerBuild(agentRepoPath, agentCopyPath);
       fs.writeFileSync(dockerfilePath, createSolidLibraryManagementDockerfile(), 'utf-8');
     }
