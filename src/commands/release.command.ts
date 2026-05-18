@@ -52,6 +52,9 @@ interface SandboxRecord {
 }
 
 interface SandboxReleaseCredentials {
+  releaserName: string;
+  releaserEmail: string;
+  releaserMobile: string;
   username: string;
   password: string;
 }
@@ -63,10 +66,8 @@ const DEFAULT_CONFIG: PublishConfig = {
 };
 
 const SANDBOX_GATED_RELEASE_PROJECTS = new Set<ReleaseProjectType>(['solid-core-module', 'solid-core-ui']);
-const SANDBOX_AUTH_BASE_URL = 'https://api.demo.solidxai.com';
-const SANDBOX_TEST_REQUEST_EMAIL_ADDRESS = 'replace-with-valid-email@example.com';
-const SANDBOX_TEST_REQUEST_COMPANY_NAME = 'SolidX';
-const SANDBOX_TEST_REQUEST_MOBILE = '';
+const SANDBOX_BASE_API_URL = 'https://api.demo.solidxai.com';
+const SANDBOX_TEST_REQUEST_COMPANY_NAME = 'Logicloop Ventures Ltd';
 const SANDBOX_STATUS_PAGE_BASE_URL = 'https://demo.solidxai.com/admin/core/sandbox-builder/sandbox/form';
 const SANDBOX_POLL_INTERVAL_MS = 15_000;
 const SANDBOX_POLL_TIMEOUT_MS = 90 * 60 * 1000;
@@ -234,10 +235,6 @@ function buildSandboxStatusPageUrl(sandboxId: number): string {
   return `${SANDBOX_STATUS_PAGE_BASE_URL}/${sandboxId}?viewMode=view&activeTab=page-provisioning-logs`;
 }
 
-function isPlaceholderSandboxEmail(emailAddress: string): boolean {
-  return emailAddress.includes('replace-with-valid-email');
-}
-
 function getExpectedVersion(project: ResolvedReleaseProject, versionType: string, preid?: string): string | undefined {
   if (!project.versionSourcePath) {
     return undefined;
@@ -296,9 +293,37 @@ async function requestJson<T>(url: string, init: RequestInit, fallbackMessage: s
 
 async function promptSandboxReleaseCredentials(): Promise<SandboxReleaseCredentials> {
   const answers = await inquirer.prompt<{
+    releaserName: string;
+    releaserEmail: string;
+    releaserMobile: string;
     username: string;
     password: string;
   }>([
+    {
+      type: 'input',
+      name: 'releaserName',
+      message: 'Your full name:',
+      validate: (value: string) => (value.trim().length > 0 ? true : 'Name is required.'),
+    },
+    {
+      type: 'input',
+      name: 'releaserEmail',
+      message: 'Your email address:',
+      validate: (value: string) => {
+        const trimmedValue = value.trim();
+        if (!trimmedValue) {
+          return 'Email is required.';
+        }
+
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue) ? true : 'Enter a valid email address.';
+      },
+    },
+    {
+      type: 'input',
+      name: 'releaserMobile',
+      message: 'Your mobile number:',
+      validate: (value: string) => (value.trim().length > 0 ? true : 'Mobile number is required.'),
+    },
     {
       type: 'input',
       name: 'username',
@@ -315,6 +340,9 @@ async function promptSandboxReleaseCredentials(): Promise<SandboxReleaseCredenti
   ]);
 
   return {
+    releaserName: answers.releaserName.trim(),
+    releaserEmail: answers.releaserEmail.trim(),
+    releaserMobile: answers.releaserMobile.trim(),
     username: answers.username.trim(),
     password: answers.password,
   };
@@ -322,7 +350,7 @@ async function promptSandboxReleaseCredentials(): Promise<SandboxReleaseCredenti
 
 async function authenticateSandboxReleaseUser(credentials: SandboxReleaseCredentials): Promise<string> {
   const response = await requestJson<WrappedApiResponse<AuthenticationResponseData>>(
-    `${SANDBOX_AUTH_BASE_URL}/api/iam/authenticate`,
+    `${SANDBOX_BASE_API_URL}/api/iam/authenticate`,
     {
       method: 'POST',
       headers: {
@@ -347,16 +375,11 @@ async function authenticateSandboxReleaseUser(credentials: SandboxReleaseCredent
 async function launchReleaseValidationSandbox(
   project: ResolvedReleaseProject,
   accessToken: string,
+  credentials: SandboxReleaseCredentials,
   plannedVersion?: string,
 ): Promise<SandboxRecord> {
-  if (isPlaceholderSandboxEmail(SANDBOX_TEST_REQUEST_EMAIL_ADDRESS)) {
-    throw new Error(
-      'Please update SANDBOX_TEST_REQUEST_EMAIL_ADDRESS in release.command.ts before running a gated release.',
-    );
-  }
-
   const response = await requestJson<WrappedApiResponse<SandboxRecord>>(
-    `${SANDBOX_AUTH_BASE_URL}/api/sandbox/test-request`,
+    `${SANDBOX_BASE_API_URL}/api/sandbox/test-request`,
     {
       method: 'POST',
       headers: {
@@ -364,10 +387,10 @@ async function launchReleaseValidationSandbox(
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        name: formatSandboxReleaseName(project, plannedVersion),
-        emailAddress: SANDBOX_TEST_REQUEST_EMAIL_ADDRESS,
+        name: credentials.releaserName,
+        emailAddress: credentials.releaserEmail,
         companyName: SANDBOX_TEST_REQUEST_COMPANY_NAME,
-        mobile: SANDBOX_TEST_REQUEST_MOBILE || undefined,
+        mobile: credentials.releaserMobile,
       }),
     },
     'Failed to create the sandbox test request.',
@@ -382,7 +405,7 @@ async function launchReleaseValidationSandbox(
 
 async function fetchSandboxStatus(sandboxId: number): Promise<SandboxRecord> {
   const response = await requestJson<WrappedApiResponse<SandboxRecord>>(
-    `${SANDBOX_AUTH_BASE_URL}/api/sandbox/${sandboxId}`,
+    `${SANDBOX_BASE_API_URL}/api/sandbox/${sandboxId}`,
     {
       method: 'GET',
       headers: {
@@ -458,7 +481,7 @@ async function runSandboxReleaseGate(
 
   const credentials = await promptSandboxReleaseCredentials();
   const accessToken = await authenticateSandboxReleaseUser(credentials);
-  const sandbox = await launchReleaseValidationSandbox(project, accessToken, plannedVersion);
+  const sandbox = await launchReleaseValidationSandbox(project, accessToken, credentials, plannedVersion);
   printSandboxLaunchMessage(sandbox);
 
   const finalSandbox = await waitForSandboxTerminalStatus(sandbox.id);
