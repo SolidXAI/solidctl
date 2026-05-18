@@ -140,7 +140,7 @@ function readRequiredPackageJson(packageJsonPath: string): PackageJson {
   const packageJson = readPackageJson(packageJsonPath);
 
   if (!packageJson) {
-    console.error(`❌ Could not read package.json at ${packageJsonPath}`);
+        console.error(`Could not read package.json at ${packageJsonPath}`);
     process.exit(1);
   }
 
@@ -157,25 +157,25 @@ function resolveReleaseProject(): ResolvedReleaseProject {
   switch (cwdName) {
     case 'solidctl':
       if (packageName === '@solidxai/solidctl') {
-        console.log(`📦 Release project resolved: solidctl (${packageName})`);
+        console.log(`Release project resolved: solidctl (${packageName})`);
         return { type: 'solidctl', cwdName, packageName, versionSourcePath: path.join(process.cwd(), 'package.json') };
       }
       break;
     case 'solid-core-module':
       if (packageName === '@solidxai/core') {
-        console.log(`📦 Release project resolved: solid-core-module (${packageName})`);
+        console.log(`Release project resolved: solid-core-module (${packageName})`);
         return { type: 'solid-core-module', cwdName, packageName, versionSourcePath: path.join(process.cwd(), 'package.json') };
       }
       break;
     case 'solid-core-ui':
       if (packageName === '@solidxai/core-ui') {
-        console.log(`📦 Release project resolved: solid-core-ui (${packageName})`);
+        console.log(`Release project resolved: solid-core-ui (${packageName})`);
         return { type: 'solid-core-ui', cwdName, packageName, versionSourcePath: path.join(process.cwd(), 'package.json') };
       }
       break;
     case 'solid-library-management':
       if (solidApiPackageName === '@library-management/solid-api') {
-        console.log(`📦 Release project resolved: solid-library-management (${solidApiPackageName})`);
+        console.log(`Release project resolved: solid-library-management (${solidApiPackageName})`);
         return {
           type: 'solid-library-management',
           cwdName,
@@ -275,7 +275,7 @@ function getExpectedVersion(project: ResolvedReleaseProject, versionType: string
 
   const packageJson = readRequiredPackageJson(project.versionSourcePath);
   if (!packageJson.version) {
-    console.error(`❌ package.json is missing a version at ${project.versionSourcePath}`);
+    console.error(`package.json is missing a version at ${project.versionSourcePath}`);
     process.exit(1);
   }
 
@@ -335,12 +335,14 @@ async function promptSandboxReleaseCredentials(): Promise<SandboxReleaseCredenti
     {
       type: 'input',
       name: 'releaserName',
+      prefix: '',
       message: 'Your full name:',
       validate: (value: string) => (value.trim().length > 0 ? true : 'Name is required.'),
     },
     {
       type: 'input',
       name: 'releaserEmail',
+      prefix: '',
       message: 'Your email address:',
       validate: (value: string) => {
         const trimmedValue = value.trim();
@@ -354,18 +356,21 @@ async function promptSandboxReleaseCredentials(): Promise<SandboxReleaseCredenti
     {
       type: 'input',
       name: 'releaserMobile',
+      prefix: '',
       message: 'Your mobile number:',
       validate: (value: string) => (value.trim().length > 0 ? true : 'Mobile number is required.'),
     },
     {
       type: 'input',
       name: 'username',
+      prefix: '',
       message: 'Sandbox microservice username:',
       validate: (value: string) => (value.trim().length > 0 ? true : 'Username is required.'),
     },
     {
       type: 'password',
       name: 'password',
+      prefix: '',
       message: 'Sandbox microservice password:',
       mask: '*',
       validate: (value: string) => (value.trim().length > 0 ? true : 'Password is required.'),
@@ -451,17 +456,31 @@ async function fetchSandboxStatus(sandboxId: number): Promise<SandboxRecord> {
   return response.data;
 }
 
+async function teardownSandbox(sandboxId: number, accessToken: string): Promise<void> {
+  await requestJson<WrappedApiResponse<SandboxRecord>>(
+    `${SANDBOX_BASE_API_URL}/api/sandbox/${sandboxId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+    `Failed to initiate teardown for sandbox ${sandboxId}.`,
+  );
+}
+
 function printSandboxLaunchMessage(sandbox: SandboxRecord): void {
   const sandboxName = sandbox.displayName || sandbox.slug || `sandbox-${sandbox.id}`;
   const sandboxStatus = sandbox.status || 'UNKNOWN';
   const statusPageUrl = buildSandboxStatusPageUrl(sandbox.id);
 
-  console.log(`🧪 Test sandbox launched: ${sandboxName}`);
-  console.log(`🔗 Provisioning logs: ${statusPageUrl}`);
+  console.log(`Test sandbox launched: ${sandboxName}`);
+  console.log(`Provisioning logs: ${statusPageUrl}`);
   console.log(
-    `ℹ️  The test sandbox has been provisioned and we will wait for the automated test cases to finish before continuing with the release. In the meantime, you can open the sandbox microservice status page above to monitor provisioning progress and review details.`,
+    `The test sandbox has been provisioned and we will wait for the automated test cases to finish before continuing with the release. In the meantime, you can open the sandbox microservice status page above to monitor provisioning progress and review details.`,
   );
-  console.log(`📍 Current sandbox status: ${sandboxStatus}`);
+  console.log(`Current sandbox status: ${sandboxStatus}`);
 }
 
 async function waitForSandboxTerminalStatus(sandboxId: number): Promise<SandboxRecord> {
@@ -473,7 +492,7 @@ async function waitForSandboxTerminalStatus(sandboxId: number): Promise<SandboxR
     const currentStatus = sandbox.status || 'UNKNOWN';
 
     if (currentStatus !== lastLoggedStatus) {
-      console.log(`⏳ Sandbox ${sandbox.id} status: ${currentStatus}`);
+      console.log(`Sandbox ${sandbox.id} status: ${currentStatus}`);
       lastLoggedStatus = currentStatus;
     }
 
@@ -510,7 +529,7 @@ async function runSandboxReleaseGate(
     return;
   }
 
-  console.log(`🧪 ${project.type} releases require sandbox validation before publishing.`);
+  console.log(`${project.type} releases require sandbox validation before publishing.`);
 
   const credentials = await promptSandboxReleaseCredentials();
   const accessToken = await authenticateSandboxReleaseUser(credentials);
@@ -519,9 +538,19 @@ async function runSandboxReleaseGate(
 
   const finalSandbox = await waitForSandboxTerminalStatus(sandbox.id);
   const finalStatus = finalSandbox.status || 'UNKNOWN';
+  console.log('Teardown initiated...');
+
+  try {
+    await teardownSandbox(finalSandbox.id, accessToken);
+  } catch (error) {
+    console.error(
+      `Warning: teardown could not be initiated for sandbox ${finalSandbox.id}.`,
+      error instanceof Error ? error.message : error,
+    );
+  }
 
   if (SANDBOX_SUCCESS_STATUSES.has(finalStatus)) {
-    console.log(`✅ Sandbox validation passed with status ${finalStatus}. Continuing with release...`);
+    console.log(`Sandbox validation passed with status ${finalStatus}. Continuing with release...`);
     return;
   }
 
@@ -552,16 +581,16 @@ function validateReleaseBranch(preid: string | undefined, mainBranch: string, de
 
   if (currentBranch !== requiredBranch) {
     if (force) {
-      console.log(`⚠️  Not on ${requiredBranch} branch (on ${currentBranch}), but --force flag set. Continuing...`);
+      console.log(`Not on ${requiredBranch} branch (on ${currentBranch}), but --force flag set. Continuing...`);
       return currentBranch;
     }
 
     if (preid === 'alpha') {
-      console.error(`❌ Must be on predev branch to publish alpha pre-releases. Currently on: ${currentBranch}`);
+      console.error(`Must be on predev branch to publish alpha pre-releases. Currently on: ${currentBranch}`);
     } else if (preid) {
-      console.error(`❌ Must be on ${devBranch} branch to publish ${preid} pre-releases. Currently on: ${currentBranch}`);
+      console.error(`Must be on ${devBranch} branch to publish ${preid} pre-releases. Currently on: ${currentBranch}`);
     } else {
-      console.error(`❌ Must be on ${mainBranch} branch to publish stable releases. Currently on: ${currentBranch}`);
+      console.error(`Must be on ${mainBranch} branch to publish stable releases. Currently on: ${currentBranch}`);
     }
     console.error('   Use --force to override this check.');
     process.exit(1);
@@ -717,68 +746,68 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
   const releaseStartedAt = new Date();
 
   try {
-    console.log(`🕒 Release started at: ${formatTimestamp(releaseStartedAt)}`);
+    console.log(`Release started at: ${formatTimestamp(releaseStartedAt)}`);
     const currentBranch = validateReleaseBranch(preid, mainBranch, devBranch, force);
     const plannedVersion = getExpectedVersion(project, versionType, preid);
 
     if (dryRun) {
-      console.log('🧪 Dry run mode - no changes will be made\n');
+      console.log('Dry run mode - no changes will be made\n');
     }
 
     await runSandboxReleaseGate(project, dryRun, preid, plannedVersion);
 
     const versionCmd = getVersionCommand(versionType, preid);
     if (isPrerelease) {
-      console.log(`🔄 Updating package version (pre-release: ${preid})...`);
+      console.log(`Updating package version (pre-release: ${preid})...`);
     } else {
-      console.log(`🔄 Updating package version (${versionType})...`);
+      console.log(`Updating package version (${versionType})...`);
     }
     exec(versionCmd, dryRun);
 
-    console.log('📦 Pushing to git (with tags)...');
+    console.log('Pushing to git (with tags)...');
     exec('git push --follow-tags', dryRun);
 
-    console.log('📦 Publishing package...');
+    console.log('Publishing package...');
     if (isPrerelease) {
       exec(`npm publish --tag ${preid}`, dryRun);
     } else {
       exec('npm publish', dryRun);
     }
 
-    console.log('✅ Published successfully!\n');
+    console.log('Published successfully!\n');
 
     if (!isPrerelease && reverseMerge) {
-      console.log(`🔀 Merging ${mainBranch} into ${devBranch}...`);
+      console.log(`Merging ${mainBranch} into ${devBranch}...`);
       exec(`git checkout ${devBranch}`, dryRun);
       exec(`git pull origin ${devBranch}`, dryRun);
 
       try {
         exec(`git merge ${mainBranch} -m "chore: merge ${mainBranch} after publish"`, dryRun);
         exec(`git push origin ${devBranch}`, dryRun);
-        console.log(`✅ Successfully merged ${mainBranch} into ${devBranch}\n`);
+        console.log(`Successfully merged ${mainBranch} into ${devBranch}\n`);
       } catch {
-        console.error('\n⚠️  Merge conflict detected. Please resolve manually.');
+        console.error('\nMerge conflict detected. Please resolve manually.');
         console.error(`   You are now on the ${devBranch} branch.`);
         process.exit(1);
       }
 
       exec(`git checkout ${mainBranch}`, dryRun);
-      console.log(`📍 Back on ${mainBranch} branch`);
+      console.log(`Back on ${mainBranch} branch`);
     } else if (!isPrerelease && !reverseMerge) {
-      console.log('⏭️  Skipping reverse merge (--no-merge)');
+      console.log('Skipping reverse merge (--no-merge)');
     } else {
-      console.log(`📍 Staying on ${currentBranch} branch`);
+      console.log(`Staying on ${currentBranch} branch`);
     }
 
     const releaseEndedAt = new Date();
-    console.log(`🕒 Release finished at: ${formatTimestamp(releaseEndedAt)}`);
-    console.log(`⏱️  Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
-    console.log('\n🎉 All done!');
+    console.log(`Release finished at: ${formatTimestamp(releaseEndedAt)}`);
+    console.log(`Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
+    console.log('\nAll done!');
   } catch (error) {
     const releaseEndedAt = new Date();
-    console.error(`🕒 Release finished at: ${formatTimestamp(releaseEndedAt)}`);
-    console.error(`⏱️  Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
-    console.error('❌ Error:', error instanceof Error ? error.message : error);
+    console.error(`Release finished at: ${formatTimestamp(releaseEndedAt)}`);
+    console.error(`Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
+    console.error('Error:', error instanceof Error ? error.message : error);
     process.exit(1);
   }
 }
@@ -792,17 +821,17 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
   const imageRepository = 'solidxaiorg/solid-library-management-sandbox-base-image';
 
   if (!currentVersion) {
-    console.error(`❌ solid-api package.json is missing a version at ${solidApiPackageJsonPath}`);
+    console.error(`solid-api package.json is missing a version at ${solidApiPackageJsonPath}`);
     process.exit(1);
   }
 
   if (!agentRepoPath) {
-    console.error('❌ SOLIDX_AI_AGENT_PATH is not set. This release flow needs the local agent checkout.');
+    console.error('SOLIDX_AI_AGENT_PATH is not set. This release flow needs the local agent checkout.');
     process.exit(1);
   }
 
   if (!fs.existsSync(agentRepoPath)) {
-    console.error(`❌ SOLIDX_AI_AGENT_PATH does not exist: ${agentRepoPath}`);
+    console.error(`SOLIDX_AI_AGENT_PATH does not exist: ${agentRepoPath}`);
     process.exit(1);
   }
 
@@ -817,17 +846,17 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
   const movingImageTag = `${imageRepository}:${movingDockerTag}`;
 
   try {
-    console.log(`🐳 Preparing solid-library-management sandbox base image release (${plannedVersion})...`);
-    console.log(`📦 Docker image repository: ${imageRepository}`);
-    console.log(`📦 Docker base image: node:20-bookworm`);
-    console.log(`📦 Docker tags to publish: ${plannedVersion}, ${movingDockerTag}`);
-    console.log(`📦 Agent source path: ${agentRepoPath}`);
+    console.log(`Preparing solid-library-management sandbox base image release (${plannedVersion})...`);
+    console.log(`Docker image repository: ${imageRepository}`);
+    console.log(`Docker base image: node:20-bookworm`);
+    console.log(`Docker tags to publish: ${plannedVersion}, ${movingDockerTag}`);
+    console.log(`Agent source path: ${agentRepoPath}`);
 
     if (dryRun) {
-      console.log('🧪 Dry run mode - no changes will be made\n');
+      console.log('Dry run mode - no changes will be made\n');
     }
 
-    console.log(`🔄 Updating solid-api version (${isPrerelease ? `pre-release: ${preid}` : versionType})...`);
+    console.log(`Updating solid-api version (${isPrerelease ? `pre-release: ${preid}` : versionType})...`);
     exec(`cd solid-api && ${versionCmd}`, dryRun);
 
     if (!dryRun) {
@@ -840,26 +869,26 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
       }
     }
 
-    console.log('📦 Creating Docker build context...');
+    console.log('Creating Docker build context...');
     if (!dryRun) {
       copyDirectoryForDockerBuild(agentRepoPath, agentCopyPath);
       fs.writeFileSync(dockerfilePath, createSolidLibraryManagementDockerfile(), 'utf-8');
     }
 
-    console.log('🐳 Building sandbox base image...');
+    console.log('Building sandbox base image...');
     exec(`docker build --progress=plain -t ${versionImageTag} -t ${movingImageTag} ${buildContextRoot}`, dryRun);
 
-    console.log('📦 Pushing git commit and tags...');
+    console.log('Pushing git commit and tags...');
     exec('git push --follow-tags', dryRun);
 
-    console.log('📦 Publishing Docker image...');
+    console.log('Publishing Docker image...');
     exec(`docker push ${versionImageTag}`, dryRun);
     exec(`docker push ${movingImageTag}`, dryRun);
 
-    console.log(`📍 Staying on ${currentBranch} branch`);
-    console.log('\n🎉 Docker image release completed!');
+    console.log(`Staying on ${currentBranch} branch`);
+    console.log('\nDocker image release completed!');
   } catch (error) {
-    console.error('❌ Error:', error instanceof Error ? error.message : error);
+    console.error('Error:', error instanceof Error ? error.message : error);
     process.exit(1);
   } finally {
     if (!dryRun) {
