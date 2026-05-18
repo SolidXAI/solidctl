@@ -235,6 +235,39 @@ function buildSandboxStatusPageUrl(sandboxId: number): string {
   return `${SANDBOX_STATUS_PAGE_BASE_URL}/${sandboxId}?viewMode=view&activeTab=page-provisioning-logs`;
 }
 
+function buildSandboxTestRunsPageUrl(sandboxId: number): string {
+  return `${SANDBOX_STATUS_PAGE_BASE_URL}/${sandboxId}?viewMode=view&activeTab=page-test-runs`;
+}
+
+function formatTimestamp(date: Date): string {
+  return date.toLocaleString('en-IN', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+}
+
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+
+  return `${seconds}s`;
+}
+
 function getExpectedVersion(project: ResolvedReleaseProject, versionType: string, preid?: string): string | undefined {
   if (!project.versionSourcePath) {
     return undefined;
@@ -423,10 +456,10 @@ function printSandboxLaunchMessage(sandbox: SandboxRecord): void {
   const sandboxStatus = sandbox.status || 'UNKNOWN';
   const statusPageUrl = buildSandboxStatusPageUrl(sandbox.id);
 
-  console.log(`🧪 Test sandbox provisioned: ${sandboxName}`);
-  console.log(`🔗 Status page: ${statusPageUrl}`);
+  console.log(`🧪 Test sandbox launched: ${sandboxName}`);
+  console.log(`🔗 Provisioning logs: ${statusPageUrl}`);
   console.log(
-    `ℹ️  The test sandbox has been provisioned and we will await for the test cases to finish running. In the meantime you can also login to the sandbox microservice to check its status and other details by using this link.`,
+    `ℹ️  The test sandbox has been provisioned and we will wait for the automated test cases to finish before continuing with the release. In the meantime, you can open the sandbox microservice status page above to monitor provisioning progress and review details.`,
   );
   console.log(`📍 Current sandbox status: ${sandboxStatus}`);
 }
@@ -492,8 +525,11 @@ async function runSandboxReleaseGate(
     return;
   }
 
+  const testRunsPageUrl = buildSandboxTestRunsPageUrl(finalSandbox.id);
   const failureReason = finalSandbox.failureReason ? ` Reason: ${finalSandbox.failureReason}` : '';
-  throw new Error(`Sandbox validation failed with status ${finalStatus}.${failureReason}`);
+  throw new Error(
+    `Sandbox validation failed with status ${finalStatus}. Cancelling release.${failureReason} Review the failed test runs here: ${testRunsPageUrl}`,
+  );
 }
 
 function getReleaseOptions(options: PublishOptions) {
@@ -678,8 +714,10 @@ RUN cd /workspace/agent/agent-ui && npm i --legacy-peer-deps && npm run build --
 
 async function runSharedReleaseFlow(versionType: string, options: PublishOptions, project: ResolvedReleaseProject) {
   const { mainBranch, devBranch, reverseMerge, dryRun, force, preid, isPrerelease } = getReleaseOptions(options);
+  const releaseStartedAt = new Date();
 
   try {
+    console.log(`🕒 Release started at: ${formatTimestamp(releaseStartedAt)}`);
     const currentBranch = validateReleaseBranch(preid, mainBranch, devBranch, force);
     const plannedVersion = getExpectedVersion(project, versionType, preid);
 
@@ -732,8 +770,14 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       console.log(`📍 Staying on ${currentBranch} branch`);
     }
 
+    const releaseEndedAt = new Date();
+    console.log(`🕒 Release finished at: ${formatTimestamp(releaseEndedAt)}`);
+    console.log(`⏱️  Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
     console.log('\n🎉 All done!');
   } catch (error) {
+    const releaseEndedAt = new Date();
+    console.error(`🕒 Release finished at: ${formatTimestamp(releaseEndedAt)}`);
+    console.error(`⏱️  Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
     console.error('❌ Error:', error instanceof Error ? error.message : error);
     process.exit(1);
   }
