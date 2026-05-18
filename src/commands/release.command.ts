@@ -199,10 +199,6 @@ function getCurrentBranch(): string {
 }
 
 function getRequiredBranch(preid: string | undefined, mainBranch: string, devBranch: string): string {
-  if (preid === 'alpha') {
-    return 'predev';
-  }
-
   if (preid) {
     return devBranch;
   }
@@ -587,7 +583,7 @@ function validateReleaseBranch(preid: string | undefined, mainBranch: string, de
     }
 
     if (preid === 'alpha') {
-      console.error(`Must be on predev branch to publish alpha pre-releases. Currently on: ${currentBranch}`);
+      console.error(`Must be on ${devBranch} branch to publish alpha pre-releases. Currently on: ${currentBranch}`);
     } else if (preid) {
       console.error(`Must be on ${devBranch} branch to publish ${preid} pre-releases. Currently on: ${currentBranch}`);
     } else {
@@ -916,9 +912,9 @@ Examples:
     $ solidctl release major        # major: 0.0.12 → 1.0.0
 
   Pre-releases:
-    $ solidctl release --preid=alpha           # from predev: 0.0.12 → 0.0.13-alpha.0
+    $ solidctl release --preid=alpha           # from dev: 0.0.12 → 0.0.13-alpha.0
     $ solidctl release --preid=alpha           # 0.0.13-alpha.0 → 0.0.13-alpha.1
-    $ solidctl release minor --preid=alpha     # from predev: 0.0.12 → 0.1.0-alpha.0
+    $ solidctl release minor --preid=alpha     # from dev: 0.0.12 → 0.1.0-alpha.0
     $ solidctl release --preid=beta            # from dev: 0.0.13-alpha.1 → 0.0.13-beta.0
     $ solidctl release --preid=rc              # from dev: 0.0.13-beta.1 → 0.0.13-rc.0
 
