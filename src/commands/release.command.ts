@@ -538,18 +538,19 @@ async function runSandboxReleaseGate(
 
   const finalSandbox = await waitForSandboxTerminalStatus(sandbox.id);
   const finalStatus = finalSandbox.status || 'UNKNOWN';
-  console.log('Teardown initiated...');
-
-  try {
-    await teardownSandbox(finalSandbox.id, accessToken);
-  } catch (error) {
-    console.error(
-      `Warning: teardown could not be initiated for sandbox ${finalSandbox.id}.`,
-      error instanceof Error ? error.message : error,
-    );
-  }
 
   if (SANDBOX_SUCCESS_STATUSES.has(finalStatus)) {
+    console.log('Teardown initiated...');
+
+    try {
+      await teardownSandbox(finalSandbox.id, accessToken);
+    } catch (error) {
+      console.error(
+        `Warning: teardown could not be initiated for sandbox ${finalSandbox.id}.`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+
     console.log(`Sandbox validation passed with status ${finalStatus}. Continuing with release...`);
     return;
   }
