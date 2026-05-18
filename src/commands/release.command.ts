@@ -63,7 +63,7 @@ const DEFAULT_CONFIG: PublishConfig = {
 };
 
 const SANDBOX_GATED_RELEASE_PROJECTS = new Set<ReleaseProjectType>(['solid-core-module', 'solid-core-ui']);
-const SANDBOX_AUTH_BASE_URL = 'https://demo.solidxai.com';
+const SANDBOX_AUTH_BASE_URL = 'https://api.demo.solidxai.com';
 const SANDBOX_TEST_REQUEST_EMAIL_ADDRESS = 'replace-with-valid-email@example.com';
 const SANDBOX_TEST_REQUEST_COMPANY_NAME = 'SolidX';
 const SANDBOX_TEST_REQUEST_MOBILE = '';
