@@ -44,18 +44,71 @@ function findAgentBinary(): string | null {
 }
 
 /**
- * Detect the best available Python command (python3 or python) that is
- * version 3.11+. Returns null if none found.
+ * Probe a Python command and return its real executable path plus major/minor version.
+ *
+ * We intentionally ask Python for sys.executable instead of returning the command name
+ * we were given. This matters on Ubuntu because "python" often comes from a shell alias
+ * or shell function (for example alias python=python3). Node's spawnSync does not execute
+ * those shell customizations unless we explicitly go through an interactive shell, so a
+ * command that works in the user's terminal can still look "missing" from here.
+ */
+function probePythonCommand(cmd: string): { executable: string; major: number; minor: number } | null {
+  const versionScript = [
+    'import sys',
+    'print(sys.executable)',
+    'print(f"{sys.version_info[0]}.{sys.version_info[1]}")',
+  ].join('; ');
+
+  const directResult = spawnSync(cmd, ['-c', versionScript], { stdio: 'pipe' });
+  const directProbe = parsePythonProbeOutput(directResult.stdout?.toString() || '');
+  if (directResult.status === 0 && directProbe) {
+    return directProbe;
+  }
+
+  if (process.platform === 'win32') {
+    return null;
+  }
+
+  // Ubuntu-specific fallback: re-run the probe through the user's interactive shell so
+  // aliases like "python=python3" and shell-managed shims resolve the same way they do
+  // in a normal terminal session.
+  const shellPath = process.env.SHELL || '/bin/bash';
+  const shellResult = spawnSync(shellPath, ['-ic', `${cmd} -c '${versionScript}'`], { stdio: 'pipe' });
+  const shellProbe = parsePythonProbeOutput(shellResult.stdout?.toString() || '');
+  if (shellResult.status === 0 && shellProbe) {
+    return shellProbe;
+  }
+
+  return null;
+}
+
+function parsePythonProbeOutput(output: string): { executable: string; major: number; minor: number } | null {
+  const [executableLine, versionLine] = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const versionMatch = versionLine?.match(/^(\d+)\.(\d+)$/);
+
+  if (!executableLine || !versionMatch) {
+    return null;
+  }
+
+  return {
+    executable: executableLine,
+    major: +versionMatch[1],
+    minor: +versionMatch[2],
+  };
+}
+
+/**
+ * Detect the best available Python executable that is version 3.11+.
+ * Returns the resolved executable path so later subprocesses do not depend on shell aliases.
  */
 function findPython(): string | null {
   for (const cmd of ['python3', 'python']) {
-    const result = spawnSync(cmd, ['--version'], { stdio: 'pipe' });
-    if (result.status === 0) {
-      const output = (result.stdout?.toString() || '') + (result.stderr?.toString() || '');
-      const match = output.match(/Python\s+(\d+)\.(\d+)/);
-      if (match && (+match[1] > 3 || (+match[1] === 3 && +match[2] >= 11))) {
-        return cmd;
-      }
+    const probe = probePythonCommand(cmd);
+    if (probe && (probe.major > 3 || (probe.major === 3 && probe.minor >= 11))) {
+      return probe.executable;
     }
   }
   return null;
@@ -159,7 +212,10 @@ export function ensureAgentInstalled(): string {
     console.error(
       '❌ Failed to create virtual environment at ' + VENV_DIR + '\n' +
       '   Try creating it manually:\n' +
-      `   ${pythonCmd} -m venv ${VENV_DIR}`,
+      `   ${pythonCmd} -m venv ${VENV_DIR}` +
+      (process.platform === 'linux'
+        ? '\n   On Ubuntu/Debian you may also need: sudo apt-get install python3-venv'
+        : ''),
     );
     process.exit(1);
   }
@@ -313,7 +369,10 @@ export function ensureAgentInstalledLocal(): string {
         console.error(
           '❌ Failed to create virtual environment at ' + localVenvDir + '\n' +
           '   Try creating it manually:\n' +
-          `   ${pythonCmd} -m venv --upgrade-deps ${localVenvDir}`,
+          `   ${pythonCmd} -m venv --upgrade-deps ${localVenvDir}` +
+          (process.platform === 'linux'
+            ? '\n   On Ubuntu/Debian you may also need: sudo apt-get install python3-venv'
+            : ''),
         );
         process.exit(1);
       }

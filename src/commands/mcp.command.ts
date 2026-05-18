@@ -85,10 +85,12 @@ export function registerMcpCommand(program: Command) {
         process.exit(1);
       }
 
+      // Resolve and auto-install the agent before we print the startup banner.
+      // This keeps the CLI honest on Ubuntu: if Python/venv/bootstrap fails, we
+      // should not imply that the MCP server actually started listening yet.
+      const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       printBridgeSummary(env);
       console.log(`▶ Starting SolidX MCP Server on ${options.host}:${options.port}`);
-
-      const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       const result = spawnSync(
         agentCommand,
         [
