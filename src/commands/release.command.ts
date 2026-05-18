@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { execSync } from 'child_process';
 import fs from 'fs';
+import inquirer from 'inquirer';
 import os from 'os';
 import path from 'path';
 
@@ -24,11 +25,68 @@ interface PublishOptions {
   devBranch?: string;
 }
 
+interface WrappedApiResponse<T> {
+  statusCode: number;
+  message: string[];
+  error: string;
+  data: T;
+}
+
+interface AuthenticatedUser {
+  email?: string;
+  username?: string;
+}
+
+interface AuthenticationResponseData {
+  user?: AuthenticatedUser;
+  accessToken: string;
+  refreshToken?: string;
+}
+
+interface SandboxRecord {
+  id: number;
+  slug?: string;
+  displayName?: string;
+  status?: string;
+  failureReason?: string | null;
+}
+
+interface SandboxReleaseCredentials {
+  username: string;
+  password: string;
+}
+
 const DEFAULT_CONFIG: PublishConfig = {
   mainBranch: 'main',
   devBranch: 'dev',
   reverseMerge: true,
 };
+
+const SANDBOX_GATED_RELEASE_PROJECTS = new Set<ReleaseProjectType>(['solid-core-module', 'solid-core-ui']);
+const SANDBOX_AUTH_BASE_URL = 'https://demo.solidxai.com';
+const SANDBOX_TEST_REQUEST_EMAIL_ADDRESS = 'replace-with-valid-email@example.com';
+const SANDBOX_TEST_REQUEST_COMPANY_NAME = 'SolidX';
+const SANDBOX_TEST_REQUEST_MOBILE = '';
+const SANDBOX_STATUS_PAGE_BASE_URL = 'https://demo.solidxai.com/admin/core/sandbox-builder/sandbox/form';
+const SANDBOX_POLL_INTERVAL_MS = 15_000;
+const SANDBOX_POLL_TIMEOUT_MS = 90 * 60 * 1000;
+const SANDBOX_PENDING_STATUSES = new Set([
+  'PENDING',
+  'VERIFYING',
+  'PROVISIONING',
+  'ACTIVE',
+  'TESTING',
+  'EXPIRING',
+  'DELETING',
+]);
+const SANDBOX_SUCCESS_STATUSES = new Set(['TEST_PASSED']);
+const SANDBOX_FAILURE_STATUSES = new Set([
+  'VERIFICATION_FAILED',
+  'TEST_FAILED',
+  'STOPPED',
+  'FAILED',
+  'DELETED',
+]);
 
 type ReleaseProjectType = 'solidctl' | 'solid-core-module' | 'solid-core-ui' | 'solid-library-management';
 
@@ -158,6 +216,256 @@ function exec(cmd: string, dryRun: boolean): string {
   }
   execSync(cmd, { stdio: 'inherit' });
   return '';
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRunSandboxReleaseGate(project: ResolvedReleaseProject): boolean {
+  return SANDBOX_GATED_RELEASE_PROJECTS.has(project.type);
+}
+
+function buildSandboxStatusPageUrl(sandboxId: number): string {
+  return `${SANDBOX_STATUS_PAGE_BASE_URL}/${sandboxId}?viewMode=view&activeTab=page-provisioning-logs`;
+}
+
+function isPlaceholderSandboxEmail(emailAddress: string): boolean {
+  return emailAddress.includes('replace-with-valid-email');
+}
+
+function getExpectedVersion(project: ResolvedReleaseProject, versionType: string, preid?: string): string | undefined {
+  if (!project.versionSourcePath) {
+    return undefined;
+  }
+
+  const packageJson = readRequiredPackageJson(project.versionSourcePath);
+  if (!packageJson.version) {
+    console.error(`❌ package.json is missing a version at ${project.versionSourcePath}`);
+    process.exit(1);
+  }
+
+  return planNextVersion(packageJson.version, versionType, preid);
+}
+
+function formatSandboxReleaseName(project: ResolvedReleaseProject, plannedVersion?: string): string {
+  const label = project.packageName || project.type;
+  return plannedVersion ? `Release validation for ${label} ${plannedVersion}` : `Release validation for ${label}`;
+}
+
+function extractApiErrorMessage(payload: unknown, fallbackMessage: string): string {
+  if (!payload || typeof payload !== 'object') {
+    return fallbackMessage;
+  }
+
+  const candidate = payload as {
+    error?: string;
+    message?: string | string[];
+  };
+
+  if (typeof candidate.error === 'string' && candidate.error.trim().length > 0) {
+    return candidate.error;
+  }
+
+  if (Array.isArray(candidate.message) && candidate.message.length > 0) {
+    return candidate.message.join(', ');
+  }
+
+  if (typeof candidate.message === 'string' && candidate.message.trim().length > 0) {
+    return candidate.message;
+  }
+
+  return fallbackMessage;
+}
+
+async function requestJson<T>(url: string, init: RequestInit, fallbackMessage: string): Promise<T> {
+  const response = await fetch(url, init);
+  const rawBody = await response.text();
+  const parsedBody = rawBody ? JSON.parse(rawBody) : undefined;
+
+  if (!response.ok) {
+    throw new Error(extractApiErrorMessage(parsedBody, fallbackMessage));
+  }
+
+  return parsedBody as T;
+}
+
+async function promptSandboxReleaseCredentials(): Promise<SandboxReleaseCredentials> {
+  const answers = await inquirer.prompt<{
+    username: string;
+    password: string;
+  }>([
+    {
+      type: 'input',
+      name: 'username',
+      message: 'Sandbox microservice username:',
+      validate: (value: string) => (value.trim().length > 0 ? true : 'Username is required.'),
+    },
+    {
+      type: 'password',
+      name: 'password',
+      message: 'Sandbox microservice password:',
+      mask: '*',
+      validate: (value: string) => (value.trim().length > 0 ? true : 'Password is required.'),
+    },
+  ]);
+
+  return {
+    username: answers.username.trim(),
+    password: answers.password,
+  };
+}
+
+async function authenticateSandboxReleaseUser(credentials: SandboxReleaseCredentials): Promise<string> {
+  const response = await requestJson<WrappedApiResponse<AuthenticationResponseData>>(
+    `${SANDBOX_AUTH_BASE_URL}/api/iam/authenticate`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: credentials.username,
+        password: credentials.password,
+      }),
+    },
+    'Failed to authenticate with the sandbox microservice.',
+  );
+
+  const accessToken = response.data?.accessToken;
+  if (!accessToken) {
+    throw new Error('Sandbox microservice authentication did not return an access token.');
+  }
+
+  return accessToken;
+}
+
+async function launchReleaseValidationSandbox(
+  project: ResolvedReleaseProject,
+  accessToken: string,
+  plannedVersion?: string,
+): Promise<SandboxRecord> {
+  if (isPlaceholderSandboxEmail(SANDBOX_TEST_REQUEST_EMAIL_ADDRESS)) {
+    throw new Error(
+      'Please update SANDBOX_TEST_REQUEST_EMAIL_ADDRESS in release.command.ts before running a gated release.',
+    );
+  }
+
+  const response = await requestJson<WrappedApiResponse<SandboxRecord>>(
+    `${SANDBOX_AUTH_BASE_URL}/api/sandbox/test-request`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        name: formatSandboxReleaseName(project, plannedVersion),
+        emailAddress: SANDBOX_TEST_REQUEST_EMAIL_ADDRESS,
+        companyName: SANDBOX_TEST_REQUEST_COMPANY_NAME,
+        mobile: SANDBOX_TEST_REQUEST_MOBILE || undefined,
+      }),
+    },
+    'Failed to create the sandbox test request.',
+  );
+
+  if (!response.data?.id) {
+    throw new Error('Sandbox test request did not return a sandbox id.');
+  }
+
+  return response.data;
+}
+
+async function fetchSandboxStatus(sandboxId: number): Promise<SandboxRecord> {
+  const response = await requestJson<WrappedApiResponse<SandboxRecord>>(
+    `${SANDBOX_AUTH_BASE_URL}/api/sandbox/${sandboxId}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    },
+    `Failed to fetch sandbox status for sandbox ${sandboxId}.`,
+  );
+
+  return response.data;
+}
+
+function printSandboxLaunchMessage(sandbox: SandboxRecord): void {
+  const sandboxName = sandbox.displayName || sandbox.slug || `sandbox-${sandbox.id}`;
+  const sandboxStatus = sandbox.status || 'UNKNOWN';
+  const statusPageUrl = buildSandboxStatusPageUrl(sandbox.id);
+
+  console.log(`🧪 Test sandbox provisioned: ${sandboxName}`);
+  console.log(`🔗 Status page: ${statusPageUrl}`);
+  console.log(
+    `ℹ️  The test sandbox has been provisioned and we will await for the test cases to finish running. In the meantime you can also login to the sandbox microservice to check its status and other details by using this link.`,
+  );
+  console.log(`📍 Current sandbox status: ${sandboxStatus}`);
+}
+
+async function waitForSandboxTerminalStatus(sandboxId: number): Promise<SandboxRecord> {
+  const startedAt = Date.now();
+  let lastLoggedStatus: string | undefined;
+
+  while (Date.now() - startedAt < SANDBOX_POLL_TIMEOUT_MS) {
+    const sandbox = await fetchSandboxStatus(sandboxId);
+    const currentStatus = sandbox.status || 'UNKNOWN';
+
+    if (currentStatus !== lastLoggedStatus) {
+      console.log(`⏳ Sandbox ${sandbox.id} status: ${currentStatus}`);
+      lastLoggedStatus = currentStatus;
+    }
+
+    if (SANDBOX_SUCCESS_STATUSES.has(currentStatus) || SANDBOX_FAILURE_STATUSES.has(currentStatus)) {
+      return sandbox;
+    }
+
+    if (!SANDBOX_PENDING_STATUSES.has(currentStatus)) {
+      return sandbox;
+    }
+
+    await sleep(SANDBOX_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(
+    `Timed out waiting for sandbox ${sandboxId} to reach a terminal status after ${Math.floor(
+      SANDBOX_POLL_TIMEOUT_MS / 1000,
+    )} seconds.`,
+  );
+}
+
+async function runSandboxReleaseGate(
+  project: ResolvedReleaseProject,
+  dryRun: boolean,
+  plannedVersion?: string,
+): Promise<void> {
+  if (!shouldRunSandboxReleaseGate(project)) {
+    return;
+  }
+
+  if (dryRun) {
+    console.log('[dry-run] Would prompt for sandbox microservice credentials, launch a validation sandbox, and wait for TEST_PASSED before publishing.');
+    return;
+  }
+
+  console.log(`🧪 ${project.type} releases require sandbox validation before publishing.`);
+
+  const credentials = await promptSandboxReleaseCredentials();
+  const accessToken = await authenticateSandboxReleaseUser(credentials);
+  const sandbox = await launchReleaseValidationSandbox(project, accessToken, plannedVersion);
+  printSandboxLaunchMessage(sandbox);
+
+  const finalSandbox = await waitForSandboxTerminalStatus(sandbox.id);
+  const finalStatus = finalSandbox.status || 'UNKNOWN';
+
+  if (SANDBOX_SUCCESS_STATUSES.has(finalStatus)) {
+    console.log(`✅ Sandbox validation passed with status ${finalStatus}. Continuing with release...`);
+    return;
+  }
+
+  const failureReason = finalSandbox.failureReason ? ` Reason: ${finalSandbox.failureReason}` : '';
+  throw new Error(`Sandbox validation failed with status ${finalStatus}.${failureReason}`);
 }
 
 function getReleaseOptions(options: PublishOptions) {
@@ -340,15 +648,18 @@ RUN cd /workspace/agent/agent-ui && npm i --legacy-peer-deps && npm run build --
 `;
 }
 
-function runSharedReleaseFlow(versionType: string, options: PublishOptions) {
+async function runSharedReleaseFlow(versionType: string, options: PublishOptions, project: ResolvedReleaseProject) {
   const { mainBranch, devBranch, reverseMerge, dryRun, force, preid, isPrerelease } = getReleaseOptions(options);
 
   try {
     const currentBranch = validateReleaseBranch(preid, mainBranch, devBranch, force);
+    const plannedVersion = getExpectedVersion(project, versionType, preid);
 
     if (dryRun) {
       console.log('🧪 Dry run mode - no changes will be made\n');
     }
+
+    await runSandboxReleaseGate(project, dryRun, plannedVersion);
 
     const versionCmd = getVersionCommand(versionType, preid);
     if (isPrerelease) {
@@ -526,18 +837,18 @@ Configuration:
       }
     }
 `)
-    .action((versionType: string = 'patch', options: PublishOptions) => {
+    .action(async (versionType: string = 'patch', options: PublishOptions) => {
       const project = resolveReleaseProject();
 
       switch (project.type) {
         case 'solidctl':
-          runSharedReleaseFlow(versionType, options);
+          await runSharedReleaseFlow(versionType, options, project);
           break;
         case 'solid-core-module':
-          runSharedReleaseFlow(versionType, options);
+          await runSharedReleaseFlow(versionType, options, project);
           break;
         case 'solid-core-ui':
-          runSharedReleaseFlow(versionType, options);
+          await runSharedReleaseFlow(versionType, options, project);
           break;
         case 'solid-library-management':
           runSolidLibraryManagementReleaseFlow(versionType, options, project);
