@@ -222,8 +222,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function shouldRunSandboxReleaseGate(project: ResolvedReleaseProject): boolean {
-  return SANDBOX_GATED_RELEASE_PROJECTS.has(project.type);
+function shouldRunSandboxReleaseGate(project: ResolvedReleaseProject, preid?: string): boolean {
+  if (!SANDBOX_GATED_RELEASE_PROJECTS.has(project.type)) {
+    return false;
+  }
+
+  return preid === undefined || preid === 'beta';
 }
 
 function buildSandboxStatusPageUrl(sandboxId: number): string {
@@ -438,9 +442,10 @@ async function waitForSandboxTerminalStatus(sandboxId: number): Promise<SandboxR
 async function runSandboxReleaseGate(
   project: ResolvedReleaseProject,
   dryRun: boolean,
+  preid: string | undefined,
   plannedVersion?: string,
 ): Promise<void> {
-  if (!shouldRunSandboxReleaseGate(project)) {
+  if (!shouldRunSandboxReleaseGate(project, preid)) {
     return;
   }
 
@@ -659,7 +664,7 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       console.log('🧪 Dry run mode - no changes will be made\n');
     }
 
-    await runSandboxReleaseGate(project, dryRun, plannedVersion);
+    await runSandboxReleaseGate(project, dryRun, preid, plannedVersion);
 
     const versionCmd = getVersionCommand(versionType, preid);
     if (isPrerelease) {
