@@ -34,8 +34,8 @@ const DEFAULT_CONFIG: PublishConfig = {
 
 const LOCAL_RELEASE_TEST_PROJECTS = new Set<ReleaseProjectType>(['solid-core-module', 'solid-core-ui']);
 const RELEASE_TEST_PROJECT_PATH_ENV = 'SOLIDX_RELEASE_TEST_CONSUMING_PRJ_PATH';
-const RELEASE_VALIDATION_API_PORT = 8080;
-const RELEASE_VALIDATION_UI_PORT = 5173;
+const DEFAULT_RELEASE_VALIDATION_API_PORT = 8080;
+const DEFAULT_RELEASE_VALIDATION_UI_PORT = 5173;
 const RELEASE_VALIDATION_READY_TIMEOUT_MS = 5 * 60 * 1000;
 const RELEASE_VALIDATION_READY_POLL_INTERVAL_MS = 2_000;
 const RELEASE_VALIDATION_POST_READY_DELAY_MS = 10_000;
@@ -56,6 +56,13 @@ interface RunningConsumingProject {
   child: ChildProcess | null;
   logPath: string | null;
   logStream: fs.WriteStream | null;
+}
+
+interface ReleaseValidationTargets {
+  apiPort: number;
+  uiPort: number;
+  apiBaseUrl: string;
+  uiBaseUrl: string;
 }
 
 function loadConfig(): PublishConfig {
@@ -94,6 +101,14 @@ function readPackageJson(packageJsonPath = path.join(process.cwd(), 'package.jso
   } catch {
     return undefined;
   }
+}
+
+function readTextFileIfExists(filePath: string): string | undefined {
+  if (!fs.existsSync(filePath)) {
+    return undefined;
+  }
+
+  return fs.readFileSync(filePath, 'utf-8');
 }
 
 function readRequiredPackageJson(packageJsonPath: string): PackageJson {
@@ -217,6 +232,119 @@ function formatLogTimestamp(date: Date): string {
   const seconds = String(date.getSeconds()).padStart(2, '0');
 
   return `${year}${month}${day}-${hours}${minutes}${seconds}`;
+}
+
+function parseEnvFile(filePath: string): Record<string, string> {
+  const content = readTextFileIfExists(filePath);
+  if (!content) {
+    return {};
+  }
+
+  const env: Record<string, string> = {};
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    let value = line.slice(separatorIndex + 1).trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    env[key] = value;
+  }
+
+  return env;
+}
+
+function extractPortFromUrl(urlValue: string | undefined): number | undefined {
+  if (!urlValue) {
+    return undefined;
+  }
+
+  try {
+    const parsedUrl = new URL(urlValue);
+    if (parsedUrl.port) {
+      return Number(parsedUrl.port);
+    }
+
+    return parsedUrl.protocol === 'https:' ? 443 : 80;
+  } catch {
+    return undefined;
+  }
+}
+
+function parsePortValue(rawValue: string | undefined): number | undefined {
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const parsed = Number(rawValue);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function inferApiPort(projectRoot: string): number {
+  const envPath = path.join(projectRoot, 'solid-api', '.env');
+  const env = parseEnvFile(envPath);
+
+  return (
+    parsePortValue(env.PORT) ??
+    extractPortFromUrl(env.TEST_API_BASE_URL) ??
+    extractPortFromUrl(env.BASE_URL) ??
+    DEFAULT_RELEASE_VALIDATION_API_PORT
+  );
+}
+
+function inferUiPort(projectRoot: string): number {
+  const packageJsonPath = path.join(projectRoot, 'solid-ui', 'package.json');
+  const packageJsonContent = readTextFileIfExists(packageJsonPath);
+
+  if (!packageJsonContent) {
+    return DEFAULT_RELEASE_VALIDATION_UI_PORT;
+  }
+
+  try {
+    const packageJson = JSON.parse(packageJsonContent) as {
+      scripts?: Record<string, string>;
+    };
+    const scripts = packageJson.scripts || {};
+    const candidateScripts = [scripts.dev, scripts['solidx:dev']].filter(Boolean) as string[];
+
+    for (const script of candidateScripts) {
+      const match = script.match(/(?:^|\s)--port(?:=|\s+)(\d+)/);
+      if (match) {
+        return Number(match[1]);
+      }
+    }
+  } catch {
+    return DEFAULT_RELEASE_VALIDATION_UI_PORT;
+  }
+
+  return DEFAULT_RELEASE_VALIDATION_UI_PORT;
+}
+
+function resolveReleaseValidationTargets(projectRoot: string): ReleaseValidationTargets {
+  const apiPort = inferApiPort(projectRoot);
+  const uiPort = inferUiPort(projectRoot);
+
+  return {
+    apiPort,
+    uiPort,
+    apiBaseUrl: `http://localhost:${apiPort}`,
+    uiBaseUrl: `http://localhost:${uiPort}`,
+  };
 }
 
 function getExpectedVersion(project: ResolvedReleaseProject, versionType: string, preid?: string): string | undefined {
@@ -442,10 +570,13 @@ async function isLocalPortOpen(port: number): Promise<boolean> {
   return false;
 }
 
-async function waitForReleaseValidationServices(runningProject: RunningConsumingProject | null): Promise<void> {
+async function waitForReleaseValidationServices(
+  runningProject: RunningConsumingProject | null,
+  targets: ReleaseValidationTargets,
+): Promise<void> {
   const startedAt = Date.now();
   console.log(
-    `Waiting for consuming project services on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}...`,
+    `Waiting for consuming project services on ports ${targets.apiPort} and ${targets.uiPort}...`,
   );
 
   while (Date.now() - startedAt < RELEASE_VALIDATION_READY_TIMEOUT_MS) {
@@ -456,12 +587,12 @@ async function waitForReleaseValidationServices(runningProject: RunningConsuming
     }
 
     const [apiReady, uiReady] = await Promise.all([
-      isLocalPortOpen(RELEASE_VALIDATION_API_PORT),
-      isLocalPortOpen(RELEASE_VALIDATION_UI_PORT),
+      isLocalPortOpen(targets.apiPort),
+      isLocalPortOpen(targets.uiPort),
     ]);
 
     if (apiReady && uiReady) {
-      console.log(`Validation services are ready on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}.`);
+      console.log(`Validation services are ready on ports ${targets.apiPort} and ${targets.uiPort}.`);
       console.log(`Waiting ${Math.floor(RELEASE_VALIDATION_POST_READY_DELAY_MS / 1000)}s for services to stabilize...`);
       await sleep(RELEASE_VALIDATION_POST_READY_DELAY_MS);
       return;
@@ -475,7 +606,7 @@ async function waitForReleaseValidationServices(runningProject: RunningConsuming
   }
 
   throw new Error(
-    `Timed out waiting for consuming project services on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}.${runningProject?.logPath ? ` Check logs at ${runningProject.logPath}.` : ''}`,
+    `Timed out waiting for consuming project services on ports ${targets.apiPort} and ${targets.uiPort}.${runningProject?.logPath ? ` Check logs at ${runningProject.logPath}.` : ''}`,
   );
 }
 
@@ -517,7 +648,9 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
   }
 
   const consumingProjectRoot = await resolveReleaseTestConsumingProjectPath();
+  const validationTargets = resolveReleaseValidationTargets(consumingProjectRoot);
   console.log(`Running local release validation from ${consumingProjectRoot}`);
+  console.log(`Validation targets: api=${validationTargets.apiBaseUrl} ui=${validationTargets.uiBaseUrl}`);
 
   const commands: Array<{ command: string; failureMessage: string }> = [
     {
@@ -546,8 +679,7 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
 
   if (project.type === 'solid-core-module') {
     testCommands.push({
-      command:
-        'npx --yes @solidxai/solidctl@beta test run --module library-management --include-tags api-all-flows --api-base-url http://localhost:8080 --ui-base-url http://localhost:5173 --headless false',
+      command: `npx --yes @solidxai/solidctl@beta test run --module library-management --include-tags api-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
       failureMessage: 'Warning: solid-core-module local release tests failed. Continuing with release.',
     });
   } else if (project.type === 'solid-core-ui') {
@@ -565,7 +697,7 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
       consumingProjectProcess = startConsumingProject(consumingProjectRoot, dryRun);
 
       if (!dryRun) {
-        await waitForReleaseValidationServices(consumingProjectProcess);
+        await waitForReleaseValidationServices(consumingProjectProcess, validationTargets);
       }
 
       for (const item of testCommands) {
