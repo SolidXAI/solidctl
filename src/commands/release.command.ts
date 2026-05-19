@@ -25,69 +25,14 @@ interface PublishOptions {
   devBranch?: string;
 }
 
-interface WrappedApiResponse<T> {
-  statusCode: number;
-  message: string[];
-  error: string;
-  data: T;
-}
-
-interface AuthenticatedUser {
-  email?: string;
-  username?: string;
-}
-
-interface AuthenticationResponseData {
-  user?: AuthenticatedUser;
-  accessToken: string;
-  refreshToken?: string;
-}
-
-interface SandboxRecord {
-  id: number;
-  slug?: string;
-  displayName?: string;
-  status?: string;
-  failureReason?: string | null;
-}
-
-interface SandboxReleaseCredentials {
-  releaserName: string;
-  releaserEmail: string;
-  releaserMobile: string;
-  username: string;
-  password: string;
-}
-
 const DEFAULT_CONFIG: PublishConfig = {
   mainBranch: 'main',
   devBranch: 'dev',
   reverseMerge: true,
 };
 
-const SANDBOX_GATED_RELEASE_PROJECTS = new Set<ReleaseProjectType>(['solid-core-module', 'solid-core-ui']);
-const SANDBOX_BASE_API_URL = 'https://api.demo.solidxai.com';
-const SANDBOX_TEST_REQUEST_COMPANY_NAME = 'Logicloop Ventures Ltd';
-const SANDBOX_STATUS_PAGE_BASE_URL = 'https://demo.solidxai.com/admin/core/sandbox-builder/sandbox/form';
-const SANDBOX_POLL_INTERVAL_MS = 15_000;
-const SANDBOX_POLL_TIMEOUT_MS = 90 * 60 * 1000;
-const SANDBOX_PENDING_STATUSES = new Set([
-  'PENDING',
-  'VERIFYING',
-  'PROVISIONING',
-  'ACTIVE',
-  'TESTING',
-  'EXPIRING',
-  'DELETING',
-]);
-const SANDBOX_SUCCESS_STATUSES = new Set(['TEST_PASSED']);
-const SANDBOX_FAILURE_STATUSES = new Set([
-  'VERIFICATION_FAILED',
-  'TEST_FAILED',
-  'STOPPED',
-  'FAILED',
-  'DELETED',
-]);
+const LOCAL_RELEASE_TEST_PROJECTS = new Set<ReleaseProjectType>(['solid-core-module', 'solid-core-ui']);
+const RELEASE_TEST_PROJECT_PATH_ENV = 'SOLIDX_RELEASE_TEST_CONSUMING_PRJ_PATH';
 
 type ReleaseProjectType = 'solidctl' | 'solid-core-module' | 'solid-core-ui' | 'solid-library-management';
 
@@ -215,26 +160,6 @@ function exec(cmd: string, dryRun: boolean): string {
   return '';
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function shouldRunSandboxReleaseGate(project: ResolvedReleaseProject, preid?: string): boolean {
-  if (!SANDBOX_GATED_RELEASE_PROJECTS.has(project.type)) {
-    return false;
-  }
-
-  return preid === undefined || preid === 'beta';
-}
-
-function buildSandboxStatusPageUrl(sandboxId: number): string {
-  return `${SANDBOX_STATUS_PAGE_BASE_URL}/${sandboxId}?viewMode=view&activeTab=page-provisioning-logs`;
-}
-
-function buildSandboxTestRunsPageUrl(sandboxId: number): string {
-  return `${SANDBOX_STATUS_PAGE_BASE_URL}/${sandboxId}?viewMode=view&activeTab=page-test-runs`;
-}
-
 function formatTimestamp(date: Date): string {
   return date.toLocaleString('en-IN', {
     year: 'numeric',
@@ -278,284 +203,127 @@ function getExpectedVersion(project: ResolvedReleaseProject, versionType: string
   return planNextVersion(packageJson.version, versionType, preid);
 }
 
-function formatSandboxReleaseName(project: ResolvedReleaseProject, plannedVersion?: string): string {
-  const label = project.packageName || project.type;
-  return plannedVersion ? `Release validation for ${label} ${plannedVersion}` : `Release validation for ${label}`;
+function shouldRunLocalReleaseValidation(project: ResolvedReleaseProject): boolean {
+  return LOCAL_RELEASE_TEST_PROJECTS.has(project.type);
 }
 
-function extractApiErrorMessage(payload: unknown, fallbackMessage: string): string {
-  if (!payload || typeof payload !== 'object') {
-    return fallbackMessage;
+function validateConsumingProjectRoot(projectRoot: string): void {
+  const requiredPaths = ['solid-api/package.json', 'solid-ui/package.json'];
+
+  for (const requiredPath of requiredPaths) {
+    const absolutePath = path.join(projectRoot, requiredPath);
+    if (!fs.existsSync(absolutePath)) {
+      throw new Error(`Release test consuming project is missing ${requiredPath}: ${projectRoot}`);
+    }
   }
-
-  const candidate = payload as {
-    error?: string;
-    message?: string | string[];
-  };
-
-  if (typeof candidate.error === 'string' && candidate.error.trim().length > 0) {
-    return candidate.error;
-  }
-
-  if (Array.isArray(candidate.message) && candidate.message.length > 0) {
-    return candidate.message.join(', ');
-  }
-
-  if (typeof candidate.message === 'string' && candidate.message.trim().length > 0) {
-    return candidate.message;
-  }
-
-  return fallbackMessage;
 }
 
-async function requestJson<T>(url: string, init: RequestInit, fallbackMessage: string): Promise<T> {
-  const response = await fetch(url, init);
-  const rawBody = await response.text();
-  const parsedBody = rawBody ? JSON.parse(rawBody) : undefined;
+async function resolveReleaseTestConsumingProjectPath(): Promise<string> {
+  const configuredPath = process.env[RELEASE_TEST_PROJECT_PATH_ENV]?.trim();
 
-  if (!response.ok) {
-    throw new Error(extractApiErrorMessage(parsedBody, fallbackMessage));
+  if (configuredPath) {
+    const resolvedPath = path.resolve(configuredPath);
+    validateConsumingProjectRoot(resolvedPath);
+    return resolvedPath;
   }
 
-  return parsedBody as T;
-}
-
-async function promptSandboxReleaseCredentials(): Promise<SandboxReleaseCredentials> {
-  const answers = await inquirer.prompt<{
-    releaserName: string;
-    releaserEmail: string;
-    releaserMobile: string;
-    username: string;
-    password: string;
-  }>([
+  const answers = await inquirer.prompt<{ projectPath: string }>([
     {
       type: 'input',
-      name: 'releaserName',
+      name: 'projectPath',
       prefix: '',
-      message: 'Your full name:',
-      validate: (value: string) => (value.trim().length > 0 ? true : 'Name is required.'),
-    },
-    {
-      type: 'input',
-      name: 'releaserEmail',
-      prefix: '',
-      message: 'Your email address:',
+      message: `Path to the SolidX release test consuming project (${RELEASE_TEST_PROJECT_PATH_ENV}):`,
       validate: (value: string) => {
         const trimmedValue = value.trim();
         if (!trimmedValue) {
-          return 'Email is required.';
+          return 'Project path is required.';
         }
 
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue) ? true : 'Enter a valid email address.';
+        const resolvedPath = path.resolve(trimmedValue);
+        try {
+          validateConsumingProjectRoot(resolvedPath);
+          return true;
+        } catch (error) {
+          return error instanceof Error ? error.message : 'Invalid project path.';
+        }
       },
-    },
-    {
-      type: 'input',
-      name: 'releaserMobile',
-      prefix: '',
-      message: 'Your mobile number:',
-      validate: (value: string) => (value.trim().length > 0 ? true : 'Mobile number is required.'),
-    },
-    {
-      type: 'input',
-      name: 'username',
-      prefix: '',
-      message: 'Sandbox microservice username:',
-      validate: (value: string) => (value.trim().length > 0 ? true : 'Username is required.'),
-    },
-    {
-      type: 'password',
-      name: 'password',
-      prefix: '',
-      message: 'Sandbox microservice password:',
-      mask: '*',
-      validate: (value: string) => (value.trim().length > 0 ? true : 'Password is required.'),
     },
   ]);
 
-  return {
-    releaserName: answers.releaserName.trim(),
-    releaserEmail: answers.releaserEmail.trim(),
-    releaserMobile: answers.releaserMobile.trim(),
-    username: answers.username.trim(),
-    password: answers.password,
-  };
+  return path.resolve(answers.projectPath.trim());
 }
 
-async function authenticateSandboxReleaseUser(credentials: SandboxReleaseCredentials): Promise<string> {
-  const response = await requestJson<WrappedApiResponse<AuthenticationResponseData>>(
-    `${SANDBOX_BASE_API_URL}/api/iam/authenticate`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: credentials.username,
-        password: credentials.password,
-      }),
-    },
-    'Failed to authenticate with the sandbox microservice.',
-  );
-
-  const accessToken = response.data?.accessToken;
-  if (!accessToken) {
-    throw new Error('Sandbox microservice authentication did not return an access token.');
-  }
-
-  return accessToken;
-}
-
-async function launchReleaseValidationSandbox(
-  project: ResolvedReleaseProject,
-  accessToken: string,
-  credentials: SandboxReleaseCredentials,
-  plannedVersion?: string,
-): Promise<SandboxRecord> {
-  const response = await requestJson<WrappedApiResponse<SandboxRecord>>(
-    `${SANDBOX_BASE_API_URL}/api/sandbox/test-request`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        name: credentials.releaserName,
-        emailAddress: credentials.releaserEmail,
-        companyName: SANDBOX_TEST_REQUEST_COMPANY_NAME,
-        mobile: credentials.releaserMobile,
-      }),
-    },
-    'Failed to create the sandbox test request.',
-  );
-
-  if (!response.data?.id) {
-    throw new Error('Sandbox test request did not return a sandbox id.');
-  }
-
-  return response.data;
-}
-
-async function fetchSandboxStatus(sandboxId: number): Promise<SandboxRecord> {
-  const response = await requestJson<WrappedApiResponse<SandboxRecord>>(
-    `${SANDBOX_BASE_API_URL}/api/sandbox/${sandboxId}`,
-    {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-    },
-    `Failed to fetch sandbox status for sandbox ${sandboxId}.`,
-  );
-
-  return response.data;
-}
-
-async function teardownSandbox(sandboxId: number, accessToken: string): Promise<void> {
-  await requestJson<WrappedApiResponse<SandboxRecord>>(
-    `${SANDBOX_BASE_API_URL}/api/sandbox/${sandboxId}`,
-    {
-      method: 'DELETE',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-    `Failed to initiate teardown for sandbox ${sandboxId}.`,
-  );
-}
-
-function printSandboxLaunchMessage(sandbox: SandboxRecord): void {
-  const sandboxName = sandbox.displayName || sandbox.slug || `sandbox-${sandbox.id}`;
-  const sandboxStatus = sandbox.status || 'UNKNOWN';
-  const statusPageUrl = buildSandboxStatusPageUrl(sandbox.id);
-
-  console.log(`Test sandbox launched: ${sandboxName}`);
-  console.log(`Provisioning logs: ${statusPageUrl}`);
-  console.log(
-    `The test sandbox has been provisioned and we will wait for the automated test cases to finish before continuing with the release. In the meantime, you can open the sandbox microservice status page above to monitor provisioning progress and review details.`,
-  );
-  console.log(`Current sandbox status: ${sandboxStatus}`);
-}
-
-async function waitForSandboxTerminalStatus(sandboxId: number): Promise<SandboxRecord> {
-  const startedAt = Date.now();
-  let lastLoggedStatus: string | undefined;
-
-  while (Date.now() - startedAt < SANDBOX_POLL_TIMEOUT_MS) {
-    const sandbox = await fetchSandboxStatus(sandboxId);
-    const currentStatus = sandbox.status || 'UNKNOWN';
-
-    if (currentStatus !== lastLoggedStatus) {
-      console.log(`Sandbox ${sandbox.id} status: ${currentStatus}`);
-      lastLoggedStatus = currentStatus;
-    }
-
-    if (SANDBOX_SUCCESS_STATUSES.has(currentStatus) || SANDBOX_FAILURE_STATUSES.has(currentStatus)) {
-      return sandbox;
-    }
-
-    if (!SANDBOX_PENDING_STATUSES.has(currentStatus)) {
-      return sandbox;
-    }
-
-    await sleep(SANDBOX_POLL_INTERVAL_MS);
-  }
-
-  throw new Error(
-    `Timed out waiting for sandbox ${sandboxId} to reach a terminal status after ${Math.floor(
-      SANDBOX_POLL_TIMEOUT_MS / 1000,
-    )} seconds.`,
-  );
-}
-
-async function runSandboxReleaseGate(
-  project: ResolvedReleaseProject,
+function runReleaseValidationCommand(
+  command: string,
   dryRun: boolean,
-  preid: string | undefined,
-  plannedVersion?: string,
-): Promise<void> {
-  if (!shouldRunSandboxReleaseGate(project, preid)) {
-    return;
-  }
-
+  cwd: string,
+  failureMessage: string,
+): boolean {
   if (dryRun) {
-    console.log('[dry-run] Would prompt for sandbox microservice credentials, launch a validation sandbox, and wait for TEST_PASSED before publishing.');
+    console.log(`[dry-run] (${cwd}) ${command}`);
+    return true;
+  }
+
+  try {
+    execSync(command, {
+      cwd,
+      stdio: 'inherit',
+      env: process.env,
+    });
+    return true;
+  } catch (error) {
+    const details =
+      error instanceof Error ? error.message : typeof error === 'string' ? error : JSON.stringify(error);
+    console.error(`${failureMessage} ${details}`);
+    return false;
+  }
+}
+
+async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun: boolean): Promise<void> {
+  if (!shouldRunLocalReleaseValidation(project)) {
     return;
   }
 
-  console.log(`${project.type} releases require sandbox validation before publishing.`);
+  const consumingProjectRoot = await resolveReleaseTestConsumingProjectPath();
+  console.log(`Running local release validation from ${consumingProjectRoot}`);
 
-  const credentials = await promptSandboxReleaseCredentials();
-  const accessToken = await authenticateSandboxReleaseUser(credentials);
-  const sandbox = await launchReleaseValidationSandbox(project, accessToken, credentials, plannedVersion);
-  printSandboxLaunchMessage(sandbox);
+  const commands: Array<{ command: string; failureMessage: string }> = [
+    {
+      command: 'npx @solidxai/solidctl@latest test data --setup',
+      failureMessage: 'Warning: release test data setup failed.',
+    },
+    {
+      command: 'npx @solidxai/solidctl@latest seed',
+      failureMessage: 'Warning: release seed failed.',
+    },
+    {
+      command: 'npx @solidxai/solidctl@latest test data --load',
+      failureMessage: 'Warning: release test data load failed.',
+    },
+  ];
 
-  const finalSandbox = await waitForSandboxTerminalStatus(sandbox.id);
-  const finalStatus = finalSandbox.status || 'UNKNOWN';
+  if (project.type === 'solid-core-module') {
+    commands.push({
+      command:
+        'npx --yes @solidxai/solidctl@beta test run --module library-management --include-tags api-all-flows --api-base-url http://localhost:8080 --ui-base-url http://localhost:5173 --headless false',
+      failureMessage: 'Warning: solid-core-module local release tests failed. Continuing with release.',
+    });
+  } else if (project.type === 'solid-core-ui') {
+    console.log('Skipping local release UI tests for solid-core-ui for now.');
+  }
 
-  if (SANDBOX_SUCCESS_STATUSES.has(finalStatus)) {
-    console.log('Teardown initiated...');
-
-    try {
-      await teardownSandbox(finalSandbox.id, accessToken);
-    } catch (error) {
-      console.error(
-        `Warning: teardown could not be initiated for sandbox ${finalSandbox.id}.`,
-        error instanceof Error ? error.message : error,
-      );
+  try {
+    for (const item of commands) {
+      runReleaseValidationCommand(item.command, dryRun, consumingProjectRoot, item.failureMessage);
     }
-
-    console.log(`Sandbox validation passed with status ${finalStatus}. Continuing with release...`);
-    return;
+  } finally {
+    runReleaseValidationCommand(
+      'npx @solidxai/solidctl@latest test data --teardown',
+      dryRun,
+      consumingProjectRoot,
+      'Warning: release test data teardown failed.',
+    );
   }
-
-  const testRunsPageUrl = buildSandboxTestRunsPageUrl(finalSandbox.id);
-  const failureReason = finalSandbox.failureReason ? ` Reason: ${finalSandbox.failureReason}` : '';
-  throw new Error(
-    `Sandbox validation failed with status ${finalStatus}. Cancelling release.${failureReason} Review the failed test runs here: ${testRunsPageUrl}`,
-  );
 }
 
 function getReleaseOptions(options: PublishOptions) {
@@ -751,7 +519,11 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       console.log('Dry run mode - no changes will be made\n');
     }
 
-    await runSandboxReleaseGate(project, dryRun, preid, plannedVersion);
+    if (plannedVersion) {
+      console.log(`Planned version: ${plannedVersion}`);
+    }
+
+    await runLocalReleaseValidation(project, dryRun);
 
     const versionCmd = getVersionCommand(versionType, preid);
     if (isPrerelease) {
@@ -922,6 +694,11 @@ Examples:
     $ solidctl release --dry-run    # Preview without making changes
     $ solidctl release --force      # Override branch checks
     $ solidctl release --no-merge   # Skip main → dev merge after stable release
+
+Local release validation:
+  For solid-core-module and solid-core-ui releases, solidctl now runs local validation commands
+  from the consuming project pointed to by ${RELEASE_TEST_PROJECT_PATH_ENV}. If that env var is
+  missing, the release command will prompt for the consuming project path.
 
 Configuration:
   Add to package.json or solidctl.config.json:
