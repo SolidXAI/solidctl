@@ -446,6 +446,60 @@ function runReleaseValidationCommand(
   }
 }
 
+interface ReleaseValidationTestResult {
+  commandSucceeded: boolean;
+  passedSummaryDetected: boolean;
+  failedSummaryDetected: boolean;
+  output: string;
+}
+
+function runReleaseValidationTestCommand(
+  command: string,
+  dryRun: boolean,
+  cwd: string,
+): Promise<ReleaseValidationTestResult> {
+  console.log(`▶ ${command}`);
+
+  if (dryRun) {
+    console.log(`[dry-run] (${cwd}) ${command}`);
+    return Promise.resolve({
+      commandSucceeded: true,
+      passedSummaryDetected: true,
+      failedSummaryDetected: false,
+      output: '',
+    });
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn(command, {
+      cwd,
+      env: process.env,
+      shell: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let output = '';
+
+    const handleChunk = (chunk: Buffer, writer: NodeJS.WriteStream) => {
+      const text = chunk.toString();
+      output += text;
+      writer.write(text);
+    };
+
+    child.stdout?.on('data', (chunk: Buffer) => handleChunk(chunk, process.stdout));
+    child.stderr?.on('data', (chunk: Buffer) => handleChunk(chunk, process.stderr));
+
+    child.once('close', (code) => {
+      resolve({
+        commandSucceeded: code === 0,
+        passedSummaryDetected: /Result:\s*Test run PASSED/.test(output),
+        failedSummaryDetected: /Result:\s*Test run FAILED/.test(output),
+        output,
+      });
+    });
+  });
+}
+
 function getNpxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
@@ -749,15 +803,18 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     },
   ];
 
-  const testCommands: Array<{ command: string; failureMessage: string }> = [];
+  const testCommands: Array<{ command: string; summaryLabel: string }> = [];
 
   if (project.type === 'solid-core-module') {
     testCommands.push({
       command: `npx --yes @solidxai/solidctl@beta test run --module library-management --include-tags api-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
-      failureMessage: 'Warning: solid-core-module local release tests failed. Continuing with release.',
+      summaryLabel: 'solid-core-module API release tests',
     });
   } else if (project.type === 'solid-core-ui') {
-    console.log('Skipping local release UI tests for solid-core-ui for now.');
+    testCommands.push({
+      command: `npx --yes @solidxai/solidctl@beta test run --module library-management --include-tags ui-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
+      summaryLabel: 'solid-core-ui UI release tests',
+    });
   }
 
   let consumingProjectProcess: RunningConsumingProject | null = null;
@@ -780,7 +837,19 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
       }
 
       for (const item of testCommands) {
-        runReleaseValidationCommand(item.command, dryRun, consumingProjectRoot, item.failureMessage);
+        const testResult = await runReleaseValidationTestCommand(item.command, dryRun, consumingProjectRoot);
+
+        if (!testResult.commandSucceeded) {
+          throw new Error(
+            `${item.summaryLabel} exited unsuccessfully. Release has been stopped.`,
+          );
+        }
+
+        if (testResult.failedSummaryDetected || !testResult.passedSummaryDetected) {
+          throw new Error(
+            `${item.summaryLabel} did not report "Result: Test run PASSED". Release has been stopped.`,
+          );
+        }
       }
     }
   } finally {
