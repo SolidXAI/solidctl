@@ -23,6 +23,7 @@ interface PublishOptions {
   force?: boolean;
   merge?: boolean;
   skipTests?: boolean;
+  testsOnly?: boolean;
   mainBranch?: string;
   devBranch?: string;
 }
@@ -1063,10 +1064,22 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       console.log(`Planned version: ${plannedVersion}`);
     }
 
+    if (options.skipTests && options.testsOnly) {
+      throw new Error('Cannot use --skip-tests and --tests-only together.');
+    }
+
     if (options.skipTests) {
       console.log('Skipping release validation tests (--skip-tests).');
     } else {
       await runLocalReleaseValidation(project, dryRun);
+
+      if (options.testsOnly) {
+        console.log('Release validation completed successfully (--tests-only). Skipping version bump and publish.');
+        const releaseEndedAt = new Date();
+        console.log(`Release finished at: ${formatTimestamp(releaseEndedAt)}`);
+        console.log(`Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
+        return;
+      }
     }
 
     const versionCmd = getVersionCommand(versionType, preid);
@@ -1226,6 +1239,7 @@ export function registerReleaseCommand(program: Command) {
     .option('--dry-run', 'Preview changes without executing')
     .option('--force', 'Override branch checks')
     .option('--skip-tests', 'Skip local release validation tests')
+    .option('--tests-only', 'Run only the local release validation workflow and stop before publishing')
     .option('--no-merge', 'Skip reverse merge to dev after stable release')
     .option('--main-branch <name>', 'Override main branch name')
     .option('--dev-branch <name>', 'Override dev branch name')
@@ -1247,6 +1261,7 @@ Examples:
     $ solidctl release --dry-run    # Preview without making changes
     $ solidctl release --force      # Override branch checks
     $ solidctl release --skip-tests # Skip local release validation
+    $ solidctl release --tests-only # Run validation workflow only
     $ solidctl release --no-merge   # Skip main → dev merge after stable release
 
 Local release validation:
