@@ -65,6 +65,9 @@ interface ReleaseValidationTargets {
   uiBaseUrl: string;
 }
 
+let activeReleaseValidationProject: RunningConsumingProject | null = null;
+let activeReleaseValidationCleanup: Promise<void> | null = null;
+
 function loadConfig(): PublishConfig {
   const configPaths = [
     path.join(process.cwd(), 'solidctl.config.json'),
@@ -188,6 +191,10 @@ function exec(cmd: string, dryRun: boolean): string {
   }
   execSync(cmd, { stdio: 'inherit' });
   return '';
+}
+
+function execCapture(cmd: string): string {
+  return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
 function sleep(ms: number): Promise<void> {
@@ -538,7 +545,73 @@ async function stopConsumingProject(runningProject: RunningConsumingProject | nu
     child.kill('SIGKILL');
   }
 
+  await waitForChildExit(child, 5_000);
   logStream?.end();
+}
+
+function getListeningProcesses(port: number): string[] {
+  try {
+    const output = execCapture(`lsof -iTCP:${port} -sTCP:LISTEN -n -P`);
+    return output ? output.split(/\r?\n/).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function ensureReleaseValidationPortsAreFree(targets: ReleaseValidationTargets): void {
+  const apiListeners = getListeningProcesses(targets.apiPort);
+  const uiListeners = getListeningProcesses(targets.uiPort);
+  const occupiedPorts: string[] = [];
+
+  if (apiListeners.length > 1) {
+    occupiedPorts.push(`Port ${targets.apiPort} is already in use:\n${apiListeners.join('\n')}`);
+  }
+
+  if (uiListeners.length > 1) {
+    occupiedPorts.push(`Port ${targets.uiPort} is already in use:\n${uiListeners.join('\n')}`);
+  }
+
+  if (occupiedPorts.length) {
+    throw new Error(
+      `Release validation ports must be free before start:dev launches.\n${occupiedPorts.join('\n\n')}`,
+    );
+  }
+}
+
+async function cleanupActiveReleaseValidationProject(): Promise<void> {
+  if (!activeReleaseValidationProject) {
+    return;
+  }
+
+  if (!activeReleaseValidationCleanup) {
+    const runningProject = activeReleaseValidationProject;
+    activeReleaseValidationCleanup = stopConsumingProject(runningProject).finally(() => {
+      activeReleaseValidationProject = null;
+      activeReleaseValidationCleanup = null;
+    });
+  }
+
+  await activeReleaseValidationCleanup;
+}
+
+function registerReleaseValidationSignalHandlers(): () => void {
+  const handleSignal = (signal: NodeJS.Signals) => {
+    void cleanupActiveReleaseValidationProject()
+      .catch((error) => {
+        console.error(`Failed to clean up consuming project after ${signal}:`, error instanceof Error ? error.message : error);
+      })
+      .finally(() => {
+        process.exit(signal === 'SIGINT' ? 130 : 143);
+      });
+  };
+
+  process.on('SIGINT', handleSignal);
+  process.on('SIGTERM', handleSignal);
+
+  return () => {
+    process.off('SIGINT', handleSignal);
+    process.off('SIGTERM', handleSignal);
+  };
 }
 
 function isPortOpen(port: number, host: string): Promise<boolean> {
@@ -651,6 +724,7 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
   const validationTargets = resolveReleaseValidationTargets(consumingProjectRoot);
   console.log(`Running local release validation from ${consumingProjectRoot}`);
   console.log(`Validation targets: api=${validationTargets.apiBaseUrl} ui=${validationTargets.uiBaseUrl}`);
+  const unregisterSignalHandlers = registerReleaseValidationSignalHandlers();
 
   const commands: Array<{ command: string; failureMessage: string }> = [
     {
@@ -694,7 +768,12 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     }
 
     if (testCommands.length > 0) {
+      if (!dryRun) {
+        ensureReleaseValidationPortsAreFree(validationTargets);
+      }
+
       consumingProjectProcess = startConsumingProject(consumingProjectRoot, dryRun);
+      activeReleaseValidationProject = consumingProjectProcess;
 
       if (!dryRun) {
         await waitForReleaseValidationServices(consumingProjectProcess, validationTargets);
@@ -705,7 +784,7 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
       }
     }
   } finally {
-    await stopConsumingProject(consumingProjectProcess);
+    await cleanupActiveReleaseValidationProject();
 
     if (!dryRun && consumingProjectProcess?.child) {
       console.log(`Waiting ${Math.floor(RELEASE_VALIDATION_POST_STOP_DELAY_MS / 1000)}s after shutdown before teardown...`);
@@ -713,6 +792,7 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     }
 
     await runReleaseValidationTeardown(consumingProjectRoot, dryRun);
+    unregisterSignalHandlers();
   }
 }
 
