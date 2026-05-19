@@ -39,6 +39,9 @@ const RELEASE_VALIDATION_UI_PORT = 5173;
 const RELEASE_VALIDATION_READY_TIMEOUT_MS = 5 * 60 * 1000;
 const RELEASE_VALIDATION_READY_POLL_INTERVAL_MS = 2_000;
 const RELEASE_VALIDATION_POST_READY_DELAY_MS = 10_000;
+const RELEASE_VALIDATION_POST_STOP_DELAY_MS = 3_000;
+const RELEASE_VALIDATION_TEARDOWN_RETRY_COUNT = 3;
+const RELEASE_VALIDATION_TEARDOWN_RETRY_DELAY_MS = 3_000;
 
 type ReleaseProjectType = 'solidctl' | 'solid-core-module' | 'solid-core-ui' | 'solid-library-management';
 
@@ -286,6 +289,8 @@ function runReleaseValidationCommand(
   cwd: string,
   failureMessage: string,
 ): boolean {
+  console.log(`▶ ${command}`);
+
   if (dryRun) {
     console.log(`[dry-run] (${cwd}) ${command}`);
     return true;
@@ -408,7 +413,7 @@ async function stopConsumingProject(runningProject: RunningConsumingProject | nu
   logStream?.end();
 }
 
-function isPortOpen(port: number, host = '127.0.0.1'): Promise<boolean> {
+function isPortOpen(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = net.connect({ port, host });
 
@@ -425,8 +430,23 @@ function isPortOpen(port: number, host = '127.0.0.1'): Promise<boolean> {
   });
 }
 
+async function isLocalPortOpen(port: number): Promise<boolean> {
+  const hosts = ['127.0.0.1', '::1', 'localhost'];
+
+  for (const host of hosts) {
+    if (await isPortOpen(port, host)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function waitForReleaseValidationServices(runningProject: RunningConsumingProject | null): Promise<void> {
   const startedAt = Date.now();
+  console.log(
+    `Waiting for consuming project services on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}...`,
+  );
 
   while (Date.now() - startedAt < RELEASE_VALIDATION_READY_TIMEOUT_MS) {
     const child = runningProject?.child;
@@ -436,8 +456,8 @@ async function waitForReleaseValidationServices(runningProject: RunningConsuming
     }
 
     const [apiReady, uiReady] = await Promise.all([
-      isPortOpen(RELEASE_VALIDATION_API_PORT),
-      isPortOpen(RELEASE_VALIDATION_UI_PORT),
+      isLocalPortOpen(RELEASE_VALIDATION_API_PORT),
+      isLocalPortOpen(RELEASE_VALIDATION_UI_PORT),
     ]);
 
     if (apiReady && uiReady) {
@@ -447,12 +467,48 @@ async function waitForReleaseValidationServices(runningProject: RunningConsuming
       return;
     }
 
+    console.log(
+      `Still waiting for services... api:${apiReady ? 'up' : 'down'} ui:${uiReady ? 'up' : 'down'}`,
+    );
+
     await sleep(RELEASE_VALIDATION_READY_POLL_INTERVAL_MS);
   }
 
   throw new Error(
     `Timed out waiting for consuming project services on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}.${runningProject?.logPath ? ` Check logs at ${runningProject.logPath}.` : ''}`,
   );
+}
+
+async function runReleaseValidationTeardown(cwd: string, dryRun: boolean): Promise<void> {
+  if (dryRun) {
+    runReleaseValidationCommand(
+      'npx @solidxai/solidctl@latest test data --teardown',
+      true,
+      cwd,
+      'Warning: release test data teardown failed.',
+    );
+    return;
+  }
+
+  for (let attempt = 1; attempt <= RELEASE_VALIDATION_TEARDOWN_RETRY_COUNT; attempt += 1) {
+    const succeeded = runReleaseValidationCommand(
+      'npx @solidxai/solidctl@latest test data --teardown',
+      false,
+      cwd,
+      `Warning: release test data teardown failed on attempt ${attempt}.`,
+    );
+
+    if (succeeded) {
+      return;
+    }
+
+    if (attempt < RELEASE_VALIDATION_TEARDOWN_RETRY_COUNT) {
+      console.log(
+        `Waiting ${Math.floor(RELEASE_VALIDATION_TEARDOWN_RETRY_DELAY_MS / 1000)}s before retrying teardown...`,
+      );
+      await sleep(RELEASE_VALIDATION_TEARDOWN_RETRY_DELAY_MS);
+    }
+  }
 }
 
 async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun: boolean): Promise<void> {
@@ -518,12 +574,13 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     }
   } finally {
     await stopConsumingProject(consumingProjectProcess);
-    runReleaseValidationCommand(
-      'npx @solidxai/solidctl@latest test data --teardown',
-      dryRun,
-      consumingProjectRoot,
-      'Warning: release test data teardown failed.',
-    );
+
+    if (!dryRun && consumingProjectProcess?.child) {
+      console.log(`Waiting ${Math.floor(RELEASE_VALIDATION_POST_STOP_DELAY_MS / 1000)}s after shutdown before teardown...`);
+      await sleep(RELEASE_VALIDATION_POST_STOP_DELAY_MS);
+    }
+
+    await runReleaseValidationTeardown(consumingProjectRoot, dryRun);
   }
 }
 
