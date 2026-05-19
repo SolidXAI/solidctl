@@ -49,6 +49,12 @@ interface ResolvedReleaseProject {
   versionSourcePath?: string;
 }
 
+interface RunningConsumingProject {
+  child: ChildProcess | null;
+  logPath: string | null;
+  logStream: fs.WriteStream | null;
+}
+
 function loadConfig(): PublishConfig {
   const configPaths = [
     path.join(process.cwd(), 'solidctl.config.json'),
@@ -199,6 +205,17 @@ function formatDuration(durationMs: number): string {
   return `${seconds}s`;
 }
 
+function formatLogTimestamp(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+
+  return `${year}${month}${day}-${hours}${minutes}${seconds}`;
+}
+
 function getExpectedVersion(project: ResolvedReleaseProject, versionType: string, preid?: string): string | undefined {
   if (!project.versionSourcePath) {
     return undefined;
@@ -293,22 +310,37 @@ function getNpxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
 
-function startConsumingProject(cwd: string, dryRun: boolean): ChildProcess | null {
+function getReleaseValidationLogPath(cwd: string): string {
+  const logsDir = path.join(cwd, 'logs', 'solidctl', 'release-validation');
+  fs.mkdirSync(logsDir, { recursive: true });
+  return path.join(logsDir, `start-dev-${formatLogTimestamp(new Date())}.log`);
+}
+
+function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingProject {
   const commandText = 'npx @solidxai/solidctl@beta start:dev --plain';
 
   if (dryRun) {
     console.log(`[dry-run] (${cwd}) ${commandText}`);
-    return null;
+    return { child: null, logPath: null, logStream: null };
   }
 
+  const logPath = getReleaseValidationLogPath(cwd);
+  const logStream = fs.createWriteStream(logPath, { flags: 'a' });
   console.log(`Starting consuming project from ${cwd}`);
-  return spawn(getNpxCommand(), ['@solidxai/solidctl@beta', 'start:dev', '--plain'], {
+  console.log(`Consuming project logs: ${logPath}`);
+
+  const child = spawn(getNpxCommand(), ['@solidxai/solidctl@beta', 'start:dev', '--plain'], {
     cwd,
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
     detached: process.platform !== 'win32',
     shell: process.platform === 'win32',
   });
+
+  child.stdout?.pipe(logStream);
+  child.stderr?.pipe(logStream);
+
+  return { child, logPath, logStream };
 }
 
 function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
@@ -331,12 +363,15 @@ function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boole
   });
 }
 
-async function stopConsumingProject(child: ChildProcess | null): Promise<void> {
-  if (!child) {
+async function stopConsumingProject(runningProject: RunningConsumingProject | null): Promise<void> {
+  if (!runningProject?.child) {
     return;
   }
 
+  const { child, logStream } = runningProject;
+
   if (child.exitCode !== null || child.killed) {
+    logStream?.end();
     return;
   }
 
@@ -349,6 +384,7 @@ async function stopConsumingProject(child: ChildProcess | null): Promise<void> {
   }
 
   if (await waitForChildExit(child, 10_000)) {
+    logStream?.end();
     return;
   }
 
@@ -359,6 +395,7 @@ async function stopConsumingProject(child: ChildProcess | null): Promise<void> {
   }
 
   if (await waitForChildExit(child, 10_000)) {
+    logStream?.end();
     return;
   }
 
@@ -367,6 +404,8 @@ async function stopConsumingProject(child: ChildProcess | null): Promise<void> {
   } else {
     child.kill('SIGKILL');
   }
+
+  logStream?.end();
 }
 
 function isPortOpen(port: number, host = '127.0.0.1'): Promise<boolean> {
@@ -386,12 +425,14 @@ function isPortOpen(port: number, host = '127.0.0.1'): Promise<boolean> {
   });
 }
 
-async function waitForReleaseValidationServices(child: ChildProcess | null): Promise<void> {
+async function waitForReleaseValidationServices(runningProject: RunningConsumingProject | null): Promise<void> {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < RELEASE_VALIDATION_READY_TIMEOUT_MS) {
+    const child = runningProject?.child;
     if (child && child.exitCode !== null) {
-      throw new Error(`Consuming project start:dev exited early with code ${child.exitCode}.`);
+      const logSuffix = runningProject?.logPath ? ` Check logs at ${runningProject.logPath}.` : '';
+      throw new Error(`Consuming project start:dev exited early with code ${child.exitCode}.${logSuffix}`);
     }
 
     const [apiReady, uiReady] = await Promise.all([
@@ -410,7 +451,7 @@ async function waitForReleaseValidationServices(child: ChildProcess | null): Pro
   }
 
   throw new Error(
-    `Timed out waiting for consuming project services on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}.`,
+    `Timed out waiting for consuming project services on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}.${runningProject?.logPath ? ` Check logs at ${runningProject.logPath}.` : ''}`,
   );
 }
 
@@ -457,7 +498,7 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     console.log('Skipping local release UI tests for solid-core-ui for now.');
   }
 
-  let consumingProjectProcess: ChildProcess | null = null;
+  let consumingProjectProcess: RunningConsumingProject | null = null;
 
   try {
     for (const item of commands) {
