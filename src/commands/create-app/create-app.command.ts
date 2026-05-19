@@ -11,6 +11,7 @@ import {
   SETUP_DEFAULTS,
   DATABASE_CLIENTS,
   SYNCHRONIZE_OPTIONS,
+  DATABASE_EXISTS_OPTIONS,
 } from './setup-questions';
 import {
   copyAndInstallTemplate,
@@ -53,6 +54,12 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
     process.exit(1);
   }
 
+  const dbExists = (options.dbExists as string | undefined) ?? SETUP_DEFAULTS.databaseExists;
+  if (options.dbExists !== undefined && !DATABASE_EXISTS_OPTIONS.includes(dbExists as any)) {
+    console.error(chalk.red(`Invalid --db-exists "${dbExists}". Must be one of: ${DATABASE_EXISTS_OPTIONS.join(', ')}`));
+    process.exit(1);
+  }
+
   const dbPortDefault = dbClient === 'PostgreSQL'
     ? SETUP_DEFAULTS.solidApiDatabasePortPostgres
     : dbClient === 'MySQL'
@@ -73,7 +80,7 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
     solidApiDatabaseUsername:    (options.dbUsername as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseUsername,
     solidApiDatabasePassword:    (options.dbPassword as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabasePassword,
     solidApiDatabaseSynchronize: dbSynchronize,
-    databaseExists:              true,
+    databaseExists:              dbExists,
     solidUiPort:                 (options.uiPort     as string | undefined) ?? SETUP_DEFAULTS.solidUiPort,
   };
 }
@@ -95,6 +102,7 @@ export function registerCreateAppCommand(program: Command) {
     .option('--db-username <username>',  `Database username (default: ${SETUP_DEFAULTS.solidApiDatabaseUsername})`)
     .option('--db-password <password>',  `Database password (default: ${SETUP_DEFAULTS.solidApiDatabasePassword})`)
     .option('--db-synchronize <yes|no>', `Auto-sync DB schema: Yes or No (default: ${SETUP_DEFAULTS.solidApiDatabaseSynchronize})`)
+    .option('--db-exists <yes|no>',      `Database already exists: Yes or No (default: ${SETUP_DEFAULTS.databaseExists})`)
     .option('--ui-port <port>',          `Frontend port (default: ${SETUP_DEFAULTS.solidUiPort})`)
     .action(async (options) => {
       try {
@@ -110,7 +118,7 @@ export function registerCreateAppCommand(program: Command) {
           answers = await inquirer.prompt(setupQuestions);
         }
 
-        if (!answers.databaseExists) {
+        if (answers.databaseExists === 'No') {
           const dbSpinner = ora(`Creating database "${answers.solidApiDatabaseName}"...`).start();
           try {
             await createDatabaseIfNotExists(answers);
