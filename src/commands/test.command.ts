@@ -19,7 +19,6 @@ export function registerTestCommand(program: Command) {
       const passthroughArgs = cmdIndex >= 0 ? rawArgs.slice(cmdIndex + 1) : [];
       const args = ['test', ...passthroughArgs];
 
-      console.log('▶ Running solid test');
       const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
       const result = spawnSync(solidCommand, args, {
         cwd: solidApiDir,
@@ -37,7 +36,5 @@ export function registerTestCommand(program: Command) {
         console.error('❌ solid test exited with code', result.status);
         process.exit(result.status ?? 1);
       }
-
-      console.log('✔ solid test completed');
     });
 }

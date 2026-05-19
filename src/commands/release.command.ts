@@ -1,7 +1,8 @@
 import { Command } from 'commander';
-import { execSync } from 'child_process';
+import { ChildProcess, spawn, execSync } from 'child_process';
 import fs from 'fs';
 import inquirer from 'inquirer';
+import net from 'net';
 import os from 'os';
 import path from 'path';
 
@@ -33,6 +34,11 @@ const DEFAULT_CONFIG: PublishConfig = {
 
 const LOCAL_RELEASE_TEST_PROJECTS = new Set<ReleaseProjectType>(['solid-core-module', 'solid-core-ui']);
 const RELEASE_TEST_PROJECT_PATH_ENV = 'SOLIDX_RELEASE_TEST_CONSUMING_PRJ_PATH';
+const RELEASE_VALIDATION_API_PORT = 8080;
+const RELEASE_VALIDATION_UI_PORT = 5173;
+const RELEASE_VALIDATION_READY_TIMEOUT_MS = 5 * 60 * 1000;
+const RELEASE_VALIDATION_READY_POLL_INTERVAL_MS = 2_000;
+const RELEASE_VALIDATION_POST_READY_DELAY_MS = 10_000;
 
 type ReleaseProjectType = 'solidctl' | 'solid-core-module' | 'solid-core-ui' | 'solid-library-management';
 
@@ -160,6 +166,10 @@ function exec(cmd: string, dryRun: boolean): string {
   return '';
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function formatTimestamp(date: Date): string {
   return date.toLocaleString('en-IN', {
     year: 'numeric',
@@ -279,6 +289,131 @@ function runReleaseValidationCommand(
   }
 }
 
+function getNpxCommand(): string {
+  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
+}
+
+function startConsumingProject(cwd: string, dryRun: boolean): ChildProcess | null {
+  const commandText = 'npx @solidxai/solidctl@beta start:dev --plain';
+
+  if (dryRun) {
+    console.log(`[dry-run] (${cwd}) ${commandText}`);
+    return null;
+  }
+
+  console.log(`Starting consuming project from ${cwd}`);
+  return spawn(getNpxCommand(), ['@solidxai/solidctl@beta', 'start:dev', '--plain'], {
+    cwd,
+    stdio: 'inherit',
+    env: process.env,
+    detached: process.platform !== 'win32',
+    shell: process.platform === 'win32',
+  });
+}
+
+function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+    }, timeoutMs);
+
+    child.once('exit', () => {
+      if (!resolved) {
+        clearTimeout(timeout);
+        resolved = true;
+        resolve(true);
+      }
+    });
+  });
+}
+
+async function stopConsumingProject(child: ChildProcess | null): Promise<void> {
+  if (!child) {
+    return;
+  }
+
+  if (child.exitCode !== null || child.killed) {
+    return;
+  }
+
+  console.log('Stopping consuming project...');
+
+  if (process.platform !== 'win32' && child.pid) {
+    process.kill(-child.pid, 'SIGINT');
+  } else {
+    child.kill('SIGINT');
+  }
+
+  if (await waitForChildExit(child, 10_000)) {
+    return;
+  }
+
+  if (process.platform !== 'win32' && child.pid) {
+    process.kill(-child.pid, 'SIGTERM');
+  } else {
+    child.kill('SIGTERM');
+  }
+
+  if (await waitForChildExit(child, 10_000)) {
+    return;
+  }
+
+  if (process.platform !== 'win32' && child.pid) {
+    process.kill(-child.pid, 'SIGKILL');
+  } else {
+    child.kill('SIGKILL');
+  }
+}
+
+function isPortOpen(port: number, host = '127.0.0.1'): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host });
+
+    const finalize = (result: boolean) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(result);
+    };
+
+    socket.setTimeout(2_000);
+    socket.once('connect', () => finalize(true));
+    socket.once('timeout', () => finalize(false));
+    socket.once('error', () => finalize(false));
+  });
+}
+
+async function waitForReleaseValidationServices(child: ChildProcess | null): Promise<void> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < RELEASE_VALIDATION_READY_TIMEOUT_MS) {
+    if (child && child.exitCode !== null) {
+      throw new Error(`Consuming project start:dev exited early with code ${child.exitCode}.`);
+    }
+
+    const [apiReady, uiReady] = await Promise.all([
+      isPortOpen(RELEASE_VALIDATION_API_PORT),
+      isPortOpen(RELEASE_VALIDATION_UI_PORT),
+    ]);
+
+    if (apiReady && uiReady) {
+      console.log(`Validation services are ready on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}.`);
+      console.log(`Waiting ${Math.floor(RELEASE_VALIDATION_POST_READY_DELAY_MS / 1000)}s for services to stabilize...`);
+      await sleep(RELEASE_VALIDATION_POST_READY_DELAY_MS);
+      return;
+    }
+
+    await sleep(RELEASE_VALIDATION_READY_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(
+    `Timed out waiting for consuming project services on ports ${RELEASE_VALIDATION_API_PORT} and ${RELEASE_VALIDATION_UI_PORT}.`,
+  );
+}
+
 async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun: boolean): Promise<void> {
   if (!shouldRunLocalReleaseValidation(project)) {
     return;
@@ -288,6 +423,14 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
   console.log(`Running local release validation from ${consumingProjectRoot}`);
 
   const commands: Array<{ command: string; failureMessage: string }> = [
+    {
+      command: 'npx @solidxai/solidctl@latest local-upgrade',
+      failureMessage: 'Warning: local-upgrade failed.',
+    },
+    {
+      command: 'npx @solidxai/solidctl@latest build',
+      failureMessage: 'Warning: consuming project build failed.',
+    },
     {
       command: 'npx @solidxai/solidctl@latest test data --setup',
       failureMessage: 'Warning: release test data setup failed.',
@@ -302,8 +445,10 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     },
   ];
 
+  const testCommands: Array<{ command: string; failureMessage: string }> = [];
+
   if (project.type === 'solid-core-module') {
-    commands.push({
+    testCommands.push({
       command:
         'npx --yes @solidxai/solidctl@beta test run --module library-management --include-tags api-all-flows --api-base-url http://localhost:8080 --ui-base-url http://localhost:5173 --headless false',
       failureMessage: 'Warning: solid-core-module local release tests failed. Continuing with release.',
@@ -312,11 +457,26 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     console.log('Skipping local release UI tests for solid-core-ui for now.');
   }
 
+  let consumingProjectProcess: ChildProcess | null = null;
+
   try {
     for (const item of commands) {
       runReleaseValidationCommand(item.command, dryRun, consumingProjectRoot, item.failureMessage);
     }
+
+    if (testCommands.length > 0) {
+      consumingProjectProcess = startConsumingProject(consumingProjectRoot, dryRun);
+
+      if (!dryRun) {
+        await waitForReleaseValidationServices(consumingProjectProcess);
+      }
+
+      for (const item of testCommands) {
+        runReleaseValidationCommand(item.command, dryRun, consumingProjectRoot, item.failureMessage);
+      }
+    }
   } finally {
+    await stopConsumingProject(consumingProjectProcess);
     runReleaseValidationCommand(
       'npx @solidxai/solidctl@latest test data --teardown',
       dryRun,
