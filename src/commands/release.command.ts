@@ -22,6 +22,7 @@ interface PublishOptions {
   dryRun?: boolean;
   force?: boolean;
   merge?: boolean;
+  skipTests?: boolean;
   mainBranch?: string;
   devBranch?: string;
 }
@@ -1062,7 +1063,11 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       console.log(`Planned version: ${plannedVersion}`);
     }
 
-    await runLocalReleaseValidation(project, dryRun);
+    if (options.skipTests) {
+      console.log('Skipping release validation tests (--skip-tests).');
+    } else {
+      await runLocalReleaseValidation(project, dryRun);
+    }
 
     const versionCmd = getVersionCommand(versionType, preid);
     if (isPrerelease) {
@@ -1122,6 +1127,7 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
 
 function runSolidLibraryManagementReleaseFlow(versionType: string, options: PublishOptions, project: ResolvedReleaseProject) {
   const { mainBranch, devBranch, dryRun, force, preid, isPrerelease } = getReleaseOptions(options);
+  const releaseStartedAt = new Date();
   const solidApiPackageJsonPath = project.versionSourcePath || path.join(process.cwd(), 'solid-api', 'package.json');
   const solidApiPackageJson = readRequiredPackageJson(solidApiPackageJsonPath);
   const currentVersion = solidApiPackageJson.version;
@@ -1154,6 +1160,7 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
   const movingImageTag = `${imageRepository}:${movingDockerTag}`;
 
   try {
+    console.log(`Release started at: ${formatTimestamp(releaseStartedAt)}`);
     console.log(`Preparing solid-library-management sandbox base image release (${plannedVersion})...`);
     console.log(`Docker image repository: ${imageRepository}`);
     console.log(`Docker base image: node:20-bookworm`);
@@ -1194,8 +1201,14 @@ function runSolidLibraryManagementReleaseFlow(versionType: string, options: Publ
     exec(`docker push ${movingImageTag}`, dryRun);
 
     console.log(`Staying on ${currentBranch} branch`);
+    const releaseEndedAt = new Date();
+    console.log(`Release finished at: ${formatTimestamp(releaseEndedAt)}`);
+    console.log(`Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
     console.log('\nDocker image release completed!');
   } catch (error) {
+    const releaseEndedAt = new Date();
+    console.error(`Release finished at: ${formatTimestamp(releaseEndedAt)}`);
+    console.error(`Total release duration: ${formatDuration(releaseEndedAt.getTime() - releaseStartedAt.getTime())}`);
     console.error('Error:', error instanceof Error ? error.message : error);
     process.exit(1);
   } finally {
@@ -1212,6 +1225,7 @@ export function registerReleaseCommand(program: Command) {
     .option('--preid <id>', 'Pre-release identifier (alpha, beta, rc)')
     .option('--dry-run', 'Preview changes without executing')
     .option('--force', 'Override branch checks')
+    .option('--skip-tests', 'Skip local release validation tests')
     .option('--no-merge', 'Skip reverse merge to dev after stable release')
     .option('--main-branch <name>', 'Override main branch name')
     .option('--dev-branch <name>', 'Override dev branch name')
@@ -1232,6 +1246,7 @@ Examples:
   Options:
     $ solidctl release --dry-run    # Preview without making changes
     $ solidctl release --force      # Override branch checks
+    $ solidctl release --skip-tests # Skip local release validation
     $ solidctl release --no-merge   # Skip main → dev merge after stable release
 
 Local release validation:
