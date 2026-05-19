@@ -1,6 +1,7 @@
 import { ChildProcess, spawn } from 'child_process';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import fs from 'fs-extra';
 import path from 'path';
 import readline from 'readline';
 import { validateProjectRoot, validateProjectScript } from '../helper';
@@ -18,7 +19,6 @@ type ServiceState = {
   restartRequested: boolean;
   stoppingForShutdown: boolean;
   outputBuffer: string;
-  startedAt: number | null;
 };
 
 type StartOptions = {
@@ -26,6 +26,8 @@ type StartOptions = {
 };
 
 class StartSupervisor {
+  private readonly apiPort: string;
+  private readonly uiPort: string;
   private readonly serviceConfigs: Record<ServiceName, ServiceConfig>;
   private readonly serviceStates: Record<ServiceName, ServiceState>;
   private readonly isInteractive: boolean;
@@ -33,7 +35,6 @@ class StartSupervisor {
   private shuttingDown = false;
   private exitCode = 0;
   private stdinWasRaw = false;
-  private footerInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly projectRoot: string,
@@ -41,6 +42,8 @@ class StartSupervisor {
   ) {
     this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    this.apiPort = this.resolveApiPort();
+    this.uiPort = this.resolveUiPort();
 
     this.serviceConfigs = {
       api: {
@@ -89,7 +92,6 @@ class StartSupervisor {
       restartRequested: false,
       stoppingForShutdown: false,
       outputBuffer: '',
-      startedAt: null,
     };
   }
 
@@ -99,7 +101,6 @@ class StartSupervisor {
 
     state.restartRequested = false;
     state.stoppingForShutdown = false;
-    state.startedAt = Date.now();
 
     const child = spawn(this.npmCommand, ['run', 'solidx:dev'], {
       cwd: config.cwd,
@@ -196,58 +197,83 @@ class StartSupervisor {
     }
 
     const footer = [
-      chalk.bold('Controls'),
-      `project:${this.projectRoot}`,
-      `api:${this.getServiceStatusLabel('api')} ${this.getServiceUptime('api')}`,
-      `ui:${this.getServiceStatusLabel('ui')} ${this.getServiceUptime('ui')}`,
-      'a restart API',
-      'u restart UI',
-      'r restart both',
-      'c clear',
-      'q quit',
+      `${chalk.bold('Controls')}: q quit & c clear`,
+      `${chalk.bold('Services')}: API (a restart, d open docs, :${this.apiPort})  UI (u restart, o open, :${this.uiPort})`,
+      `${chalk.bold('Project')}: ${path.basename(this.projectRoot)}`,
     ].join(chalk.dim(' | '));
+
+    const terminalWidth = process.stdout.columns || 80;
+    const renderedFooter = chalk.inverse(` ${footer} `);
+    const safeFooter = this.truncateAnsiText(renderedFooter, terminalWidth);
 
     readline.clearLine(process.stdout, 0);
     readline.cursorTo(process.stdout, 0);
-    process.stdout.write(chalk.inverse(` ${footer} `));
+    process.stdout.write(safeFooter);
   }
 
-  private getServiceStatusLabel(serviceName: ServiceName) {
-    const state = this.serviceStates[serviceName];
-    const config = this.serviceConfigs[serviceName];
-
-    if (state.child) {
-      return config.color('running');
+  private truncateAnsiText(text: string, maxWidth: number) {
+    if (maxWidth <= 0) {
+      return '';
     }
 
-    if (state.restartRequested) {
-      return chalk.yellow('restarting');
+    let visibleWidth = 0;
+    let index = 0;
+    let output = '';
+    let lastEscapeIndex = -1;
+
+    while (index < text.length) {
+      if (text[index] === '\u001b') {
+        const match = /\u001b\[[0-9;]*m/.exec(text.slice(index));
+        if (!match) {
+          break;
+        }
+        output += match[0];
+        lastEscapeIndex = output.length;
+        index += match[0].length;
+        continue;
+      }
+
+      if (visibleWidth >= maxWidth) {
+        break;
+      }
+
+      output += text[index];
+      visibleWidth += 1;
+      index += 1;
     }
 
-    if (this.shuttingDown || state.stoppingForShutdown) {
-      return chalk.gray('stopping');
+    if (index < text.length && maxWidth >= 1) {
+      let visibleChars = 0;
+      let truncated = '';
+      let cursor = 0;
+
+      while (cursor < output.length) {
+        if (output[cursor] === '\u001b') {
+          const match = /\u001b\[[0-9;]*m/.exec(output.slice(cursor));
+          if (!match) {
+            break;
+          }
+          truncated += match[0];
+          cursor += match[0].length;
+          continue;
+        }
+
+        if (visibleChars >= Math.max(0, maxWidth - 1)) {
+          break;
+        }
+
+        truncated += output[cursor];
+        visibleChars += 1;
+        cursor += 1;
+      }
+
+      output = `${truncated}\u2026`;
+      if (lastEscapeIndex !== -1 && !output.endsWith('\u001b[0m')) {
+        output += '\u001b[0m';
+      }
     }
 
-    return chalk.red('stopped');
-  }
-
-  private getServiceUptime(serviceName: ServiceName) {
-    const state = this.serviceStates[serviceName];
-
-    if (!state.child || !state.startedAt) {
-      return chalk.gray('00:00:00');
-    }
-
-    return chalk.green(this.formatDuration(Date.now() - state.startedAt));
-  }
-
-  private formatDuration(durationMs: number) {
-    const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+    return output;
   }
 
   private attachSignalHandlers() {
@@ -269,9 +295,6 @@ class StartSupervisor {
     this.stdinWasRaw = Boolean(process.stdin.isRaw);
     process.stdin.setRawMode?.(true);
     process.stdin.resume();
-    this.footerInterval = setInterval(() => {
-      this.renderFooter();
-    }, 1000);
 
     process.stdin.on('keypress', (_str, key) => {
       if (key.ctrl && key.name === 'c') {
@@ -293,6 +316,12 @@ class StartSupervisor {
         case 'c':
           console.clear();
           this.renderFooter();
+          break;
+        case 'd':
+          this.openUrlInBrowser(this.getApiDocsUrl(), 'API docs');
+          break;
+        case 'o':
+          this.openUrlInBrowser(this.getUiUrl(), 'UI');
           break;
         case 'q':
           this.shutdown(0);
@@ -382,14 +411,82 @@ class StartSupervisor {
 
     readline.clearLine(process.stdout, 0);
     readline.cursorTo(process.stdout, 0);
-    if (this.footerInterval) {
-      clearInterval(this.footerInterval);
-      this.footerInterval = null;
-    }
     if (!this.stdinWasRaw) {
       process.stdin.setRawMode?.(false);
     }
     process.stdout.write('\n');
+  }
+
+  private resolveApiPort() {
+    const envPath = path.join(this.serviceConfigs?.api?.cwd ?? path.join(this.projectRoot, 'solid-api'), '.env');
+    return this.readEnvValue(envPath, 'PORT') ?? '3000';
+  }
+
+  private resolveUiPort() {
+    const packageJsonPath = path.join(this.serviceConfigs?.ui?.cwd ?? path.join(this.projectRoot, 'solid-ui'), 'package.json');
+
+    try {
+      const packageJson = fs.readJsonSync(packageJsonPath) as {
+        scripts?: Record<string, string>;
+      };
+      const devScript = packageJson.scripts?.dev ?? '';
+      const portMatch = /(?:^|\s)--port\s+(\d{1,5})(?:\s|$)/.exec(devScript);
+      if (portMatch) {
+        return portMatch[1];
+      }
+    } catch {
+      // Fall back to the default Vite dev port when package.json cannot be read.
+    }
+
+    return '5173';
+  }
+
+  private readEnvValue(filePath: string, key: string) {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return null;
+      }
+
+      const content = fs.readFileSync(filePath, 'utf8');
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = content.match(new RegExp(`^\\s*${escapedKey}\\s*=\\s*(.+?)\\s*$`, 'm'));
+      return match?.[1]?.replace(/^['"]|['"]$/g, '') ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private getApiDocsUrl() {
+    return `http://localhost:${this.apiPort}/docs`;
+  }
+
+  private getUiUrl() {
+    return `http://localhost:${this.uiPort}`;
+  }
+
+  private openUrlInBrowser(url: string, label: string) {
+    const openCommand = process.platform === 'darwin'
+      ? 'open'
+      : process.platform === 'win32'
+        ? 'cmd'
+        : 'xdg-open';
+    const openArgs = process.platform === 'darwin'
+      ? [url]
+      : process.platform === 'win32'
+        ? ['/c', 'start', '', url]
+        : [url];
+
+    const child = spawn(openCommand, openArgs, {
+      detached: true,
+      stdio: 'ignore',
+    });
+
+    child.on('error', (error) => {
+      this.printStatus(`Failed to open ${label}: ${error.message}`);
+    });
+
+    child.unref();
+    this.printStatus(`Opening ${label} at ${url}`);
   }
 }
 

@@ -3,7 +3,7 @@ import { spawnSync } from 'child_process';
 import path from 'path';
 import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
-import { ensureAgentInstalled } from './agent-helper';
+import { ensureAgentInstalled, ensureAgentInstalledLocal } from './agent-helper';
 
 /**
  * Build a DATABASE_URL from the consuming project's individual DB env vars,
@@ -71,7 +71,8 @@ export function registerMcpCommand(program: Command) {
     .option('-H, --host <host>', 'Host to bind', '0.0.0.0')
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
     .option('--mount-path <path>', 'Path under which to mount the MCP app', '/mcp')
-    .action((options) => {
+    .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
+    .action((options: { port: string; host: string; logLevel: string; mountPath: string; local?: boolean }) => {
       validateProjectRoot();
       const env = buildBridgedEnv();
 
@@ -84,10 +85,12 @@ export function registerMcpCommand(program: Command) {
         process.exit(1);
       }
 
+      // Resolve and auto-install the agent before we print the startup banner.
+      // This keeps the CLI honest on Ubuntu: if Python/venv/bootstrap fails, we
+      // should not imply that the MCP server actually started listening yet.
+      const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       printBridgeSummary(env);
       console.log(`▶ Starting SolidX MCP Server on ${options.host}:${options.port}`);
-
-      const agentCommand = ensureAgentInstalled();
       const result = spawnSync(
         agentCommand,
         [

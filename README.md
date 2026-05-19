@@ -135,6 +135,9 @@ Upgrades the core SolidX dependencies in both `solid-api` and `solid-ui` to the 
 # Upgrade to the latest beta pre-release (default)
 npx @solidxai/solidctl upgrade
 
+# Upgrade to the latest alpha pre-release
+npx @solidxai/solidctl upgrade --alpha
+
 # Upgrade to the latest stable release
 npx @solidxai/solidctl upgrade --stable
 
