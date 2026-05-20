@@ -98,6 +98,7 @@ class AgentSupervisor {
   async start() {
     this.attachSignalHandlers();
     this.attachKeyboardControls();
+    this.setupFooterArea();
 
     this.printStatus('Starting SolidX Agent processes');
     this.spawnService('agent');
@@ -263,6 +264,38 @@ class AgentSupervisor {
     this.renderFooter();
   }
 
+  private setupFooterArea() {
+    if (!this.isInteractive) {
+      return;
+    }
+
+    this.applyScrollRegion();
+    process.stdout.on('resize', this.handleResize);
+  }
+
+  private applyScrollRegion() {
+    if (!this.isInteractive) {
+      return;
+    }
+
+    const rows = process.stdout.rows || 24;
+    if (rows < 2) {
+      return;
+    }
+
+    // Reserve the last row for the footer using DECSTBM. Logs scroll
+    // within rows 1..(rows-1) and the footer stays anchored at row `rows`.
+    process.stdout.write(`\u001b[1;${rows - 1}r`);
+    // Park the cursor at the bottom of the scroll region so subsequent
+    // writes scroll the log region instead of pushing the footer down.
+    process.stdout.write(`\u001b[${rows - 1};1H`);
+  }
+
+  private handleResize = () => {
+    this.applyScrollRegion();
+    this.renderFooter();
+  };
+
   private renderFooter() {
     if (!this.isInteractive) {
       return;
@@ -281,9 +314,14 @@ class AgentSupervisor {
     const renderedFooter = chalk.inverse(` ${footer} `);
     const safeFooter = this.truncateAnsiText(renderedFooter, terminalWidth);
 
-    readline.clearLine(process.stdout, 0);
-    readline.cursorTo(process.stdout, 0);
+    const rows = process.stdout.rows || 24;
+    // Save cursor, draw footer at the bottom row, restore cursor so log
+    // output continues from inside the scroll region.
+    process.stdout.write('\u001b7');
+    process.stdout.write(`\u001b[${rows};1H`);
+    process.stdout.write('\u001b[2K');
     process.stdout.write(safeFooter);
+    process.stdout.write('\u001b8');
   }
 
   private truncateAnsiText(text: string, maxWidth: number) {
@@ -390,6 +428,7 @@ class AgentSupervisor {
           break;
         case 'c':
           console.clear();
+          this.applyScrollRegion();
           this.renderFooter();
           break;
         case 'q':
@@ -478,7 +517,14 @@ class AgentSupervisor {
       return;
     }
 
-    readline.clearLine(process.stdout, 0);
+    process.stdout.removeListener('resize', this.handleResize);
+
+    const rows = process.stdout.rows || 24;
+    // Reset DECSTBM scroll region to full screen.
+    process.stdout.write('\u001b[r');
+    // Clear the footer row so it does not linger after exit.
+    process.stdout.write(`\u001b[${rows};1H`);
+    process.stdout.write('\u001b[2K');
     readline.cursorTo(process.stdout, 0);
     if (!this.stdinWasRaw) {
       process.stdin.setRawMode?.(false);
