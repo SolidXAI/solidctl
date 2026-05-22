@@ -975,6 +975,10 @@ function planNextVersion(currentVersion: string, versionType: string, preid?: st
     if (versionType === 'major') {
       return formatVersion({ major: parsed.major + 1, minor: 0, patch: 0 });
     }
+    // patch on a prerelease promotes to stable without incrementing (matches npm version behaviour)
+    if (parsed.prereleaseId) {
+      return formatVersion({ major: parsed.major, minor: parsed.minor, patch: parsed.patch });
+    }
     return formatVersion({ major: parsed.major, minor: parsed.minor, patch: parsed.patch + 1 });
   }
 
