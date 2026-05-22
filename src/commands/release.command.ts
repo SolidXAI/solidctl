@@ -1098,6 +1098,17 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       }
 
       const releaseBranch = `release/${plannedVersion}`;
+      const plannedTag = `v${plannedVersion}`;
+
+      const staleTag = execCapture(`git tag -l ${plannedTag}`);
+      if (staleTag) {
+        throw new Error(
+          `Tag ${plannedTag} already exists locally from a previous failed release attempt.\n` +
+          `   Run the following to clean up and try again:\n` +
+          `   git tag -d ${plannedTag}`,
+        );
+      }
+
       console.log(`Creating release branch: ${releaseBranch}...`);
       exec(`git checkout -b ${releaseBranch}`, dryRun);
 
