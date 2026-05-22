@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.38] - 2026-05-22
+
+### Other
+
+- changes to allow releasing solid-code-builder as well using solidctl
+
 ## [0.1.36] - 2026-05-22
 
 ### Fixed
