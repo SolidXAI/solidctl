@@ -25,19 +25,41 @@ function commandExists(cmd: string): boolean {
 }
 
 /**
- * Check if solidx-agent binary is available — either in PATH or in the
- * dedicated ~/.solidx/venv.
+ * Actually invoke a binary to confirm it runs successfully.
+ *
+ * This catches "ghost" entries on PATH that pass `which` but blow up on
+ * execution — the most common case being pyenv shims. When a user has
+ * `solidx-agent` installed in a pyenv-managed virtualenv but their
+ * currently-selected pyenv version is something else, `~/.pyenv/shims/solidx-agent`
+ * exists (so `which` returns 0) but executing it prints
+ * `pyenv: solidx-agent: command not found` and exits 127.
+ */
+function commandRuns(cmd: string): boolean {
+  const result = spawnSync(cmd, ['--version'], { stdio: 'pipe' });
+  return result.status === 0;
+}
+
+/**
+ * Check if solidx-agent binary is available.
+ *
+ * Order matters here. We prefer the dedicated ~/.solidx/venv binary that
+ * solidctl itself manages, because it is the only location we can guarantee
+ * is sane. Falling back to PATH only when the venv is missing avoids being
+ * tripped up by broken pyenv shims (and similar) that are first on PATH but
+ * fail at execution time.
  */
 function findAgentBinary(): string | null {
-  // 1. Check PATH first (covers dev installs and manual installs)
-  const pathBinary = process.platform === 'win32' ? 'solidx-agent.cmd' : 'solidx-agent';
-  if (commandExists(pathBinary)) {
-    return pathBinary;
-  }
-
-  // 2. Check dedicated venv
+  // 1. Prefer the dedicated venv solidctl owns — always works once installed.
   if (fs.existsSync(VENV_AGENT_BIN)) {
     return VENV_AGENT_BIN;
+  }
+
+  // 2. Fall back to PATH (dev installs, manual installs), but only if the
+  //    binary actually executes — `which` alone is not enough because a
+  //    broken pyenv shim will satisfy it but fail with exit 127 on spawn.
+  const pathBinary = process.platform === 'win32' ? 'solidx-agent.cmd' : 'solidx-agent';
+  if (commandExists(pathBinary) && commandRuns(pathBinary)) {
+    return pathBinary;
   }
 
   return null;
