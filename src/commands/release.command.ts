@@ -878,6 +878,7 @@ function getReleaseOptions(options: PublishOptions) {
     force: options.force || false,
     preid: options.preid,
     isPrerelease: !!options.preid,
+
   };
 }
 
@@ -1088,19 +1089,51 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
     } else {
       console.log(`Updating package version (${versionType})...`);
     }
-    exec(versionCmd, dryRun);
 
-    console.log('Pushing to git (with tags)...');
-    exec('git push --follow-tags', dryRun);
+    if (!isPrerelease) {
+      if (!plannedVersion) {
+        throw new Error('Cannot determine planned version for --via-pr. Ensure the project has a valid package.json with a version field.');
+      }
 
-    console.log('Publishing package...');
-    if (isPrerelease) {
-      exec(`npm publish --tag ${preid}`, dryRun);
-    } else {
+      const releaseBranch = `release/${plannedVersion}`;
+      console.log(`Creating release branch: ${releaseBranch}...`);
+      exec(`git checkout -b ${releaseBranch}`, dryRun);
+      exec(versionCmd, dryRun);
+
+      console.log('Pushing release branch (with tags)...');
+      exec(`git push --follow-tags origin ${releaseBranch}`, dryRun);
+
+      console.log('Publishing package...');
       exec('npm publish', dryRun);
-    }
+      console.log('Published successfully!\n');
 
-    console.log('Published successfully!\n');
+      console.log('Creating pull request...');
+      exec(
+        `gh pr create --title "chore: release ${plannedVersion}" --base ${mainBranch} --head ${releaseBranch} --body "Automated version bump for release ${plannedVersion}."`,
+        dryRun,
+      );
+
+      console.log('Merging pull request...');
+      exec(`gh pr merge ${releaseBranch} --merge --delete-branch`, dryRun);
+
+      console.log(`Pulling updated ${mainBranch}...`);
+      exec(`git checkout ${mainBranch}`, dryRun);
+      exec(`git pull origin ${mainBranch}`, dryRun);
+    } else {
+      exec(versionCmd, dryRun);
+
+      console.log('Pushing to git (with tags)...');
+      exec('git push --follow-tags', dryRun);
+
+      console.log('Publishing package...');
+      if (isPrerelease) {
+        exec(`npm publish --tag ${preid}`, dryRun);
+      } else {
+        exec('npm publish', dryRun);
+      }
+
+      console.log('Published successfully!\n');
+    }
 
     if (!isPrerelease && reverseMerge) {
       console.log(`Merging ${mainBranch} into ${devBranch}...`);
@@ -1263,6 +1296,7 @@ Examples:
     $ solidctl release --skip-tests # Skip local release validation
     $ solidctl release --tests-only # Run validation workflow only
     $ solidctl release --no-merge   # Skip main → dev merge after stable release
+
 
 Local release validation:
   For solid-core-module and solid-core-ui releases, solidctl now runs local validation commands
