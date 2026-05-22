@@ -5,6 +5,7 @@ import inquirer from 'inquirer';
 import net from 'net';
 import os from 'os';
 import path from 'path';
+import { generateAndCommitChangelog } from './release-changelog';
 
 interface PublishConfig {
   mainBranch: string;
@@ -26,6 +27,7 @@ interface PublishOptions {
   testsOnly?: boolean;
   mainBranch?: string;
   devBranch?: string;
+  enhanceChangelog?: boolean;
 }
 
 const DEFAULT_CONFIG: PublishConfig = {
@@ -878,7 +880,7 @@ function getReleaseOptions(options: PublishOptions) {
     force: options.force || false,
     preid: options.preid,
     isPrerelease: !!options.preid,
-
+    enhanceChangelog: options.enhanceChangelog || false,
   };
 }
 
@@ -1049,7 +1051,7 @@ RUN cd /workspace/agent/agent-ui && npm i --legacy-peer-deps && npm run build --
 }
 
 async function runSharedReleaseFlow(versionType: string, options: PublishOptions, project: ResolvedReleaseProject) {
-  const { mainBranch, devBranch, reverseMerge, dryRun, force, preid, isPrerelease } = getReleaseOptions(options);
+  const { mainBranch, devBranch, reverseMerge, dryRun, force, preid, isPrerelease, enhanceChangelog } = getReleaseOptions(options);
   const releaseStartedAt = new Date();
 
   try {
@@ -1098,6 +1100,9 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       const releaseBranch = `release/${plannedVersion}`;
       console.log(`Creating release branch: ${releaseBranch}...`);
       exec(`git checkout -b ${releaseBranch}`, dryRun);
+
+      await generateAndCommitChangelog(plannedVersion, enhanceChangelog, dryRun);
+
       exec(versionCmd, dryRun);
 
       console.log('Pushing release branch (with tags)...');
@@ -1276,6 +1281,7 @@ export function registerReleaseCommand(program: Command) {
     .option('--no-merge', 'Skip reverse merge to dev after stable release')
     .option('--main-branch <name>', 'Override main branch name')
     .option('--dev-branch <name>', 'Override dev branch name')
+    .option('--enhance-changelog', 'Enhance the generated changelog using an AI CLI (set via $SOLIDCTL_AI_CMD)')
     .addHelpText('after', `
 Examples:
   Stable releases (from main branch):
@@ -1295,7 +1301,8 @@ Examples:
     $ solidctl release --force      # Override branch checks
     $ solidctl release --skip-tests # Skip local release validation
     $ solidctl release --tests-only # Run validation workflow only
-    $ solidctl release --no-merge   # Skip main → dev merge after stable release
+    $ solidctl release --no-merge          # Skip main → dev merge after stable release
+    $ solidctl release --enhance-changelog # AI-enhanced changelog (requires $SOLIDCTL_AI_CMD to be set)
 
 
 Local release validation:
