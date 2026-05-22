@@ -164,9 +164,15 @@ function ensureVenv(pythonCmd: string, uvCmd: string | null): boolean {
   console.log(`📦 Creating virtual environment at ${VENV_DIR}`);
 
   if (uvCmd) {
-    const result = spawnSync(uvCmd, ['venv', VENV_DIR, '--python', pythonCmd], {
-      stdio: 'inherit',
-    });
+    // --seed ensures pip and setuptools are included in the venv,
+    // matching the behavior of `python -m venv`.
+    const result = spawnSync(
+      uvCmd,
+      ['venv', VENV_DIR, '--python', pythonCmd, '--seed'],
+      {
+        stdio: 'inherit',
+      },
+    );
     if (result.status === 0) return true;
     console.warn('⚠ uv venv failed, falling back to python -m venv');
   }
@@ -182,19 +188,39 @@ function ensureVenv(pythonCmd: string, uvCmd: string | null): boolean {
  * Prefers uv (faster) but falls back to pip.
  */
 function installAgent(pythonCmd: string, uvCmd: string | null): boolean {
-  const pipBin = path.join(VENV_BIN, process.platform === 'win32' ? 'pip.exe' : 'pip');
+  const venvPython = path.join(
+    VENV_BIN,
+    process.platform === 'win32' ? 'python.exe' : 'python',
+  );
+  const pipBin = path.join(
+    VENV_BIN,
+    process.platform === 'win32' ? 'pip.exe' : 'pip',
+  );
 
   console.log(`📦 Installing ${AGENT_PACKAGE}...`);
 
   if (uvCmd) {
-    const result = spawnSync(uvCmd, ['pip', 'install', AGENT_PACKAGE, '--python', pipBin], {
-      stdio: 'inherit',
-    });
+    // Pass the venv's Python interpreter to uv so it targets the correct environment.
+    // Using --python <interpreter> is the correct uv flag (not the pip binary).
+    const result = spawnSync(
+      uvCmd,
+      ['pip', 'install', AGENT_PACKAGE, '--python', venvPython],
+      {
+        stdio: 'inherit',
+      },
+    );
     if (result.status === 0) return true;
     console.warn('⚠ uv pip install failed, falling back to pip');
   }
 
-  const result = spawnSync(pipBin, ['install', AGENT_PACKAGE], {
+  // uv venv does not include pip by default, so fall back to python -m pip
+  // which works as long as the venv itself is functional.
+  const pipCmd = fs.existsSync(pipBin) ? pipBin : venvPython;
+  const pipArgs = fs.existsSync(pipBin)
+    ? ['install', AGENT_PACKAGE]
+    : ['-m', 'pip', 'install', AGENT_PACKAGE];
+
+  const result = spawnSync(pipCmd, pipArgs, {
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
@@ -376,7 +402,8 @@ export function ensureAgentInstalledLocal(): string {
 
     console.log(`📦 Creating local virtual environment at ${localVenvDir}`);
     if (uvCmd) {
-      const uvResult = spawnSync(uvCmd, ['venv', localVenvDir, '--python', pythonCmd], {
+      // --seed ensures pip and setuptools are included in the venv.
+      const uvResult = spawnSync(uvCmd, ['venv', localVenvDir, '--python', pythonCmd, '--seed'], {
         stdio: 'inherit',
       });
       if (uvResult.status !== 0) {
