@@ -18,7 +18,7 @@ export function extractModuleNameFromArgs(args: string[]): string | undefined {
   return undefined;
 }
 
-export function generateSolidUiModule(projectRoot: string, moduleName: string): void {
+export function generateSolidUiModule(projectRoot: string, moduleFolderName: string): void {
   const uiSrcPath = path.join(projectRoot, UI_SRC_RELATIVE);
 
   if (!fs.existsSync(uiSrcPath)) {
@@ -26,9 +26,9 @@ export function generateSolidUiModule(projectRoot: string, moduleName: string): 
     return;
   }
 
-  const moduleDir = path.join(uiSrcPath, moduleName);
+  const moduleDir = path.join(uiSrcPath, moduleFolderName);
   if (fs.existsSync(moduleDir)) {
-    console.log(`ℹ solid-ui module "${moduleName}" already exists — skipping`);
+    console.log(`ℹ solid-ui module "${moduleFolderName}" already exists — skipping`);
     return;
   }
 
@@ -36,13 +36,13 @@ export function generateSolidUiModule(projectRoot: string, moduleName: string): 
   const templateFiles = fs.readdirSync(templateDir);
 
   for (const templateFile of templateFiles) {
-    const outputFilename = templateFile.replace(MODULE_PLACEHOLDER, moduleName);
+    const outputFilename = templateFile.replace(MODULE_PLACEHOLDER, moduleFolderName);
     const content = fs.readFileSync(path.join(templateDir, templateFile), 'utf-8');
     fs.outputFileSync(
       path.join(moduleDir, outputFilename),
-      content.replaceAll(MODULE_PLACEHOLDER, moduleName),
+      content.replaceAll(MODULE_PLACEHOLDER, moduleFolderName),
     );
   }
 
-  console.log(`✔ solid-ui module scaffold created at solid-ui/src/${moduleName}/`);
+  console.log(`✔ solid-ui module scaffold created at solid-ui/src/${moduleFolderName}/`);
 }

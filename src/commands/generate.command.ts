@@ -1,7 +1,8 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
+import { kebabCase } from 'lodash';
 import { getSolidCommandEnv, validateProjectRoot } from '../helper';
-import { extractModuleNameFromArgs, generateSolidUiModule } from './generate-ui-module';
+import { generateSolidUiModule } from './generate-ui-module';
 
 export function registerGenerateCommand(program: Command) {
   const generate = program
@@ -11,17 +12,14 @@ export function registerGenerateCommand(program: Command) {
   generate
     .command('model')
     .description('Generate code for a single model and its related models. Use this if you want to target a specific model, which may be slightly faster than generating the full module.')
-    .helpOption(false)
-    .allowUnknownOption(true)
-    .allowExcessArguments(true)
-    .action((_options, command) => {
+    .requiredOption('-n, --name <modelName>', 'Model name (singularName) from the ss_model_metadata table')
+    .option('-d, --dryRun', 'Dry run the command')
+    .action((options) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
       const solidApiDir = `${projectRoot}/solid-api`;
 
-      const rawArgs = command.parent?.parent?.rawArgs ?? process.argv;
-      const subIndex = rawArgs.lastIndexOf('model');
-      const passthroughArgs = subIndex >= 0 ? rawArgs.slice(subIndex + 1) : [];
+      const passthroughArgs = [`--name=${options.name}`, ...(options.dryRun ? ['--dryRun=true'] : [])];
 
       console.log('▶ Running solidctl generate model');
       const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
@@ -48,17 +46,14 @@ export function registerGenerateCommand(program: Command) {
   generate
     .command('module')
     .description('Generate code for an entire module, including all models within it. This is the recommended way to generate code.')
-    .helpOption(false)
-    .allowUnknownOption(true)
-    .allowExcessArguments(true)
-    .action((_options, command) => {
+    .requiredOption('-n, --name <moduleName>', 'Module name from the ss_module_metadata table')
+    .option('-d, --dryRun', 'Dry run the command')
+    .action((options) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
       const solidApiDir = `${projectRoot}/solid-api`;
 
-      const rawArgs = command.parent?.parent?.rawArgs ?? process.argv;
-      const subIndex = rawArgs.lastIndexOf('module');
-      const passthroughArgs = subIndex >= 0 ? rawArgs.slice(subIndex + 1) : [];
+      const passthroughArgs = [`--name=${options.name}`, ...(options.dryRun ? ['--dryRun=true'] : [])];
 
       console.log('▶ Running solidctl generate module');
       const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
@@ -79,12 +74,7 @@ export function registerGenerateCommand(program: Command) {
         process.exit(result.status ?? 1);
       }
 
-      const moduleName = extractModuleNameFromArgs(passthroughArgs);
-      if (moduleName) {
-        generateSolidUiModule(projectRoot, moduleName);
-      } else {
-        console.log('ℹ Pass --name to also scaffold solid-ui module files');
-      }
+      generateSolidUiModule(projectRoot, kebabCase(options.name));
 
       console.log('✔ solidctl generate module completed');
     });
