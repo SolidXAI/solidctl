@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.39] - 2026-05-23
+
+### Other
+
+- generate command cleanup
+- changes to scaffold the ui module too as part of generate module with model extension conventions documented in the module and readme file
+
 ## [0.1.38] - 2026-05-22
 
 ### Other
