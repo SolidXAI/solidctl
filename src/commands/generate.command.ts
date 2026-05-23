@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
 import { getSolidCommandEnv, validateProjectRoot } from '../helper';
+import { extractModuleNameFromArgs, generateSolidUiModule } from './generate-ui-module';
 
 export function registerGenerateCommand(program: Command) {
   const generate = program
@@ -76,6 +77,13 @@ export function registerGenerateCommand(program: Command) {
       if (result.status !== 0) {
         console.error('❌ solidctl generate module exited with code', result.status);
         process.exit(result.status ?? 1);
+      }
+
+      const moduleName = extractModuleNameFromArgs(passthroughArgs);
+      if (moduleName) {
+        generateSolidUiModule(projectRoot, moduleName);
+      } else {
+        console.log('ℹ Pass --name to also scaffold solid-ui module files');
       }
 
       console.log('✔ solidctl generate module completed');
