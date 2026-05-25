@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.40] - 2026-05-25
+
+### Other
+
+- added overrides to circumwent issue around eslint and code mirror libraries
+- changes to automate build and seed. Also added option to upgrade to beta as part of the setup
+
 ## [0.1.39] - 2026-05-23
 
 ### Other
