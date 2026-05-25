@@ -5,6 +5,7 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
+import { execSync } from 'child_process';
 import {
   setupQuestions,
   SetupAnswers,
@@ -12,9 +13,9 @@ import {
   DATABASE_CLIENTS,
   SYNCHRONIZE_OPTIONS,
   DATABASE_EXISTS_OPTIONS,
+  SOLIDX_VERSION_OPTIONS,
 } from './setup-questions';
 import {
-  copyAndInstallTemplate,
   copyTemplate,
   createDatabaseIfNotExists,
   EXCLUDED_DIRS_FOR_INITIAL_COPY,
@@ -22,6 +23,7 @@ import {
   getBackendEnvConfig,
   getFrontendEnvJson,
   getTemplatesPath,
+  installFromPath,
   prettyOutput,
   SOURCE_TEMPLATE_FOLDER_API,
   SOURCE_TEMPLATE_FOLDER_UI,
@@ -29,6 +31,7 @@ import {
   TARGET_FOLDER_UI,
   updatePackageName,
   updatePortInPackageJson,
+  updateSolidxPackageVersions,
 } from './helpers';
 
 
@@ -60,6 +63,12 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
     process.exit(1);
   }
 
+  const solidxVersion = options.beta ? 'beta' : SETUP_DEFAULTS.solidxVersion;
+  if (!SOLIDX_VERSION_OPTIONS.includes(solidxVersion as any)) {
+    console.error(chalk.red(`Invalid SolidX version "${solidxVersion}". Must be one of: ${SOLIDX_VERSION_OPTIONS.join(', ')}`));
+    process.exit(1);
+  }
+
   const dbPortDefault = dbClient === 'PostgreSQL'
     ? SETUP_DEFAULTS.solidApiDatabasePortPostgres
     : dbClient === 'MySQL'
@@ -72,6 +81,7 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
 
   return {
     projectName:                 (options.name       as string | undefined) ?? SETUP_DEFAULTS.projectName,
+    solidxVersion,
     solidApiPort:                (options.apiPort    as string | undefined) ?? SETUP_DEFAULTS.solidApiPort,
     solidApiDatabaseClient:      dbClient,
     solidApiDatabaseHost:        (options.dbHost     as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseHost,
@@ -104,6 +114,7 @@ export function registerCreateAppCommand(program: Command) {
     .option('--db-synchronize <yes|no>', `Auto-sync DB schema: Yes or No (default: ${SETUP_DEFAULTS.solidApiDatabaseSynchronize})`)
     .option('--db-exists <yes|no>',      `Database already exists: Yes or No (default: ${SETUP_DEFAULTS.databaseExists})`)
     .option('--ui-port <port>',          `Frontend port (default: ${SETUP_DEFAULTS.solidUiPort})`)
+    .option('--beta',                    'Use beta release channel for @solidxai/* packages (default: stable)')
     .action(async (options) => {
       try {
         const showLogs: boolean = options.verbose || false;
@@ -141,6 +152,8 @@ export function registerCreateAppCommand(program: Command) {
         }
 
         const templatesPath = getTemplatesPath();
+        const isBeta = answers.solidxVersion === 'beta';
+        const solidctlTag = isBeta ? 'beta' : 'latest';
 
         const stepOutput = (stepLabel: string) => (line: string) => {
           spinner.text = `${stepLabel} ${chalk.dim('> ' + line)}`;
@@ -153,8 +166,14 @@ export function registerCreateAppCommand(program: Command) {
           targetPath,
           EXCLUDED_DIRS_FOR_INITIAL_COPY,
         );
-        await copyAndInstallTemplate(
+        await copyTemplate(
           path.join(templatesPath, SOURCE_TEMPLATE_FOLDER_API),
+          path.join(targetPath, TARGET_FOLDER_API),
+        );
+        if (isBeta) {
+          updateSolidxPackageVersions(targetPath, TARGET_FOLDER_API, 'beta');
+        }
+        await installFromPath(
           path.join(targetPath, TARGET_FOLDER_API),
           showLogs,
           stepOutput('Step 1: Setting up boilerplate for the backend...'),
@@ -163,8 +182,14 @@ export function registerCreateAppCommand(program: Command) {
 
         // Step 2: Copy and install frontend
         spinner = ora('Step 2: Setting up boilerplate for the frontend...').start();
-        await copyAndInstallTemplate(
+        await copyTemplate(
           path.join(templatesPath, SOURCE_TEMPLATE_FOLDER_UI),
+          path.join(targetPath, TARGET_FOLDER_UI),
+        );
+        if (isBeta) {
+          updateSolidxPackageVersions(targetPath, TARGET_FOLDER_UI, 'beta');
+        }
+        await installFromPath(
           path.join(targetPath, TARGET_FOLDER_UI),
           showLogs,
           stepOutput('Step 2: Setting up boilerplate for the frontend...'),
@@ -194,36 +219,37 @@ export function registerCreateAppCommand(program: Command) {
         generateEnvFileFromConfig(frontendPath, getFrontendEnvJson(answers));
         spinner.succeed('Step 4: Environment files generated');
 
-        // Step 6: Print next steps
+        // Step 5: Build the SolidX project
+        spinner = ora('Step 5: Building SolidX project...').start();
+        try {
+          execSync(`npx @solidxai/solidctl@${solidctlTag} build`, { cwd: targetPath, stdio: 'inherit' });
+          spinner.succeed('Step 5: Build complete');
+        } catch (err: any) {
+          spinner.fail(`Step 5: Build failed — ${err?.message ?? err}`);
+          process.exit(1);
+        }
+
+        // Step 6: Seed the database
+        spinner = ora('Step 6: Seeding database...').start();
+        try {
+          execSync(`npx @solidxai/solidctl@${solidctlTag} seed`, { cwd: targetPath, stdio: 'inherit' });
+          spinner.succeed('Step 6: Database seeded');
+        } catch (err: any) {
+          spinner.fail(`Step 6: Seed failed — ${err?.message ?? err}`);
+          process.exit(1);
+        }
+
         console.log(
           chalk.green(
-            `Project ${chalk.cyan(projectName)} created successfully!`,
-          ),
-        );
-        console.log(
-          chalk.cyan(
-            '\nEnsure the database is created and connection is established correctly.',
-          ),
-        );
-        console.log(chalk.cyan('\nNext steps:'));
-        console.log(
-          prettyOutput(
-            `cd ${projectName}`,
-            'Navigate into the project root directory',
-          ),
-        );
-        console.log(
-          prettyOutput(
-            'npx @solidxai/solidctl@latest build && npx @solidxai/solidctl@latest seed',
-            'This will build the SolidX project and seed the database with the required metadata',
+            `\nProject ${chalk.cyan(projectName)} created successfully!`,
           ),
         );
 
-        console.log(chalk.yellow('Default Admin Credentials (created as part of the seed process):'));
+        console.log(chalk.yellow('\nDefault Admin Credentials:'));
         console.log(chalk.magenta('Username:'), chalk.green('sa'));
         console.log(chalk.magenta('Password:'), chalk.green('Admin@3214$'));
 
-        console.log(chalk.cyan('\nRun the api and frontend in separate terminals:'));
+        console.log(chalk.cyan('\nNext steps — run the api and frontend in separate terminals:'));
 
         console.log(chalk.cyan('\n  Terminal 1 (API):'));
         console.log(

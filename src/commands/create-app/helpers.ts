@@ -40,14 +40,14 @@ export async function copyAndInstallTemplate(
 ) {
   try {
     await copyTemplate(source, target);
-    return installTemplate(target, showLogs, onOutput);
+    return installFromPath(target, showLogs, onOutput);
   } catch (error) {
     console.error(chalk.red('Error in copyAndInstallTemplate:'), error);
     throw error;
   }
 }
 
-async function installTemplate(
+export async function installFromPath(
   target: string,
   showLogs: boolean,
   onOutput?: (line: string) => void,
@@ -69,6 +69,34 @@ async function installTemplate(
     await child;
   } catch (error) {
     console.error(chalk.red('Error during npm install in', target));
+    throw error;
+  }
+}
+
+export function updateSolidxPackageVersions(
+  targetPath: string,
+  subProject: string,
+  tag: string,
+) {
+  try {
+    const packageJsonPath = path.join(targetPath, subProject, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      const error = `package.json not found at ${packageJsonPath}`;
+      console.error(chalk.red(error));
+      throw new Error(error);
+    }
+    const packageJson = fs.readJsonSync(packageJsonPath);
+    for (const section of ['dependencies', 'devDependencies'] as const) {
+      if (!packageJson[section]) continue;
+      for (const pkg of Object.keys(packageJson[section])) {
+        if (pkg.startsWith('@solidxai/')) {
+          packageJson[section][pkg] = tag;
+        }
+      }
+    }
+    fs.writeJsonSync(packageJsonPath, packageJson, { spaces: 2 });
+  } catch (error) {
+    console.error(chalk.red('Error in updateSolidxPackageVersions:'), error);
     throw error;
   }
 }
