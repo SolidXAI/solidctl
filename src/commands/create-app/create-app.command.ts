@@ -250,21 +250,13 @@ export function registerCreateAppCommand(program: Command) {
         console.log(chalk.magenta('Username:'), chalk.green('sa'));
         console.log(chalk.magenta('Password:'), chalk.green('Admin@3214$'));
 
-        console.log(chalk.cyan('\nNext steps — run the api and frontend in separate terminals:'));
+        console.log(chalk.cyan('\nNext steps — start the api and frontend together:'));
 
-        console.log(chalk.cyan('\n  Terminal 1 (API):'));
+        console.log(chalk.cyan('\n  Dev server:'));
         console.log(
           prettyOutput(
-            `cd ${TARGET_FOLDER_API} && npm run solidx:dev`,
-            `Starts the backend at http://localhost:${answers.solidApiPort} (docs at /docs)`,
-          ),
-        );
-
-        console.log(chalk.cyan('\n  Terminal 2 (Frontend):'));
-        console.log(
-          prettyOutput(
-            `cd ${TARGET_FOLDER_UI} && npm run solidx:dev`,
-            `Starts the frontend at http://localhost:${answers.solidUiPort}`,
+            `npx @solidxai/solidctl@${solidctlTag} start:dev`,
+            `Starts the backend at http://localhost:${answers.solidApiPort} (docs at /docs) and frontend at http://localhost:${answers.solidUiPort}`,
           ),
         );
 
