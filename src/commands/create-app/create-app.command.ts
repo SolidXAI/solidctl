@@ -24,7 +24,6 @@ import {
   getFrontendEnvJson,
   getTemplatesPath,
   installFromPath,
-  prettyOutput,
   SOURCE_TEMPLATE_FOLDER_API,
   SOURCE_TEMPLATE_FOLDER_UI,
   TARGET_FOLDER_API,
@@ -223,20 +222,20 @@ export function registerCreateAppCommand(program: Command) {
         // Step 5: Build the SolidX project
         spinner = ora('Step 5: Building SolidX project...').start();
         try {
-          execSync(`npx @solidxai/solidctl@${solidctlTag} build`, { cwd: targetPath, stdio: 'inherit' });
+          execSync(`npx @solidxai/solidctl@${solidctlTag} build`, { cwd: targetPath, stdio: 'pipe' });
           spinner.succeed('Step 5: Build complete');
         } catch (err: any) {
-          spinner.fail(`Step 5: Build failed — ${err?.message ?? err}`);
+          spinner.fail(`Step 5: Build failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
           process.exit(1);
         }
 
         // Step 6: Seed the database
         spinner = ora('Step 6: Seeding database...').start();
         try {
-          execSync(`npx @solidxai/solidctl@${solidctlTag} seed`, { cwd: targetPath, stdio: 'inherit' });
+          execSync(`npx @solidxai/solidctl@${solidctlTag} seed`, { cwd: targetPath, stdio: 'pipe' });
           spinner.succeed('Step 6: Database seeded');
         } catch (err: any) {
-          spinner.fail(`Step 6: Seed failed — ${err?.message ?? err}`);
+          spinner.fail(`Step 6: Seed failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
           process.exit(1);
         }
 
@@ -250,35 +249,12 @@ export function registerCreateAppCommand(program: Command) {
         console.log(chalk.magenta('Username:'), chalk.green('sa'));
         console.log(chalk.magenta('Password:'), chalk.green('Admin@3214$'));
 
-        console.log(chalk.cyan('\nNext steps — start the api and frontend together:'));
-
-        console.log(chalk.cyan('\n  Dev server:'));
-        console.log(
-          prettyOutput(
-            `npx @solidxai/solidctl@${solidctlTag} start:dev`,
-            `Starts the backend at http://localhost:${answers.solidApiPort} (docs at /docs) and frontend at http://localhost:${answers.solidUiPort}`,
-          ),
-        );
-
-        console.log(
-          chalk.cyan('\nFor production builds:'),
-        );
-
-        console.log(chalk.cyan('\n  API:'));
-        console.log(
-          prettyOutput(
-            `cd ${TARGET_FOLDER_API} && npm run build && npm run start`,
-            `Builds and starts the API server at http://localhost:${answers.solidApiPort}`,
-          ),
-        );
-
-        console.log(chalk.cyan('\n  Frontend:'));
-        console.log(
-          prettyOutput(
-            `cd ${TARGET_FOLDER_UI} && npm run build`,
-            `Builds the frontend — serve ${TARGET_FOLDER_UI}/dist with your web server (Nginx, Apache, etc.)`,
-          ),
-        );
+        console.log(chalk.cyan('\nNext steps — start the dev server:'));
+        console.log(`  ${chalk.magenta(`npx @solidxai/solidctl@${solidctlTag} start:dev`)}\n`);
+        console.log(`  ${chalk.dim('API      ')}  ${chalk.blue(`http://localhost:${answers.solidApiPort}`)}`);
+        console.log(`  ${chalk.dim('API Ref  ')}  ${chalk.blue(`http://localhost:${answers.solidApiPort}/docs`)}`);
+        console.log(`  ${chalk.dim('UI       ')}  ${chalk.blue(`http://localhost:${answers.solidUiPort}`)}\n`);
+        console.log(`  ${chalk.dim('Docs     ')}  ${chalk.blue('https://docs.solidxai.com')}\n`);
       } catch (err) {
         console.error('Error:', err);
         process.exit(1);
