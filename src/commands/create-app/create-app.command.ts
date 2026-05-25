@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { kebabCase } from 'lodash';
+import { kebabCase, startCase } from 'lodash';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
@@ -141,6 +141,7 @@ export function registerCreateAppCommand(program: Command) {
         }
 
         const projectName = kebabCase(answers.projectName.trim());
+        const properAppName = startCase(answers.projectName.trim());
         const targetPath = path.join(process.cwd(), projectName);
 
         // Check if the folder already exists
@@ -214,9 +215,9 @@ export function registerCreateAppCommand(program: Command) {
         // Step 4: Generate .env files
         spinner = ora('Step 4: Generating environment files...').start();
         const backendPath = path.join(targetPath, TARGET_FOLDER_API);
-        generateEnvFileFromConfig(backendPath, getBackendEnvConfig(answers));
+        generateEnvFileFromConfig(backendPath, getBackendEnvConfig(answers, properAppName));
         const frontendPath = path.join(targetPath, TARGET_FOLDER_UI);
-        generateEnvFileFromConfig(frontendPath, getFrontendEnvJson(answers));
+        generateEnvFileFromConfig(frontendPath, getFrontendEnvJson(answers, properAppName));
         spinner.succeed('Step 4: Environment files generated');
 
         // Step 5: Build the SolidX project

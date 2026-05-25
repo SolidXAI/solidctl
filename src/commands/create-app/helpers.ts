@@ -253,12 +253,12 @@ export async function createDatabaseIfNotExists(answers: SetupAnswers): Promise<
   }
 }
 
-export function getBackendEnvConfig(answers: SetupAnswers) {
+export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string) {
   return {
     General: {
       ENV: 'dev',
       PORT: answers.solidApiPort,
-      SOLID_APP_NAME: answers.projectName,
+      SOLID_APP_NAME: properAppName,
       BASE_URL: `http://localhost:${answers.solidApiPort}`,
     },
     'Default DB Configuration': {
@@ -286,13 +286,13 @@ export function getBackendEnvConfig(answers: SetupAnswers) {
   };
 }
 
-export function getFrontendEnvJson(answers: SetupAnswers) {
+export function getFrontendEnvJson(answers: SetupAnswers, properAppName: string) {
   return {
     General: {
       VITE_BACKEND_API_URL: `http://localhost:${answers.solidApiPort}`,
       VITE_API_URL: `http://localhost:${answers.solidApiPort}`,
       VITE_SOLIDX_ENV: 'dev',
-      VITE_SOLID_APP_TITLE: answers.projectName,
+      VITE_SOLID_APP_TITLE: properAppName,
       VITE_SOLID_APP_DESCRIPTION: '',
     },
   };
