@@ -1,5 +1,6 @@
 export interface SetupAnswers {
   projectName: string;
+  solidxVersion: string;
   solidApiPort: string;
   solidApiDatabaseClient: string;
   solidApiDatabaseHost: string;
@@ -14,6 +15,7 @@ export interface SetupAnswers {
 
 export const SETUP_DEFAULTS = {
   projectName:                  'my-solid-app',
+  solidxVersion:                'stable',
   solidApiPort:                 '3000',
   solidApiDatabaseClient:       'PostgreSQL',
   solidApiDatabaseHost:         'localhost',
@@ -31,6 +33,7 @@ export const SETUP_DEFAULTS = {
 export const DATABASE_CLIENTS = ['PostgreSQL', 'MySQL', 'MSSQL'] as const;
 export const SYNCHRONIZE_OPTIONS = ['Yes', 'No'] as const;
 export const DATABASE_EXISTS_OPTIONS = ['Yes', 'No'] as const;
+export const SOLIDX_VERSION_OPTIONS = ['stable', 'beta'] as const;
 
 export const setupQuestions = [
   {
@@ -38,6 +41,13 @@ export const setupQuestions = [
     name: 'projectName',
     message: 'What is the name of your project?',
     default: 'my-solid-app',
+  },
+  {
+    type: 'list',
+    name: 'solidxVersion',
+    message: 'Which SolidX version would you like to use?',
+    choices: ['stable', 'beta'],
+    default: 'stable',
   },
   {
     type: 'input',
