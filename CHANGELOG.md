@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.41] - 2026-05-25
+
+### Other
+
+- changes to clean up the app creation console output
+- changes to use the ctl start:dev command as part of create-app
+- app title .env boilerplate: https://erp2.logicloop.io/web#cids=1&menu_id=167&action=256&active_id=23&model=project.task&view_type=form&id=11478
+- added --no-deprecation arguments to avoid deprecation warnings during backend startup
+
 ## [0.1.40] - 2026-05-25
 
 ### Other
