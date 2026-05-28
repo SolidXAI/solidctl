@@ -8,6 +8,9 @@ import { ensureAgentInstalled, ensureAgentInstalledLocal } from './agent-helper'
 /**
  * Build a DATABASE_URL from the consuming project's individual DB env vars,
  * unless DATABASE_URL is already explicitly set.
+ *
+ * If SOLID_CORE_DB_TYPE is set to "mssql", the URL is built for
+ * SQL Server using mssql+pyodbc. Otherwise it defaults to PostgreSQL.
  */
 function resolveDatabaseUrl(): string | undefined {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
@@ -17,11 +20,22 @@ function resolveDatabaseUrl(): string | undefined {
   const user = process.env.DEFAULT_DATABASE_USER;
   const password = process.env.DEFAULT_DATABASE_PASSWORD;
   const name = process.env.DEFAULT_DATABASE_NAME;
+  const dbType = (process.env.SOLID_CORE_DB_TYPE || 'postgres').toLowerCase();
 
-  if (host && port && user && name) {
-    return `postgresql://${user}${password ? ':' + password : ''}@${host}:${port}/${name}`;
+  if (!host || !port || !user || !name) return undefined;
+
+  const encodedPw = password ? ':' + encodeURIComponent(password) : '';
+
+  if (dbType === 'mssql') {
+    return `mssql+pyodbc://${user}${encodedPw}@${host}:${port}/${name}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no`;
   }
-  return undefined;
+
+  if (dbType === 'mysql') {
+    return `mysql+pymysql://${user}${encodedPw}@${host}:${port}/${name}`;
+  }
+
+  // Default to PostgreSQL
+  return `postgresql://${user}${encodedPw}@${host}:${port}/${name}`;
 }
 
 /**
