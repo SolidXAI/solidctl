@@ -58,6 +58,7 @@ function buildBridgedEnv(): Record<string, string> {
     SOLIDX_PROJECT_ROOT: projectRoot,
     ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
     ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
+    ...(process.env.FRONTEND_BASE_URL ? { FRONTEND_BASE_URL: process.env.FRONTEND_BASE_URL } : {}),
     ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
   };
 }
@@ -66,7 +67,7 @@ function buildBridgedEnv(): Record<string, string> {
  * Print which critical env vars were bridged vs. missing.
  */
 function printBridgeSummary(env: Record<string, string>): void {
-  const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'APP_ENCRYPTION_KEY'];
+  const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'FRONTEND_BASE_URL', 'APP_ENCRYPTION_KEY'];
   const bridged = bridgedKeys.filter((k) => env[k]);
   const missing = bridgedKeys.filter((k) => !env[k]);
   console.log(`✔ Bridged env: ${bridged.join(', ') || 'none'}`);
