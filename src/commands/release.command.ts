@@ -521,7 +521,7 @@ function getReleaseValidationLogPath(cwd: string): string {
 }
 
 function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingProject {
-  const commandText = 'npx @solidxai/solidctl@beta start:dev --plain';
+  const commandText = 'npx @solidxai/solidctl@beta start:dev';
 
   if (dryRun) {
     console.log(`[dry-run] (${cwd}) ${commandText}`);
@@ -533,7 +533,7 @@ function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingPr
   console.log(`Starting consuming project from ${cwd}`);
   console.log(`Consuming project logs: ${logPath}`);
 
-  const child = spawn(getNpxCommand(), ['@solidxai/solidctl@beta', 'start:dev', '--plain'], {
+  const child = spawn(getNpxCommand(), ['@solidxai/solidctl@beta', 'start:dev'], {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,

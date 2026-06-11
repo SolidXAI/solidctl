@@ -22,7 +22,7 @@ type ServiceState = {
 };
 
 type StartOptions = {
-  plain?: boolean;
+  controls?: boolean;
 };
 
 class StartSupervisor {
@@ -40,7 +40,7 @@ class StartSupervisor {
     private readonly projectRoot: string,
     options: StartOptions,
   ) {
-    this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
+    this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && options.controls);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     this.apiPort = this.resolveApiPort();
     this.uiPort = this.resolveUiPort();
@@ -494,7 +494,7 @@ export function registerStartCommand(program: Command) {
   program
     .command('start:dev')
     .description('Start solid-api and solid-ui dev processes in a single supervisor')
-    .option('--plain', 'Disable interactive controls and print merged logs only')
+    .option('--controls', 'Enable interactive controls with pinned footer and keyboard shortcuts')
     .action(async (options: StartOptions) => {
       validateProjectRoot();
       validateProjectScript('solid-api', 'solidx:dev');
