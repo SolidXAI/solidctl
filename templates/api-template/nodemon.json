@@ -5,6 +5,7 @@
     "ext": "ts,json",
     "ignore": [
         "src/**/*.spec.ts",
+        "src/**/migrations/**",
         "dist",
         "node_modules"
     ],
