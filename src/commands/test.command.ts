@@ -19,6 +19,14 @@ export function registerTestCommand(program: Command) {
       const passthroughArgs = cmdIndex >= 0 ? rawArgs.slice(cmdIndex + 1) : [];
       const args = ['test', ...passthroughArgs];
 
+      if (passthroughArgs.includes('run')) {
+        spawnSync('npx', ['playwright', 'install', 'chromium'], {
+          cwd: solidApiDir,
+          stdio: 'inherit',
+          shell: process.platform === 'win32' ? true : false,
+        });
+      }
+
       const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
       const result = spawnSync(solidCommand, args, {
         cwd: solidApiDir,

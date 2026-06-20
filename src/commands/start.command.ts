@@ -8,6 +8,8 @@ import { validateProjectRoot, validateProjectScript } from '../helper';
 
 type ServiceName = 'api' | 'ui';
 
+type ServiceScripts = Record<ServiceName, string>;
+
 type ServiceConfig = {
   cwd: string;
   label: string;
@@ -22,6 +24,7 @@ type ServiceState = {
 };
 
 type StartOptions = {
+  controls?: boolean;
   plain?: boolean;
 };
 
@@ -29,6 +32,7 @@ class StartSupervisor {
   private readonly apiPort: string;
   private readonly uiPort: string;
   private readonly serviceConfigs: Record<ServiceName, ServiceConfig>;
+  private readonly serviceScripts: ServiceScripts;
   private readonly serviceStates: Record<ServiceName, ServiceState>;
   private readonly isInteractive: boolean;
   private readonly npmCommand: string;
@@ -38,10 +42,12 @@ class StartSupervisor {
 
   constructor(
     private readonly projectRoot: string,
+    serviceScripts: ServiceScripts,
     options: StartOptions,
   ) {
-    this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
+    this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain && options.controls);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    this.serviceScripts = serviceScripts;
     this.apiPort = this.resolveApiPort();
     this.uiPort = this.resolveUiPort();
 
@@ -98,11 +104,12 @@ class StartSupervisor {
   private spawnService(serviceName: ServiceName) {
     const config = this.serviceConfigs[serviceName];
     const state = this.serviceStates[serviceName];
+    const scriptName = this.serviceScripts[serviceName];
 
     state.restartRequested = false;
     state.stoppingForShutdown = false;
 
-    const child = spawn(this.npmCommand, ['run', 'solidx:dev'], {
+    const child = spawn(this.npmCommand, ['run', scriptName], {
       cwd: config.cwd,
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -491,16 +498,41 @@ class StartSupervisor {
 }
 
 export function registerStartCommand(program: Command) {
-  program
-    .command('start:dev')
-    .description('Start solid-api and solid-ui dev processes in a single supervisor')
-    .option('--plain', 'Disable interactive controls and print merged logs only')
-    .action(async (options: StartOptions) => {
-      validateProjectRoot();
-      validateProjectScript('solid-api', 'solidx:dev');
-      validateProjectScript('solid-ui', 'solidx:dev');
+  const registerSupervisorCommand = (
+    commandName: string,
+    description: string,
+    serviceScripts: ServiceScripts,
+  ) => {
+    program
+      .command(commandName)
+      .description(description)
+      .option('--controls', 'Enable interactive controls with pinned footer and keyboard shortcuts')
+      .option('--plain', 'Disable interactive controls and print merged logs only')
+      .action(async (options: StartOptions) => {
+        validateProjectRoot();
+        validateProjectScript('solid-api', serviceScripts.api);
+        validateProjectScript('solid-ui', serviceScripts.ui);
 
-      const supervisor = new StartSupervisor(process.cwd(), options);
-      await supervisor.start();
-    });
+        const supervisor = new StartSupervisor(process.cwd(), serviceScripts, options);
+        await supervisor.start();
+      });
+  };
+
+  registerSupervisorCommand(
+    'start:dev',
+    'Start solid-api and solid-ui dev processes in a single supervisor',
+    {
+      api: 'solidx:dev',
+      ui: 'solidx:dev',
+    },
+  );
+
+  registerSupervisorCommand(
+    'start',
+    'Start solid-api and solid-ui standard processes in a single supervisor',
+    {
+      api: 'start',
+      ui: 'dev',
+    },
+  );
 }

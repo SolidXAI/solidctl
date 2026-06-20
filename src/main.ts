@@ -16,6 +16,7 @@ import { registerLegacyMigrateCommand } from './commands/legacy-migrate.command'
 import { registerGenerateCommand } from './commands/generate.command';
 import { registerMcpCommand } from './commands/mcp.command';
 import { registerAgentCommand } from './commands/agent.command';
+import { registerMigrationCommand } from './commands/migration.command';
 import { registerStartCommand } from './commands/start.command';
 
 function getCliVersion(): string {
@@ -52,6 +53,7 @@ async function bootstrap() {
   registerReleaseCommand(program);
   registerLegacyMigrateCommand(program);
   registerGenerateCommand(program);
+  registerMigrationCommand(program);
   registerMcpCommand(program);
   registerAgentCommand(program);
   registerStartCommand(program);
