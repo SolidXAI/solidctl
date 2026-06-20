@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.42] - 2026-06-20
+
+### Other
+
+- changes to new module metadata path in readme
+- Enhance start command to support plain option and add standard process command
+- tailwind related changes added to boilder palte
+- Add migration command for TypeORM workflows and update start command options
+- Favicon provider added
+- adding the FRONTEND_BASE_URL to the bridged envs
+- changes to install chromium before running the tests. This is a fallback if chromium is not installed, since we are not packaging chromium in our package.json to avoid bloated dependency size, since some clients might never run the tests
+- handled DATABASE_URL formation for mssql and mysql databases
+
 ## [0.1.41] - 2026-05-25
 
 ### Other
