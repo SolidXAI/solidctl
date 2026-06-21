@@ -5,6 +5,13 @@ import fs from 'fs-extra';
 import path from 'path';
 import readline from 'readline';
 import { validateProjectRoot, validateProjectScript } from '../helper';
+import {
+  EmbeddedServerHandle,
+  getEmbeddedConfig,
+  isEmbeddedProject,
+  startEmbeddedServer,
+  stopEmbeddedServer,
+} from '../db/embedded';
 
 type ServiceName = 'api' | 'ui';
 
@@ -36,6 +43,8 @@ class StartSupervisor {
   private readonly serviceStates: Record<ServiceName, ServiceState>;
   private readonly isInteractive: boolean;
   private readonly npmCommand: string;
+  private readonly isEmbedded: boolean;
+  private embeddedServer: EmbeddedServerHandle | null = null;
   private shuttingDown = false;
   private exitCode = 0;
   private stdinWasRaw = false;
@@ -47,6 +56,7 @@ class StartSupervisor {
   ) {
     this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain && options.controls);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    this.isEmbedded = isEmbeddedProject(projectRoot);
     this.serviceScripts = serviceScripts;
     this.apiPort = this.resolveApiPort();
     this.uiPort = this.resolveUiPort();
@@ -75,6 +85,11 @@ class StartSupervisor {
     this.attachKeyboardControls();
 
     this.printStatus('Starting SolidX dev processes');
+
+    if (this.isEmbedded) {
+      await this.startEmbeddedDatabase();
+    }
+
     this.spawnService('api');
     this.spawnService('ui');
     this.renderFooter();
@@ -89,7 +104,41 @@ class StartSupervisor {
       }, 100);
     });
 
+    await this.stopEmbeddedDatabase();
+
     process.exit(this.exitCode);
+  }
+
+  private async startEmbeddedDatabase() {
+    const config = getEmbeddedConfig(this.projectRoot);
+    this.printStatus('Starting embedded database (PGlite)');
+
+    this.embeddedServer = startEmbeddedServer(config);
+    this.embeddedServer.child.on('exit', () => {
+      if (!this.shuttingDown) {
+        this.printStatus('Embedded database stopped unexpectedly');
+        this.shutdown(1);
+      }
+    });
+
+    try {
+      await this.embeddedServer.ready;
+      this.printStatus(`Embedded database ready on ${config.host}:${config.port}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.printStatus(`Embedded database failed to start: ${message}`);
+      this.embeddedServer = null;
+      process.exit(1);
+    }
+  }
+
+  private async stopEmbeddedDatabase() {
+    if (!this.embeddedServer) {
+      return;
+    }
+    this.printStatus('Stopping embedded database');
+    await stopEmbeddedServer(this.embeddedServer.child);
+    this.embeddedServer = null;
   }
 
   private createInitialState(): ServiceState {
