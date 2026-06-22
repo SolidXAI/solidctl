@@ -1,23 +1,23 @@
 import "@solidxai/core-ui";
-import "primeflex/primeflex.css";
 import "primeicons/primeicons.css";
+import "primeflex/primeflex.css";
 
-import { AppEventListener, LayoutProvider, SolidThemeProvider, StoreProvider } from "@solidxai/core-ui";
-import { PrimeReactProvider } from "primereact/api";
 import { BrowserRouter } from "react-router-dom";
+import { PrimeReactProvider } from "primereact/api";
+import { LayoutProvider, SolidThemeProvider, SolidFaviconProvider, StoreProvider, AppEventListener } from "@solidxai/core-ui";
 
-import "./extensions/solid-extensions";
+import { AppRoutes } from "./AppRoutes";
+import { solidUiModuleRuntime } from "./solid-ui-modules";
 import "./index.css";
-import { AppRoutes } from "./routes/AppRoutes";
 
 function App() {
-
   return (
     <BrowserRouter>
-      <StoreProvider>
+      <StoreProvider reducers={solidUiModuleRuntime.reducers} middlewares={solidUiModuleRuntime.middlewares}>
         <PrimeReactProvider>
           <LayoutProvider>
             <SolidThemeProvider />
+            <SolidFaviconProvider />
             <AppEventListener />
             <AppRoutes />
           </LayoutProvider>

@@ -46,8 +46,14 @@ npx @solidxai/solidctl upgrade [--dry-run]
 Examples:
 
 ```bash
-# run all upgrade commands
+# run all upgrade commands using the latest beta release
 solidctl upgrade
+
+# upgrade to the latest alpha release
+solidctl upgrade --alpha
+
+# upgrade to the latest stable release
+solidctl upgrade --stable
 
 # preview the commands without executing
 solidctl upgrade --dry-run
@@ -129,6 +135,68 @@ solidctl seed
 solidctl seed --conf "{\"modulesToSeed\": [\"onboarding\"]}"
 
 ```
+
+---
+
+### 5) start:dev
+
+Runs both consuming-project dev servers in one supervised terminal session.
+
+Usage:
+
+```bash
+npx @solidxai/solidctl start:dev [--controls]
+```
+
+What it runs:
+
+- `npm run solidx:dev` in `solid-api`
+- `npm run solidx:dev` in `solid-ui`
+
+Interactive shortcuts with `--controls`:
+
+- `a` restart API only
+- `u` restart UI only
+- `r` restart both
+- `c` clear the terminal
+- `q` quit
+
+Notes:
+
+- Must be run from the SolidX project root.
+- Both `solid-api/package.json` and `solid-ui/package.json` must define `scripts.solidx:dev`.
+- By default, logs are printed without the pinned control footer.
+- `--controls` enables the pinned control footer and keyboard shortcuts in interactive terminals.
+
+---
+
+### 6) migration
+
+Runs datasource-specific TypeORM migrations from the SolidX project root.
+
+Usage:
+
+```bash
+npx @solidxai/solidctl migration -d <datasource> -m <module> generate <MigrationName>
+npx @solidxai/solidctl migration -d <datasource> run
+npx @solidxai/solidctl migration -d <datasource> revert
+```
+
+Examples:
+
+```bash
+solidctl migration -d default -m mswipe-masters generate AddBankIfscIndexes
+solidctl migration -d applications -m onboarding generate Added_PreApplication_Master
+solidctl migration -d applications run
+solidctl migration -d applications revert
+```
+
+Notes:
+
+- `-d, --datasource` is required and maps to `solid-api/src/typeorm-<datasource>-datasource.ts`.
+- `-m, --module` is required only for `generate`.
+- Generated files are written under `solid-api/src/<module>/migrations/<datasource>/`.
+- `run` and `revert` execute against the full datasource configuration, so they apply to all module migration folders wired into that datasource.
 
 ---
 

@@ -17,10 +17,12 @@ export function registerUpgradeCommand(program: Command) {
     .option('--code-builder', 'Upgrade solid-code-builder')
     .option('--dry-run', 'Show commands without executing')
     .option('--stable', 'Upgrade to latest stable release instead of beta')
+    .option('--alpha', 'Upgrade to latest alpha pre-release instead of beta')
     .option('--tag <tag>', 'Install a specific pre-release tag (e.g. alpha, rc)')
     .addHelpText('after', `
 Examples:
   $ solidctl upgrade              # upgrade to latest beta (default)
+  $ solidctl upgrade --alpha      # upgrade to latest alpha
   $ solidctl upgrade --core       # upgrade only solid-core
   $ solidctl upgrade --ui         # upgrade only solid-ui
   $ solidctl upgrade --code-builder  # upgrade only solid-code-builder
@@ -30,7 +32,8 @@ Examples:
     .action((options) => {
       validateProjectRoot();
 
-      const tag: string = options.stable ? 'latest' : (options.tag ?? 'beta');
+      const resolvedTag = options.stable ? 'latest' : options.alpha ? 'alpha' : (options.tag ?? 'beta');
+      const tag: string = resolvedTag;
       const isStable = options.stable as boolean;
       const upgradeCore = Boolean(options.core);
       const upgradeUi = Boolean(options.ui);

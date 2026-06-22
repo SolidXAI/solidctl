@@ -5,8 +5,9 @@
 `solidctl` is the command-line interface that ties the SolidX ecosystem together. Whether you are starting a new project, upgrading core dependencies, or regenerating code after a model change using the command line, `solidctl` is the entry point.
 
 [![npm version](https://img.shields.io/npm/v/@solidxai/solidctl)](https://www.npmjs.com/package/@solidxai/solidctl)
-[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](https://opensource.org/licenses/BSL-1.1)
+[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](https://mariadb.com/bsl11/)
 [![Documentation](https://img.shields.io/badge/docs-solidxai.com-blue)](https://docs.solidxai.com/docs)
+[![Discord](https://img.shields.io/badge/discord-online-brightgreen.svg)](https://discord.gg/ATQW4CEksA)
 
 ---
 
@@ -126,6 +127,25 @@ Under the hood, this proxies to `solid refresh-model` / `solid refresh-module`, 
 
 ---
 
+### `migration`
+
+Runs the TypeORM migration workflow for a chosen datasource, while keeping migration files organized under the module-specific datasource folder.
+
+```bash
+# Generate a migration file into src/<module>/migrations/<datasource>/
+npx @solidxai/solidctl migration -d applications -m onboarding generate Added_PreApplication_Master
+
+# Run all pending migrations for a datasource
+npx @solidxai/solidctl migration -d applications run
+
+# Revert the last migration for a datasource
+npx @solidxai/solidctl migration -d applications revert
+```
+
+This command validates the datasource file, validates the module’s `entities` folder for `generate`, and then runs `typeorm-ts-node-commonjs` inside `solid-api/`.
+
+---
+
 ### `upgrade`
 
 Upgrades the core SolidX dependencies in both `solid-api` and `solid-ui` to the latest available version.
@@ -133,6 +153,9 @@ Upgrades the core SolidX dependencies in both `solid-api` and `solid-ui` to the 
 ```bash
 # Upgrade to the latest beta pre-release (default)
 npx @solidxai/solidctl upgrade
+
+# Upgrade to the latest alpha pre-release
+npx @solidxai/solidctl upgrade --alpha
 
 # Upgrade to the latest stable release
 npx @solidxai/solidctl upgrade --stable
@@ -172,6 +195,31 @@ npx @solidxai/solidctl info
 
 ---
 
+### `start:dev`
+
+Starts both consuming-project dev servers in one supervised terminal session with merged logs by default.
+
+```bash
+npx @solidxai/solidctl start:dev
+```
+
+Enable the interactive control pane and keyboard shortcuts when you want them:
+
+```bash
+npx @solidxai/solidctl start:dev --controls
+```
+
+Keyboard shortcuts in interactive terminals with `--controls`:
+- `a` restart `solid-api`
+- `u` restart `solid-ui`
+- `r` restart both
+- `c` clear the terminal
+- `q` stop both and quit
+
+This command validates that both `solid-api/package.json` and `solid-ui/package.json` define a `solidx:dev` script before starting either process.
+
+---
+
 ## Project structure
 
 A project created by `solidctl create-app` follows this layout:
@@ -183,7 +231,7 @@ my-solid-app/
 │   │   ├── app.module.ts       # Root module importing SolidCoreModule
 │   │   ├── main.ts             # Application entry point
 │   │   └── {your-modules}/     # Generated modules live here
-│   ├── module-metadata/        # Metadata JSON files driving code generation
+│   │       └── metadata/       # Metadata JSON files driving code generation
 │   └── package.json
 │
 └── solid-ui/                   # React frontend
@@ -210,6 +258,7 @@ my-solid-app/
 |---|---|
 | Website | [solidxai.com](https://solidxai.com) |
 | Documentation | [docs.solidxai.com](https://docs.solidxai.com/docs) |
+| Discord | [discord.gg/ATQW4CEksA](https://discord.gg/ATQW4CEksA) |
 | Support | support@solidxai.com |
 
 ---
