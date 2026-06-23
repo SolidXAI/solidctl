@@ -54,7 +54,7 @@ class StartSupervisor {
     serviceScripts: ServiceScripts,
     options: StartOptions,
   ) {
-    this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain && options.controls);
+    this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     this.isEmbedded = isEmbeddedProject(projectRoot);
     this.serviceScripts = serviceScripts;
@@ -555,7 +555,7 @@ export function registerStartCommand(program: Command) {
     program
       .command(commandName)
       .description(description)
-      .option('--controls', 'Enable interactive controls with pinned footer and keyboard shortcuts')
+      .option('--controls', 'Enable interactive controls with pinned footer and keyboard shortcuts (default on TTYs)')
       .option('--plain', 'Disable interactive controls and print merged logs only')
       .action(async (options: StartOptions) => {
         validateProjectRoot();
