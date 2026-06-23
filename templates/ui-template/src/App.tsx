@@ -1,5 +1,4 @@
 import "@solidxai/core-ui";
-import "primeicons/primeicons.css";
 
 import { BrowserRouter } from "react-router-dom";
 import { LayoutProvider, SolidThemeProvider, SolidFaviconProvider, StoreProvider, AppEventListener } from "@solidxai/core-ui";
