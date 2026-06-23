@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { spawnSync } from 'child_process';
 import path from 'path';
 import { config as loadDotenv } from 'dotenv';
-import { validateProjectRoot } from '../helper';
+import { normalizeDatabaseUrl, validateProjectRoot } from '../helper';
 import { ensureAgentInstalled, ensureAgentInstalledLocal } from './agent-helper';
 
 /**
@@ -13,7 +13,12 @@ import { ensureAgentInstalled, ensureAgentInstalledLocal } from './agent-helper'
  * SQL Server using mssql+pyodbc. Otherwise it defaults to PostgreSQL.
  */
 function resolveDatabaseUrl(): string | undefined {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  console.log('Before resolving DATABASE_URL', process.env.DATABASE_URL);
+  if (process.env.DATABASE_URL){
+    const resolvedUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
+    console.log('After resolving DATABASE_URL',resolvedUrl);
+    return resolvedUrl;
+  } 
 
   const host = process.env.DEFAULT_DATABASE_HOST;
   const port = process.env.DEFAULT_DATABASE_PORT;
@@ -35,6 +40,8 @@ function resolveDatabaseUrl(): string | undefined {
   }
 
   // Default to PostgreSQL
+  console.log(`Final Url postgresql://${user}${encodedPw}@${host}:${port}/${name}`);
+  
   return `postgresql://${user}${encodedPw}@${host}:${port}/${name}`;
 }
 

@@ -17,6 +17,7 @@ import { registerGenerateCommand } from './commands/generate.command';
 import { registerMcpCommand } from './commands/mcp.command';
 import { registerAgentCommand } from './commands/agent.command';
 import { registerMigrationCommand } from './commands/migration.command';
+import { registerCleanupRemovedFieldsCommand } from './commands/cleanup-removed-fields.command';
 import { registerStartCommand } from './commands/start.command';
 
 function getCliVersion(): string {
@@ -54,6 +55,7 @@ async function bootstrap() {
   registerLegacyMigrateCommand(program);
   registerGenerateCommand(program);
   registerMigrationCommand(program);
+  registerCleanupRemovedFieldsCommand(program);
   registerMcpCommand(program);
   registerAgentCommand(program);
   registerStartCommand(program);
