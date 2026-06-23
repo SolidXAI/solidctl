@@ -28,6 +28,7 @@ type ServiceState = {
   restartRequested: boolean;
   stoppingForShutdown: boolean;
   outputBuffer: string;
+  forceKillTimer: NodeJS.Timeout | null;
 };
 
 type StartOptions = {
@@ -147,6 +148,7 @@ class StartSupervisor {
       restartRequested: false,
       stoppingForShutdown: false,
       outputBuffer: '',
+      forceKillTimer: null,
     };
   }
 
@@ -163,6 +165,7 @@ class StartSupervisor {
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
+      detached: process.platform !== 'win32',
     });
 
     state.child = child;
@@ -182,6 +185,7 @@ class StartSupervisor {
     });
 
     child.on('exit', (code, signal) => {
+      this.clearForceKillTimer(serviceName);
       this.flushBuffer(serviceName);
       state.child = null;
 
@@ -405,11 +409,50 @@ class StartSupervisor {
 
   private stopChild(serviceName: ServiceName) {
     const state = this.serviceStates[serviceName];
-    if (!state.child) {
+    const child = state.child;
+    if (!child) {
       return;
     }
 
-    state.child.kill('SIGTERM');
+    this.terminateChild(serviceName, child, 'SIGTERM');
+    this.scheduleForceKill(serviceName, child);
+  }
+
+  private terminateChild(serviceName: ServiceName, child: ChildProcess, signal: NodeJS.Signals) {
+    try {
+      if (process.platform !== 'win32' && child.pid) {
+        process.kill(-child.pid, signal);
+      } else {
+        child.kill(signal);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.printLog(serviceName, `Failed to send ${signal}: ${message}`, true);
+    }
+  }
+
+  private scheduleForceKill(serviceName: ServiceName, child: ChildProcess) {
+    const state = this.serviceStates[serviceName];
+    this.clearForceKillTimer(serviceName);
+
+    state.forceKillTimer = setTimeout(() => {
+      if (state.child !== child) {
+        return;
+      }
+
+      this.printStatus(`Force killing ${this.serviceConfigs[serviceName].label}`);
+      this.terminateChild(serviceName, child, 'SIGKILL');
+    }, 5_000);
+  }
+
+  private clearForceKillTimer(serviceName: ServiceName) {
+    const state = this.serviceStates[serviceName];
+    if (!state.forceKillTimer) {
+      return;
+    }
+
+    clearTimeout(state.forceKillTimer);
+    state.forceKillTimer = null;
   }
 
   private handleUnexpectedExit(serviceName: ServiceName, code: number) {
