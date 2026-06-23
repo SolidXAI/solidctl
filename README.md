@@ -231,7 +231,7 @@ my-solid-app/
 │   │   ├── app.module.ts       # Root module importing SolidCoreModule
 │   │   ├── main.ts             # Application entry point
 │   │   └── {your-modules}/     # Generated modules live here
-│   ├── module-metadata/        # Metadata JSON files driving code generation
+│   │       └── metadata/       # Metadata JSON files driving code generation
 │   └── package.json
 │
 └── solid-ui/                   # React frontend

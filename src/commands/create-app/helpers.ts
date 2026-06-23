@@ -254,6 +254,7 @@ export async function createDatabaseIfNotExists(answers: SetupAnswers): Promise<
 }
 
 export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string) {
+  const isEmbedded = answers.databaseMode === 'embedded';
   return {
     General: {
       ENV: 'dev',
@@ -270,6 +271,10 @@ export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string
       DEFAULT_DATABASE_SYNCHRONIZE:
         answers.solidApiDatabaseSynchronize === 'Yes' ? 'true' : 'false',
       DEFAULT_DATABASE_LOGGING: 'false',
+      // Marks an embedded PGlite project so solidctl manages the database lifecycle.
+      // PGlite executes one query at a time, so the pool is capped at a single
+      // connection to serialize access and avoid deadlocks on the embedded engine.
+      ...(isEmbedded ? { DEFAULT_DATABASE_DRIVER: 'pglite', DEFAULT_DATABASE_POOL_MAX: '1' } : {}),
     },
     'IAM Registration': {
       IAM_PASSWORD_LESS_REGISTRATION: 'false',
