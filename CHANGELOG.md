@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.43] - 2026-06-22
+
+### Added
+
+- add embedded PGlite database for zero-config onboarding
+
+### Other
+
+- package json changes in ui template
+
 ## [0.1.42] - 2026-06-20
 
 ### Other
