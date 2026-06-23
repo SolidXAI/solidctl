@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import fs from 'fs';
 import path from 'path';
 import { AppModule } from './app.module';
+import { checkForUpdates } from './version-check';
 import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
 import { registerBuildCommand } from './commands/build.command';
 import { registerUpgradeCommand } from './commands/upgrade.command';
@@ -23,7 +24,9 @@ function getCliVersion(): string {
   const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
 
   try {
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as { version?: string };
+    const packageJson = JSON.parse(
+      fs.readFileSync(packageJsonPath, 'utf-8'),
+    ) as { version?: string };
     return packageJson.version || '0.1.0';
   } catch {
     return '0.1.0';
@@ -33,7 +36,7 @@ function getCliVersion(): string {
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(
     AppModule,
-    { logger: false } // CLI usually doesn't need Nest logs
+    { logger: false }, // CLI usually doesn't need Nest logs
   );
 
   const program = new Command();
@@ -57,9 +60,14 @@ async function bootstrap() {
   registerMcpCommand(program);
   registerAgentCommand(program);
   registerStartCommand(program);
+
+  program.hook('preAction', async () => {
+    await checkForUpdates();
+  });
+
   await program.parseAsync(process.argv);
 
   await appContext.close();
 }
 
-bootstrap();
+void bootstrap();
