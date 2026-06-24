@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.45] - 2026-06-24
+
+### Added
+
+- enhance StartSupervisor to support selective service supervision
+- implement force kill mechanism for child processes in StartSupervisor
+
+### Fixed
+
+- update isInteractive logic and enhance controls option description
+
+### Other
+
+- revert setting db pool max to 1 for embedded DB
+
 ## [0.1.43] - 2026-06-22
 
 ### Added
