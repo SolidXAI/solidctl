@@ -28,14 +28,18 @@ type ServiceState = {
   restartRequested: boolean;
   stoppingForShutdown: boolean;
   outputBuffer: string;
+  forceKillTimer: NodeJS.Timeout | null;
 };
 
 type StartOptions = {
+  api?: boolean;
   controls?: boolean;
   plain?: boolean;
+  ui?: boolean;
 };
 
 class StartSupervisor {
+  private readonly activeServices: ServiceName[];
   private readonly apiPort: string;
   private readonly uiPort: string;
   private readonly serviceConfigs: Record<ServiceName, ServiceConfig>;
@@ -54,10 +58,11 @@ class StartSupervisor {
     serviceScripts: ServiceScripts,
     options: StartOptions,
   ) {
-    this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain && options.controls);
+    this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     this.isEmbedded = isEmbeddedProject(projectRoot);
     this.serviceScripts = serviceScripts;
+    this.activeServices = this.resolveActiveServices(options);
     this.apiPort = this.resolveApiPort();
     this.uiPort = this.resolveUiPort();
 
@@ -90,8 +95,9 @@ class StartSupervisor {
       await this.startEmbeddedDatabase();
     }
 
-    this.spawnService('api');
-    this.spawnService('ui');
+    for (const serviceName of this.activeServices) {
+      this.spawnService(serviceName);
+    }
     this.renderFooter();
 
     await new Promise<void>((resolve) => {
@@ -147,7 +153,22 @@ class StartSupervisor {
       restartRequested: false,
       stoppingForShutdown: false,
       outputBuffer: '',
+      forceKillTimer: null,
     };
+  }
+
+  private resolveActiveServices(options: StartOptions): ServiceName[] {
+    const selectedServices: ServiceName[] = [];
+
+    if (options.api) {
+      selectedServices.push('api');
+    }
+
+    if (options.ui) {
+      selectedServices.push('ui');
+    }
+
+    return selectedServices.length ? selectedServices : ['api', 'ui'];
   }
 
   private spawnService(serviceName: ServiceName) {
@@ -163,6 +184,7 @@ class StartSupervisor {
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
+      detached: process.platform !== 'win32',
     });
 
     state.child = child;
@@ -182,6 +204,7 @@ class StartSupervisor {
     });
 
     child.on('exit', (code, signal) => {
+      this.clearForceKillTimer(serviceName);
       this.flushBuffer(serviceName);
       state.child = null;
 
@@ -252,9 +275,26 @@ class StartSupervisor {
       return;
     }
 
+    const serviceSegments: string[] = [];
+    const controlSegments = ['q quit', 'c clear'];
+
+    if (this.activeServices.includes('api')) {
+      serviceSegments.push(`API (a restart, d open docs, :${this.apiPort})`);
+      controlSegments.push('a restart API');
+    }
+
+    if (this.activeServices.includes('ui')) {
+      serviceSegments.push(`UI (u restart, o open, :${this.uiPort})`);
+      controlSegments.push('u restart UI');
+    }
+
+    if (this.activeServices.length > 1) {
+      controlSegments.push('r restart all');
+    }
+
     const footer = [
-      `${chalk.bold('Controls')}: q quit & c clear`,
-      `${chalk.bold('Services')}: API (a restart, d open docs, :${this.apiPort})  UI (u restart, o open, :${this.uiPort})`,
+      `${chalk.bold('Controls')}: ${controlSegments.join(' | ')}`,
+      `${chalk.bold('Services')}: ${serviceSegments.join('  ')}`,
       `${chalk.bold('Project')}: ${path.basename(this.projectRoot)}`,
     ].join(chalk.dim(' | '));
 
@@ -360,24 +400,33 @@ class StartSupervisor {
 
       switch (key.name) {
         case 'a':
-          this.restartService('api');
+          if (this.activeServices.includes('api')) {
+            this.restartService('api');
+          }
           break;
         case 'u':
-          this.restartService('ui');
+          if (this.activeServices.includes('ui')) {
+            this.restartService('ui');
+          }
           break;
         case 'r':
-          this.restartService('api');
-          this.restartService('ui');
+          for (const serviceName of this.activeServices) {
+            this.restartService(serviceName);
+          }
           break;
         case 'c':
           console.clear();
           this.renderFooter();
           break;
         case 'd':
-          this.openUrlInBrowser(this.getApiDocsUrl(), 'API docs');
+          if (this.activeServices.includes('api')) {
+            this.openUrlInBrowser(this.getApiDocsUrl(), 'API docs');
+          }
           break;
         case 'o':
-          this.openUrlInBrowser(this.getUiUrl(), 'UI');
+          if (this.activeServices.includes('ui')) {
+            this.openUrlInBrowser(this.getUiUrl(), 'UI');
+          }
           break;
         case 'q':
           this.shutdown(0);
@@ -405,11 +454,50 @@ class StartSupervisor {
 
   private stopChild(serviceName: ServiceName) {
     const state = this.serviceStates[serviceName];
-    if (!state.child) {
+    const child = state.child;
+    if (!child) {
       return;
     }
 
-    state.child.kill('SIGTERM');
+    this.terminateChild(serviceName, child, 'SIGTERM');
+    this.scheduleForceKill(serviceName, child);
+  }
+
+  private terminateChild(serviceName: ServiceName, child: ChildProcess, signal: NodeJS.Signals) {
+    try {
+      if (process.platform !== 'win32' && child.pid) {
+        process.kill(-child.pid, signal);
+      } else {
+        child.kill(signal);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.printLog(serviceName, `Failed to send ${signal}: ${message}`, true);
+    }
+  }
+
+  private scheduleForceKill(serviceName: ServiceName, child: ChildProcess) {
+    const state = this.serviceStates[serviceName];
+    this.clearForceKillTimer(serviceName);
+
+    state.forceKillTimer = setTimeout(() => {
+      if (state.child !== child) {
+        return;
+      }
+
+      this.printStatus(`Force killing ${this.serviceConfigs[serviceName].label}`);
+      this.terminateChild(serviceName, child, 'SIGKILL');
+    }, 5_000);
+  }
+
+  private clearForceKillTimer(serviceName: ServiceName) {
+    const state = this.serviceStates[serviceName];
+    if (!state.forceKillTimer) {
+      return;
+    }
+
+    clearTimeout(state.forceKillTimer);
+    state.forceKillTimer = null;
   }
 
   private handleUnexpectedExit(serviceName: ServiceName, code: number) {
@@ -420,7 +508,7 @@ class StartSupervisor {
     this.exitCode = code === 0 ? 1 : code;
     this.shuttingDown = true;
 
-    for (const otherServiceName of Object.keys(this.serviceStates) as ServiceName[]) {
+    for (const otherServiceName of this.activeServices) {
       if (otherServiceName === serviceName) {
         continue;
       }
@@ -444,7 +532,7 @@ class StartSupervisor {
     this.shuttingDown = true;
     this.printStatus('Shutting down');
 
-    for (const serviceName of Object.keys(this.serviceStates) as ServiceName[]) {
+    for (const serviceName of this.activeServices) {
       const state = this.serviceStates[serviceName];
       state.stoppingForShutdown = true;
       state.restartRequested = false;
@@ -455,7 +543,7 @@ class StartSupervisor {
   }
 
   private hasRunningChildren() {
-    return (Object.keys(this.serviceStates) as ServiceName[]).some((serviceName) => {
+    return this.activeServices.some((serviceName) => {
       return this.serviceStates[serviceName].child !== null;
     });
   }
@@ -555,12 +643,25 @@ export function registerStartCommand(program: Command) {
     program
       .command(commandName)
       .description(description)
-      .option('--controls', 'Enable interactive controls with pinned footer and keyboard shortcuts')
+      .option('--api', 'Only supervise solid-api')
+      .option('--controls', 'Enable interactive controls with pinned footer and keyboard shortcuts (default on TTYs)')
       .option('--plain', 'Disable interactive controls and print merged logs only')
+      .option('--ui', 'Only supervise solid-ui')
       .action(async (options: StartOptions) => {
         validateProjectRoot();
-        validateProjectScript('solid-api', serviceScripts.api);
-        validateProjectScript('solid-ui', serviceScripts.ui);
+
+        const selectedServices = [
+          ...(options.api ? (['api'] as const) : []),
+          ...(options.ui ? (['ui'] as const) : []),
+        ];
+        const activeServices = selectedServices.length ? selectedServices : (['api', 'ui'] as const);
+
+        for (const serviceName of activeServices) {
+          validateProjectScript(
+            serviceName === 'api' ? 'solid-api' : 'solid-ui',
+            serviceScripts[serviceName],
+          );
+        }
 
         const supervisor = new StartSupervisor(process.cwd(), serviceScripts, options);
         await supervisor.start();
