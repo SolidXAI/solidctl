@@ -527,13 +527,13 @@ export function registerAgentCommand(program: Command) {
     .option('--plain', 'Disable interactive controls and print merged logs only')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
     .action(async (options: { port: string; host: string; logLevel: string; plain?: boolean; local?: boolean }) => {
+      await checkAgentUpdate({ isLocal: Boolean(options.local) });
+
       validateProjectRoot();
       const projectRoot = process.cwd();
 
       // Load consuming project's .env (lives in solid-api/)
       loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
-
-      await checkAgentUpdate({ isLocal: Boolean(options.local) });
 
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       const agentUiDir = ensureAgentUIInstalled();
@@ -552,13 +552,13 @@ export function registerAgentCommand(program: Command) {
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
     .action(async (task, options) => {
+      await checkAgentUpdate({ isLocal: Boolean(options.local) });
+
       validateProjectRoot();
       const projectRoot = process.cwd();
 
       // Load consuming project's .env (lives in solid-api/)
       loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
-
-      await checkAgentUpdate({ isLocal: Boolean(options.local) });
 
       const databaseUrl = resolveDatabaseUrl();
       const env: Record<string, string> = {

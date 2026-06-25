@@ -100,8 +100,8 @@ export function registerMcpCommand(program: Command) {
     .option('--mount-path <path>', 'Path under which to mount the MCP app', '/mcp')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
     .action(async (options: { port: string; host: string; logLevel: string; mountPath: string; local?: boolean }) => {
-      validateProjectRoot();
       await checkAgentUpdate({ isLocal: Boolean(options.local) });
+      validateProjectRoot();
       const env = buildBridgedEnv();
 
       if (!env.DATABASE_URL) {
