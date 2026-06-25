@@ -9,7 +9,7 @@ import ora from 'ora';
 const PACKAGE_NAME = '@solidxai/solidctl';
 const NPM_TIMEOUT_MS = 10_000;
 
-function getCurrentVersion(): string {
+export function getCurrentVersion(): string {
   const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
   try {
     const packageJson = JSON.parse(
@@ -21,7 +21,7 @@ function getCurrentVersion(): string {
   }
 }
 
-function getDistTag(version: string): string {
+export function getDistTag(version: string): string {
   const prerelease = semver.prerelease(version);
   if (prerelease && prerelease.length > 0) {
     return String(prerelease[0]);
