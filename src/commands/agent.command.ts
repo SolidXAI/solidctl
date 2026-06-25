@@ -5,7 +5,7 @@ import path from 'path';
 import readline from 'readline';
 import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
-import { ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled } from './agent-helper';
+import { ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled, getAgentVersion, printAgentVersion } from './agent-helper';
 
 type AgentServiceName = 'agent' | 'ui';
 
@@ -507,6 +507,17 @@ export function registerAgentCommand(program: Command) {
     .description('SolidX AI Agent — start the server or run a single task');
 
   agent
+    .option('--version', 'Print the solidx-ai-agent version and exit')
+    .action((options: { version?: boolean }) => {
+      if (options.version) {
+        const agentCommand = ensureAgentInstalled();
+        console.log(`solidx-ai-agent v${getAgentVersion(agentCommand)}`);
+        process.exit(0);
+      }
+      agent.help();
+    });
+
+  agent
     .command('start')
     .description('Start the AI agent server and chat UI in a single supervisor')
     .option('-p, --port <port>', 'Agent backend port', '8765')
@@ -523,6 +534,8 @@ export function registerAgentCommand(program: Command) {
 
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       const agentUiDir = ensureAgentUIInstalled();
+
+      printAgentVersion(agentCommand);
 
       const supervisor = new AgentSupervisor(projectRoot, agentCommand, agentUiDir, options);
       await supervisor.start();
@@ -560,6 +573,7 @@ export function registerAgentCommand(program: Command) {
       // Match the MCP startup flow: do dependency resolution first so Ubuntu
       // users do not see a "running" banner when Python/bootstrap fails.
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
+      printAgentVersion(agentCommand);
       const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'APP_ENCRYPTION_KEY'];
       const bridged = bridgedKeys.filter((k) => env[k]);
       const missing = bridgedKeys.filter((k) => !env[k]);

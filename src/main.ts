@@ -41,6 +41,12 @@ async function bootstrap() {
 
   const program = new Command();
 
+  // Ensure options appearing after a subcommand name belong to that subcommand,
+  // not the root program. Without this, the root program's `--version` would
+  // intercept `solidctl agent --version` / `solidctl mcp --version` and print
+  // the CLI version instead of letting the subcommand handle it.
+  program.enablePositionalOptions();
+
   program
     .name('solidctl')
     .description('Solidctl tool')

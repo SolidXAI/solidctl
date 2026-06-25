@@ -3,7 +3,7 @@ import { spawnSync } from 'child_process';
 import path from 'path';
 import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
-import { ensureAgentInstalled, ensureAgentInstalledLocal } from './agent-helper';
+import { ensureAgentInstalled, ensureAgentInstalledLocal, getAgentVersion, printAgentVersion } from './agent-helper';
 
 /**
  * Build a DATABASE_URL from the consuming project's individual DB env vars,
@@ -80,6 +80,17 @@ export function registerMcpCommand(program: Command) {
     .description('SolidX MCP Server (Streamable HTTP) — for remote clients (Cursor, Codex, cloud desktops)');
 
   mcp
+    .option('--version', 'Print the solidx-ai-agent version and exit')
+    .action((options: { version?: boolean }) => {
+      if (options.version) {
+        const agentCommand = ensureAgentInstalled();
+        console.log(`solidx-ai-agent v${getAgentVersion(agentCommand)}`);
+        process.exit(0);
+      }
+      mcp.help();
+    });
+
+  mcp
     .command('start')
     .description('Start the MCP server using Streamable HTTP transport')
     .option('-p, --port <port>', 'Port number', '9000')
@@ -104,6 +115,7 @@ export function registerMcpCommand(program: Command) {
       // This keeps the CLI honest on Ubuntu: if Python/venv/bootstrap fails, we
       // should not imply that the MCP server actually started listening yet.
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
+      printAgentVersion(agentCommand);
       printBridgeSummary(env);
       console.log(`▶ Starting SolidX MCP Server on ${options.host}:${options.port}`);
       const result = spawnSync(

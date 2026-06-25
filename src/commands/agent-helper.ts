@@ -184,6 +184,61 @@ function ensureVenv(pythonCmd: string, uvCmd: string | null): boolean {
 }
 
 /**
+ * Resolve the Python interpreter that backs a given solidx-agent binary.
+ *
+ * The agent exposes no `--version` flag, so we instead ask the interpreter
+ * that owns it for the installed `solidx-ai-agent` package metadata. Works for
+ * the managed venv (`~/.solidx/venv/bin/`), local installs (`<src>/.venv/bin/`),
+ * and PATH binaries (via the entrypoint script's shebang).
+ */
+function resolveAgentPython(binary: string): string | null {
+  const dir = path.dirname(binary);
+  const pyInDir = path.join(dir, process.platform === 'win32' ? 'python.exe' : 'python');
+  if (fs.existsSync(pyInDir)) return pyInDir;
+
+  try {
+    const content = fs.readFileSync(binary, 'utf-8');
+    const firstLine = content.split(/\r?\n/)[0] || '';
+    if (firstLine.startsWith('#!')) {
+      const interp = firstLine.slice(2).trim().split(/\s+/)[0];
+      if (interp && fs.existsSync(interp)) return interp;
+    }
+  } catch {
+    // ignore unreadable shebangs
+  }
+
+  return null;
+}
+
+/**
+ * Probe the installed solidx-ai-agent package version backing a solidx-agent
+ * binary by asking its owning Python interpreter for the package metadata.
+ *
+ * Read-only: no install is triggered. Returns the trimmed version, or
+ * 'not installed' / 'unknown' when the binary is missing or the probe fails.
+ */
+export function getAgentVersion(agentCommand?: string): string {
+  const binary = agentCommand || findAgentBinary();
+  if (!binary) return 'not installed';
+  const pythonBin = resolveAgentPython(binary);
+  if (!pythonBin) return 'unknown';
+  const result = spawnSync(
+    pythonBin,
+    ['-c', "import importlib.metadata as m; print(m.version('solidx-ai-agent'))"],
+    { stdio: 'pipe' },
+  );
+  if (result.status !== 0) return 'unknown';
+  return (result.stdout?.toString() || '').trim() || 'unknown';
+}
+
+/**
+ * Print `solidx-ai-agent v<x.y.z>` to stdout.
+ */
+export function printAgentVersion(agentCommand?: string): void {
+  console.log(`solidx-ai-agent v${getAgentVersion(agentCommand)}`);
+}
+
+/**
  * Install solidx-ai-agent into the dedicated venv.
  * Prefers uv (faster) but falls back to pip.
  */
