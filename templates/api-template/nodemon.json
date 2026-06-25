@@ -6,6 +6,7 @@
     "ignore": [
         "src/**/*.spec.ts",
         "src/**/migrations/**",
+        "src/**/metadata/**/*.json",
         "dist",
         "node_modules"
     ],
