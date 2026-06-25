@@ -2,6 +2,10 @@ import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import semver from 'semver';
+import chalk from 'chalk';
+import inquirer from 'inquirer';
+import ora from 'ora';
 
 const AGENT_PACKAGE = 'solidx-ai-agent';
 const AGENT_UI_PACKAGE = '@solidxai/agent-ui';
@@ -238,6 +242,146 @@ export function printAgentVersion(agentCommand?: string): void {
   console.log(`solidx-ai-agent v${getAgentVersion(agentCommand)}`);
 }
 
+const PYPI_TIMEOUT_MS = 10_000;
+
+/**
+ * Determine which agent track to use based on the installed solidctl version.
+ * Any solidctl prerelease (alpha/beta/rc) maps to the agent beta track; a
+ * stable solidctl maps to the agent stable track.
+ */
+export function getSolidctlAgentTrack(): 'stable' | 'beta' {
+  // agent-helper.ts lives in src/commands/ → dist/commands/, so the consuming
+  // package.json is two levels up (repo root in dev, package root when installed).
+  const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as { version?: string };
+    const version = packageJson.version || '0.0.0';
+    return semver.prerelease(version) ? 'beta' : 'stable';
+  } catch {
+    return 'stable';
+  }
+}
+
+/**
+ * Normalize a PEP 440 agent version into a semver-parseable string.
+ * `0.2.3b1` → `0.2.3-b1`; everything else passes through unchanged.
+ */
+function toSemver(version: string): string {
+  return version.replace(/^(\d+\.\d+\.\d+)b(\d+)$/, '$1-b$2');
+}
+
+/**
+ * Ask PyPI for the highest published solidx-ai-agent release on the given track.
+ * Returns null on any network/parse failure (swallowed silently by callers).
+ */
+async function getLatestAgentRelease(track: 'stable' | 'beta'): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PYPI_TIMEOUT_MS);
+    const response = await fetch('https://pypi.org/pypi/solidx-ai-agent/json', {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) return null;
+    const data = (await response.json()) as { releases?: Record<string, unknown> };
+    const candidates = Object.keys(data.releases || {})
+      .map((v) => toSemver(v))
+      .filter((v) => semver.valid(v) && (track === 'beta' ? !!semver.prerelease(v) : !semver.prerelease(v)));
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => semver.rcompare(a, b));
+    return candidates[0];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check PyPI for a newer solidx-ai-agent in the same track as the installed
+ * solidctl, and prompt the user to upgrade into the managed ~/.solidx/venv.
+ *
+ * Skipped entirely when `isLocal` is true (the user is developing against a
+ * local agent checkout). Silent on any network/parse failure. Mirrors the UX
+ * of the solidctl self-update check in src/version-check.ts.
+ */
+export async function checkAgentUpdate(opts: { isLocal: boolean }): Promise<void> {
+  if (opts.isLocal) return;
+  const currentRaw = getAgentVersion();
+  const current = toSemver(currentRaw);
+  if (!semver.valid(current)) return; // 'not installed' / 'unknown' / unparseable
+
+  const track = getSolidctlAgentTrack();
+  const spinner = ora(`Checking for ${track} agent updates...`).start();
+  const latestRaw = await getLatestAgentRelease(track);
+  spinner.stop();
+  if (!latestRaw) return;
+  const latest = toSemver(latestRaw);
+  if (!semver.valid(latest)) return;
+  if (!semver.gt(latest, current)) return;
+
+  console.log(
+    chalk.yellow(
+      `\n⚠️  A newer version of ${AGENT_PACKAGE} is available: ${latestRaw} (you have ${currentRaw})`,
+    ),
+  );
+
+  let upgrade = false;
+  try {
+    const answer = await inquirer.prompt<{ upgrade: boolean }>([
+      {
+        type: 'confirm',
+        name: 'upgrade',
+        message: `Would you like to upgrade to ${latestRaw}?`,
+        default: false,
+      },
+    ]);
+    upgrade = answer.upgrade;
+  } catch {
+    // Non-interactive (no TTY) or prompt cancelled → don't upgrade
+  }
+
+  const preFlag = track === 'beta' ? ['--pre'] : [];
+  const manual = `pip install ${preFlag.length ? '--pre ' : ''}--upgrade ${AGENT_PACKAGE}`;
+
+  if (!upgrade) {
+    console.log(chalk.dim(`  You can upgrade later with: ${manual}\n`));
+    return;
+  }
+
+  const uvCmd = findUv();
+  const venvPython = path.join(VENV_BIN, process.platform === 'win32' ? 'python.exe' : 'python');
+  const pipBin = path.join(VENV_BIN, process.platform === 'win32' ? 'pip.exe' : 'pip');
+
+  console.log(chalk.cyan(`\n▶ Upgrading ${AGENT_PACKAGE}...\n`));
+  let ok = false;
+  if (uvCmd) {
+    const result = spawnSync(
+      uvCmd,
+      ['pip', 'install', ...preFlag, '--upgrade', AGENT_PACKAGE, '--python', venvPython],
+      { stdio: 'inherit' },
+    );
+    ok = result.status === 0;
+    if (!ok) console.warn('⚠ uv install failed, falling back to pip');
+  }
+  if (!ok) {
+    const pipCmd = fs.existsSync(pipBin) ? pipBin : venvPython;
+    const pipArgs = fs.existsSync(pipBin)
+      ? ['install', ...preFlag, '--upgrade', AGENT_PACKAGE]
+      : ['-m', 'pip', 'install', ...preFlag, '--upgrade', AGENT_PACKAGE];
+    const result = spawnSync(pipCmd, pipArgs, {
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+    ok = result.status === 0;
+  }
+
+  if (ok) {
+    console.log(chalk.green(`\n✔ Upgraded to ${latestRaw}. Please re-run your command.\n`));
+    process.exit(0);
+  } else {
+    console.error(chalk.red(`\n❌ Upgrade failed. You can manually run: ${manual}\n`));
+  }
+}
+
 /**
  * Install solidx-ai-agent into the dedicated venv.
  * Prefers uv (faster) but falls back to pip.
@@ -252,14 +396,20 @@ function installAgent(pythonCmd: string, uvCmd: string | null): boolean {
     process.platform === 'win32' ? 'pip.exe' : 'pip',
   );
 
-  console.log(`📦 Installing ${AGENT_PACKAGE}...`);
+  // Install the agent on the same track as the installed solidctl: a beta
+  // solidctl pulls the latest beta from PyPI (via --pre), a stable solidctl
+  // pulls the latest stable.
+  const track = getSolidctlAgentTrack();
+  const preFlag = track === 'beta' ? ['--pre'] : [];
+
+  console.log(`📦 Installing ${AGENT_PACKAGE}${track === 'beta' ? ' (beta)' : ''}...`);
 
   if (uvCmd) {
     // Pass the venv's Python interpreter to uv so it targets the correct environment.
     // Using --python <interpreter> is the correct uv flag (not the pip binary).
     const result = spawnSync(
       uvCmd,
-      ['pip', 'install', AGENT_PACKAGE, '--python', venvPython],
+      ['pip', 'install', ...preFlag, AGENT_PACKAGE, '--python', venvPython],
       {
         stdio: 'inherit',
       },
@@ -272,8 +422,8 @@ function installAgent(pythonCmd: string, uvCmd: string | null): boolean {
   // which works as long as the venv itself is functional.
   const pipCmd = fs.existsSync(pipBin) ? pipBin : venvPython;
   const pipArgs = fs.existsSync(pipBin)
-    ? ['install', AGENT_PACKAGE]
-    : ['-m', 'pip', 'install', AGENT_PACKAGE];
+    ? ['install', ...preFlag, AGENT_PACKAGE]
+    : ['-m', 'pip', 'install', ...preFlag, AGENT_PACKAGE];
 
   const result = spawnSync(pipCmd, pipArgs, {
     stdio: 'inherit',

@@ -3,7 +3,7 @@ import { spawnSync } from 'child_process';
 import path from 'path';
 import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
-import { ensureAgentInstalled, ensureAgentInstalledLocal, getAgentVersion, printAgentVersion } from './agent-helper';
+import { checkAgentUpdate, ensureAgentInstalled, ensureAgentInstalledLocal, getAgentVersion, printAgentVersion } from './agent-helper';
 
 /**
  * Build a DATABASE_URL from the consuming project's individual DB env vars,
@@ -81,8 +81,9 @@ export function registerMcpCommand(program: Command) {
 
   mcp
     .option('--version', 'Print the solidx-ai-agent version and exit')
-    .action((options: { version?: boolean }) => {
+    .action(async (options: { version?: boolean }) => {
       if (options.version) {
+        await checkAgentUpdate({ isLocal: false });
         const agentCommand = ensureAgentInstalled();
         console.log(`solidx-ai-agent v${getAgentVersion(agentCommand)}`);
         process.exit(0);
@@ -98,8 +99,9 @@ export function registerMcpCommand(program: Command) {
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
     .option('--mount-path <path>', 'Path under which to mount the MCP app', '/mcp')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
-    .action((options: { port: string; host: string; logLevel: string; mountPath: string; local?: boolean }) => {
+    .action(async (options: { port: string; host: string; logLevel: string; mountPath: string; local?: boolean }) => {
       validateProjectRoot();
+      await checkAgentUpdate({ isLocal: Boolean(options.local) });
       const env = buildBridgedEnv();
 
       if (!env.DATABASE_URL) {

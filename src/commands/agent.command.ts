@@ -5,7 +5,7 @@ import path from 'path';
 import readline from 'readline';
 import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
-import { ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled, getAgentVersion, printAgentVersion } from './agent-helper';
+import { checkAgentUpdate, ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled, getAgentVersion, printAgentVersion } from './agent-helper';
 
 type AgentServiceName = 'agent' | 'ui';
 
@@ -508,8 +508,9 @@ export function registerAgentCommand(program: Command) {
 
   agent
     .option('--version', 'Print the solidx-ai-agent version and exit')
-    .action((options: { version?: boolean }) => {
+    .action(async (options: { version?: boolean }) => {
       if (options.version) {
+        await checkAgentUpdate({ isLocal: false });
         const agentCommand = ensureAgentInstalled();
         console.log(`solidx-ai-agent v${getAgentVersion(agentCommand)}`);
         process.exit(0);
@@ -532,6 +533,8 @@ export function registerAgentCommand(program: Command) {
       // Load consuming project's .env (lives in solid-api/)
       loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
 
+      await checkAgentUpdate({ isLocal: Boolean(options.local) });
+
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       const agentUiDir = ensureAgentUIInstalled();
 
@@ -548,12 +551,14 @@ export function registerAgentCommand(program: Command) {
     .option('-m, --mode <mode>', 'Tool mode: native or mcp')
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
-    .action((task, options) => {
+    .action(async (task, options) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
 
       // Load consuming project's .env (lives in solid-api/)
       loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
+
+      await checkAgentUpdate({ isLocal: Boolean(options.local) });
 
       const databaseUrl = resolveDatabaseUrl();
       const env: Record<string, string> = {
