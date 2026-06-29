@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import path from 'path';
 import readline from 'readline';
 import { config as loadDotenv } from 'dotenv';
-import { validateProjectRoot } from '../helper';
+import { normalizeDatabaseUrl, validateProjectRoot } from '../helper';
 import { checkAgentUpdate, ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled, getAgentVersion, printAgentVersion } from './agent-helper';
 
 type AgentServiceName = 'agent' | 'ui';
@@ -35,7 +35,7 @@ type AgentStartOptions = {
  * SQL Server using mssql+pyodbc. Otherwise it defaults to PostgreSQL.
  */
 function resolveDatabaseUrl(): string | undefined {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.DATABASE_URL) return normalizeDatabaseUrl(process.env.DATABASE_URL);
 
   const host = process.env.DEFAULT_DATABASE_HOST;
   const port = process.env.DEFAULT_DATABASE_PORT;
