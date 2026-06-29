@@ -1,85 +1,8 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
-import path from 'path';
-import { config as loadDotenv } from 'dotenv';
-import { normalizeDatabaseUrl, validateProjectRoot } from '../helper';
+import { validateProjectRoot } from '../helper';
 import { checkAgentUpdate, ensureAgentInstalled, ensureAgentInstalledLocal, getAgentVersion, printAgentVersion } from './agent-helper';
-
-/**
- * Build a DATABASE_URL from the consuming project's individual DB env vars,
- * unless DATABASE_URL is already explicitly set.
- *
- * If SOLID_CORE_DB_TYPE is set to "mssql", the URL is built for
- * SQL Server using mssql+pyodbc. Otherwise it defaults to PostgreSQL.
- */
-function resolveDatabaseUrl(): string | undefined {
-  // console.log('Before resolving DATABASE_URL', process.env.DATABASE_URL);
-  if (process.env.DATABASE_URL){
-    const resolvedUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
-    // console.log('After resolving DATABASE_URL',resolvedUrl);
-    return resolvedUrl;
-  } 
-
-  const host = process.env.DEFAULT_DATABASE_HOST;
-  const port = process.env.DEFAULT_DATABASE_PORT;
-  const user = process.env.DEFAULT_DATABASE_USER;
-  const password = process.env.DEFAULT_DATABASE_PASSWORD;
-  const name = process.env.DEFAULT_DATABASE_NAME;
-  const dbType = (process.env.SOLID_CORE_DB_TYPE || 'postgres').toLowerCase();
-
-  if (!host || !port || !user || !name) return undefined;
-
-  const encodedPw = password ? ':' + encodeURIComponent(password) : '';
-
-  if (dbType === 'mssql') {
-    return `mssql+pyodbc://${user}${encodedPw}@${host}:${port}/${name}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no`;
-  }
-
-  if (dbType === 'mysql') {
-    return `mysql+pymysql://${user}${encodedPw}@${host}:${port}/${name}`;
-  }
-
-  // Default to PostgreSQL
-  console.log(`Final Url postgresql://${user}${encodedPw}@${host}:${port}/${name}`);
-  
-  return `postgresql://${user}${encodedPw}@${host}:${port}/${name}`;
-}
-
-/**
- * Build the bridged environment object for the MCP server.
- *
- * Mirrors the env-bridging logic in agent.command.ts — loads the consuming
- * project's solid-api/.env, resolves DATABASE_URL from individual DB vars
- * if needed, and sets SOLIDX_PROJECT_ROOT to the consuming project root.
- */
-function buildBridgedEnv(): Record<string, string> {
-  const projectRoot = process.cwd();
-
-  // Load consuming project's .env (lives in solid-api/)
-  loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
-
-  const databaseUrl = resolveDatabaseUrl();
-
-  return {
-    ...(process.env as Record<string, string>),
-    SOLIDX_PROJECT_ROOT: projectRoot,
-    ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
-    ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
-    ...(process.env.FRONTEND_BASE_URL ? { FRONTEND_BASE_URL: process.env.FRONTEND_BASE_URL } : {}),
-    ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
-  };
-}
-
-/**
- * Print which critical env vars were bridged vs. missing.
- */
-function printBridgeSummary(env: Record<string, string>): void {
-  const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'FRONTEND_BASE_URL', 'APP_ENCRYPTION_KEY'];
-  const bridged = bridgedKeys.filter((k) => env[k]);
-  const missing = bridgedKeys.filter((k) => !env[k]);
-  console.log(`✔ Bridged env: ${bridged.join(', ') || 'none'}`);
-  if (missing.length) console.warn(`⚠ Missing env: ${missing.join(', ')}`);
-}
+import { buildBridgedEnv, printBridgeSummary } from './mcp-launch';
 
 export function registerMcpCommand(program: Command) {
   const mcp = program

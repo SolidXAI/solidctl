@@ -16,6 +16,25 @@ const AGENT_UI_DIR = path.join(os.homedir(), '.solidx', 'agent-ui');
 const AGENT_UI_PKG_DIR = path.join(AGENT_UI_DIR, 'node_modules', '@solidxai', 'agent-ui');
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
+type ExitMode = 'exit' | 'throw';
+
+export class AgentCommandExit extends Error {
+  constructor(
+    public readonly exitCode: number,
+    message?: string,
+  ) {
+    super(message ?? `Command exited with code ${exitCode}`);
+    this.name = 'AgentCommandExit';
+  }
+}
+
+function exitCommand(exitCode: number, exitMode: ExitMode, message?: string): never {
+  if (exitMode === 'throw') {
+    throw new AgentCommandExit(exitCode, message);
+  }
+  process.exit(exitCode);
+}
+
 /**
  * Check if a command exists in PATH and returns exit code 0.
  */
@@ -303,7 +322,7 @@ async function getLatestAgentRelease(track: 'stable' | 'beta'): Promise<string |
  * local agent checkout). Silent on any network/parse failure. Mirrors the UX
  * of the solidctl self-update check in src/version-check.ts.
  */
-export async function checkAgentUpdate(opts: { isLocal: boolean }): Promise<void> {
+export async function checkAgentUpdate(opts: { isLocal: boolean; exitMode?: ExitMode }): Promise<void> {
   if (opts.isLocal) return;
   const currentRaw = getAgentVersion();
   const current = toSemver(currentRaw);
@@ -376,7 +395,7 @@ export async function checkAgentUpdate(opts: { isLocal: boolean }): Promise<void
 
   if (ok) {
     console.log(chalk.green(`\n✔ Upgraded to ${latestRaw}. Please re-run your command.\n`));
-    process.exit(0);
+    exitCommand(0, opts.exitMode ?? 'exit', `Upgraded to ${latestRaw}. Please re-run your command.`);
   } else {
     console.error(chalk.red(`\n❌ Upgrade failed. You can manually run: ${manual}\n`));
   }
@@ -441,7 +460,7 @@ function installAgent(pythonCmd: string, uvCmd: string | null): boolean {
  *
  * Exits with an error if installation is impossible.
  */
-export function ensureAgentInstalled(): string {
+export function ensureAgentInstalled(exitMode: ExitMode = 'exit'): string {
   const existing = findAgentBinary();
   if (existing) {
     return existing;
@@ -456,7 +475,7 @@ export function ensureAgentInstalled(): string {
       '   Install Python 3.11+ and try again, or manually run:\n' +
       `   pip install ${AGENT_PACKAGE}`,
     );
-    process.exit(1);
+    exitCommand(1, exitMode, 'Python 3.11+ is required but not found.');
   }
 
   const uvCmd = findUv();
@@ -470,7 +489,7 @@ export function ensureAgentInstalled(): string {
         ? '\n   On Ubuntu/Debian you may also need: sudo apt-get install python3-venv'
         : ''),
     );
-    process.exit(1);
+    exitCommand(1, exitMode, `Failed to create virtual environment at ${VENV_DIR}`);
   }
 
   if (!installAgent(pythonCmd, uvCmd)) {
@@ -479,7 +498,7 @@ export function ensureAgentInstalled(): string {
       '   Try installing manually:\n' +
       `   ${VENV_BIN}/pip install ${AGENT_PACKAGE}`,
     );
-    process.exit(1);
+    exitCommand(1, exitMode, `Failed to install ${AGENT_PACKAGE}`);
   }
 
   // Verify the binary is now available
@@ -489,7 +508,7 @@ export function ensureAgentInstalled(): string {
       '   The package may not have installed correctly. Try:\n' +
       `   ${VENV_BIN}/pip install --force-reinstall ${AGENT_PACKAGE}`,
     );
-    process.exit(1);
+    exitCommand(1, exitMode, `Package installed but solidx-agent binary not found at ${VENV_AGENT_BIN}`);
   }
 
   console.log(`✔ ${AGENT_PACKAGE} installed successfully`);
@@ -501,7 +520,7 @@ export function ensureAgentInstalled(): string {
  * Checks SOLIDX_AI_AGENT_PATH env var; errors if not set or not valid.
  * Returns the directory path if a valid agent repo is found.
  */
-function resolveLocalAgentSource(): string {
+function resolveLocalAgentSource(exitMode: ExitMode = 'exit'): string {
   const envPath = process.env.SOLIDX_AI_AGENT_PATH;
 
   if (!envPath) {
@@ -509,7 +528,7 @@ function resolveLocalAgentSource(): string {
       '❌ --local requires SOLIDX_AI_AGENT_PATH to be set.\n' +
       '   Example: SOLIDX_AI_AGENT_PATH=/path/to/solidx-ai-agent solidctl agent start --local',
     );
-    process.exit(1);
+    exitCommand(1, exitMode, '--local requires SOLIDX_AI_AGENT_PATH to be set.');
   }
 
   const resolved = path.resolve(envPath);
@@ -518,7 +537,7 @@ function resolveLocalAgentSource(): string {
       `❌ SOLIDX_AI_AGENT_PATH points to an invalid directory: ${resolved}\n` +
       '   Expected pyproject.toml to exist in that directory.',
     );
-    process.exit(1);
+    exitCommand(1, exitMode, `SOLIDX_AI_AGENT_PATH points to an invalid directory: ${resolved}`);
   }
 
   return resolved;
@@ -561,8 +580,8 @@ function installLocalAgent(agentSourceDir: string): boolean {
  *
  * Exits with an error if local source is not found or install fails.
  */
-export function ensureAgentInstalledLocal(): string {
-  const agentSourceDir = resolveLocalAgentSource();
+export function ensureAgentInstalledLocal(exitMode: ExitMode = 'exit'): string {
+  const agentSourceDir = resolveLocalAgentSource(exitMode);
   const localVenvDir = path.join(agentSourceDir, '.venv');
   const localVenvBin = path.join(localVenvDir, process.platform === 'win32' ? 'Scripts' : 'bin');
   const localAgentBin = path.join(localVenvBin, process.platform === 'win32' ? 'solidx-agent.exe' : 'solidx-agent');
@@ -581,7 +600,7 @@ export function ensureAgentInstalledLocal(): string {
       '❌ Python 3.11+ is required but not found.\n' +
       '   Install Python 3.11+ and try again.',
     );
-    process.exit(1);
+    exitCommand(1, exitMode, 'Python 3.11+ is required but not found.');
   }
 
   const uvCmd = findUv();
@@ -628,7 +647,7 @@ export function ensureAgentInstalledLocal(): string {
             ? '\n   On Ubuntu/Debian you may also need: sudo apt-get install python3-venv'
             : ''),
         );
-        process.exit(1);
+        exitCommand(1, exitMode, `Failed to create virtual environment at ${localVenvDir}`);
       }
     }
   }
@@ -639,7 +658,7 @@ export function ensureAgentInstalledLocal(): string {
       '   Try installing manually:\n' +
       `   ${localPythonBin} -m pip install -e ${agentSourceDir}[full]`,
     );
-    process.exit(1);
+    exitCommand(1, exitMode, `Failed to install local ${AGENT_PACKAGE}`);
   }
 
   // Verify the binary is now available
@@ -649,7 +668,7 @@ export function ensureAgentInstalledLocal(): string {
       '   The package may not have installed correctly. Try:\n' +
       `   ${localPythonBin} -m pip install --force-reinstall -e ${agentSourceDir}[full]`,
     );
-    process.exit(1);
+    exitCommand(1, exitMode, `Package installed but solidx-agent binary not found at ${localAgentBin}`);
   }
 
   console.log(`✔ Local ${AGENT_PACKAGE} installed successfully`);
