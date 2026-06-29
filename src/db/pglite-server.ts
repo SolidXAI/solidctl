@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   const port = Number(process.env.SOLIDX_PGLITE_PORT || '54329');
   const dataDir = process.env.SOLIDX_PGLITE_DATA;
   const maxConnections = Number(
-    process.env.SOLIDX_PGLITE_MAX_CONNECTIONS || '50',
+    process.env.SOLIDX_PGLITE_MAX_CONNECTIONS || '1',
   );
 
   if (!dataDir) {

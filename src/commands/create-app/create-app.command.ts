@@ -38,6 +38,12 @@ import {
   startEmbeddedServer,
   stopEmbeddedServer,
 } from '../../db/embedded';
+import { getCurrentVersion, getDistTag } from '../../version-check';
+
+function detectSolidxVersion(): string {
+  const tag = getDistTag(getCurrentVersion());
+  return tag === 'beta' ? 'beta' : 'stable';
+}
 
 
 function buildAnswersFromOptions(options: Record<string, string | boolean | undefined>): SetupAnswers {
@@ -68,7 +74,7 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
     process.exit(1);
   }
 
-  const solidxVersion = options.beta ? 'beta' : SETUP_DEFAULTS.solidxVersion;
+  const solidxVersion = options.beta ? 'beta' : detectSolidxVersion();
   if (!SOLIDX_VERSION_OPTIONS.includes(solidxVersion as any)) {
     console.error(chalk.red(`Invalid SolidX version "${solidxVersion}". Must be one of: ${SOLIDX_VERSION_OPTIONS.join(', ')}`));
     process.exit(1);
@@ -125,7 +131,7 @@ export function registerCreateAppCommand(program: Command) {
     .option('--db-synchronize <yes|no>', `Auto-sync DB schema: Yes or No (default: ${SETUP_DEFAULTS.solidApiDatabaseSynchronize})`)
     .option('--db-exists <yes|no>',      `Database already exists: Yes or No (default: ${SETUP_DEFAULTS.databaseExists})`)
     .option('--ui-port <port>',          `Frontend port (default: ${SETUP_DEFAULTS.solidUiPort})`)
-    .option('--beta',                    'Use beta release channel for @solidxai/* packages (default: stable)')
+    .option('--beta',                    'Force beta release channel for @solidxai/* packages (default: auto-detected from installed solidctl)')
     .action(async (options) => {
       try {
         const showLogs: boolean = options.verbose || false;
@@ -138,6 +144,7 @@ export function registerCreateAppCommand(program: Command) {
         } else {
           console.log(chalk.cyan("Hello, Let's setup your SolidX project!"));
           answers = await inquirer.prompt(setupQuestions);
+          answers.solidxVersion = detectSolidxVersion();
           if (answers.databaseMode === 'embedded') {
             answers = applyEmbeddedDatabaseDefaults(answers);
           }

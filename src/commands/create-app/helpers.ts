@@ -272,9 +272,11 @@ export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string
         answers.solidApiDatabaseSynchronize === 'Yes' ? 'true' : 'false',
       DEFAULT_DATABASE_LOGGING: 'false',
       // Marks an embedded PGlite project so solidctl manages the database lifecycle.
-      // PGlite executes one query at a time, so the pool is capped at a single
-      // connection to serialize access and avoid deadlocks on the embedded engine.
-      ...(isEmbedded ? { DEFAULT_DATABASE_DRIVER: 'pglite', DEFAULT_DATABASE_POOL_MAX: '1' } : {}),
+      // The PGlite socket server exposes a single backend, so app-side pooling must
+      // stay at one connection to avoid protocol-level prepared-statement collisions.
+      ...(isEmbedded
+        ? { DEFAULT_DATABASE_DRIVER: 'pglite', DEFAULT_DATABASE_POOL_MAX: '1' }
+        : {}),
     },
     'IAM Registration': {
       IAM_PASSWORD_LESS_REGISTRATION: 'false',

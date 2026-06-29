@@ -46,13 +46,6 @@ export const setupQuestions = [
     default: 'my-solid-app',
   },
   {
-    type: 'list',
-    name: 'solidxVersion',
-    message: 'Which SolidX version would you like to use?',
-    choices: ['stable', 'beta'],
-    default: 'stable',
-  },
-  {
     type: 'input',
     name: 'solidApiPort',
     message: 'Enter your backend api port',

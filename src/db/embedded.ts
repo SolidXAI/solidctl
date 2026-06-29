@@ -114,7 +114,7 @@ export function startEmbeddedServer(
       SOLIDX_PGLITE_HOST: config.host,
       SOLIDX_PGLITE_PORT: config.port,
       SOLIDX_PGLITE_DATA: config.dataDir,
-      SOLIDX_PGLITE_MAX_CONNECTIONS: String(options.maxConnections ?? 50),
+      SOLIDX_PGLITE_MAX_CONNECTIONS: String(options.maxConnections ?? 1),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
