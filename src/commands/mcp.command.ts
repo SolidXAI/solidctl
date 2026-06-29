@@ -13,10 +13,10 @@ import { ensureAgentInstalled, ensureAgentInstalledLocal } from './agent-helper'
  * SQL Server using mssql+pyodbc. Otherwise it defaults to PostgreSQL.
  */
 function resolveDatabaseUrl(): string | undefined {
-  console.log('Before resolving DATABASE_URL', process.env.DATABASE_URL);
+  // console.log('Before resolving DATABASE_URL', process.env.DATABASE_URL);
   if (process.env.DATABASE_URL){
     const resolvedUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
-    console.log('After resolving DATABASE_URL',resolvedUrl);
+    // console.log('After resolving DATABASE_URL',resolvedUrl);
     return resolvedUrl;
   } 
 
