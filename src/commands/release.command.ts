@@ -5,6 +5,7 @@ import inquirer from 'inquirer';
 import net from 'net';
 import os from 'os';
 import path from 'path';
+import { generateAndCommitChangelog } from './release-changelog';
 
 interface PublishConfig {
   mainBranch: string;
@@ -26,6 +27,7 @@ interface PublishOptions {
   testsOnly?: boolean;
   mainBranch?: string;
   devBranch?: string;
+  enhanceChangelog?: boolean;
 }
 
 const DEFAULT_CONFIG: PublishConfig = {
@@ -45,7 +47,7 @@ const RELEASE_VALIDATION_POST_STOP_DELAY_MS = 3_000;
 const RELEASE_VALIDATION_TEARDOWN_RETRY_COUNT = 3;
 const RELEASE_VALIDATION_TEARDOWN_RETRY_DELAY_MS = 3_000;
 
-type ReleaseProjectType = 'solidctl' | 'solid-core-module' | 'solid-core-ui' | 'solid-library-management';
+type ReleaseProjectType = 'solidctl' | 'solid-core-module' | 'solid-core-ui' | 'solid-library-management' | 'solid-code-builder';
 
 interface ResolvedReleaseProject {
   type: ReleaseProjectType;
@@ -165,12 +167,18 @@ function resolveReleaseProject(): ResolvedReleaseProject {
       }
 
       break;
+    case 'solid-code-builder':
+      if (packageName === '@solidxai/code-builder') {
+        console.log(`Release project resolved: solid-code-builder (${packageName})`);
+        return { type: 'solid-code-builder', cwdName, packageName, versionSourcePath: path.join(process.cwd(), 'package.json') };
+      }
+      break;
   }
 
   console.error(
     `❌ Could not resolve release project from folder "${cwdName}" and package name "${packageName || solidApiPackageName || 'unknown'}".`,
   );
-  console.error('   Supported release folders are solidctl, solid-core-module, solid-core-ui, and solid-library-management.');
+  console.error('   Supported release folders are solidctl, solid-core-module, solid-core-ui, solid-library-management, and solid-code-builder.');
   process.exit(1);
 }
 
@@ -513,7 +521,7 @@ function getReleaseValidationLogPath(cwd: string): string {
 }
 
 function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingProject {
-  const commandText = 'npx @solidxai/solidctl@beta start:dev --plain';
+  const commandText = 'npx @solidxai/solidctl@beta start:dev';
 
   if (dryRun) {
     console.log(`[dry-run] (${cwd}) ${commandText}`);
@@ -525,7 +533,7 @@ function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingPr
   console.log(`Starting consuming project from ${cwd}`);
   console.log(`Consuming project logs: ${logPath}`);
 
-  const child = spawn(getNpxCommand(), ['@solidxai/solidctl@beta', 'start:dev', '--plain'], {
+  const child = spawn(getNpxCommand(), ['@solidxai/solidctl@beta', 'start:dev'], {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
@@ -878,6 +886,7 @@ function getReleaseOptions(options: PublishOptions) {
     force: options.force || false,
     preid: options.preid,
     isPrerelease: !!options.preid,
+    enhanceChangelog: options.enhanceChangelog || false,
   };
 }
 
@@ -966,6 +975,10 @@ function planNextVersion(currentVersion: string, versionType: string, preid?: st
     if (versionType === 'major') {
       return formatVersion({ major: parsed.major + 1, minor: 0, patch: 0 });
     }
+    // patch on a prerelease promotes to stable without incrementing (matches npm version behaviour)
+    if (parsed.prereleaseId) {
+      return formatVersion({ major: parsed.major, minor: parsed.minor, patch: parsed.patch });
+    }
     return formatVersion({ major: parsed.major, minor: parsed.minor, patch: parsed.patch + 1 });
   }
 
@@ -1048,7 +1061,7 @@ RUN cd /workspace/agent/agent-ui && npm i --legacy-peer-deps && npm run build --
 }
 
 async function runSharedReleaseFlow(versionType: string, options: PublishOptions, project: ResolvedReleaseProject) {
-  const { mainBranch, devBranch, reverseMerge, dryRun, force, preid, isPrerelease } = getReleaseOptions(options);
+  const { mainBranch, devBranch, reverseMerge, dryRun, force, preid, isPrerelease, enhanceChangelog } = getReleaseOptions(options);
   const releaseStartedAt = new Date();
 
   try {
@@ -1088,19 +1101,65 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
     } else {
       console.log(`Updating package version (${versionType})...`);
     }
-    exec(versionCmd, dryRun);
 
-    console.log('Pushing to git (with tags)...');
-    exec('git push --follow-tags', dryRun);
+    if (!isPrerelease) {
+      if (!plannedVersion) {
+        throw new Error('Cannot determine planned version for --via-pr. Ensure the project has a valid package.json with a version field.');
+      }
 
-    console.log('Publishing package...');
-    if (isPrerelease) {
-      exec(`npm publish --tag ${preid}`, dryRun);
-    } else {
+      const releaseBranch = `release/${plannedVersion}`;
+      const plannedTag = `v${plannedVersion}`;
+
+      const staleTag = execCapture(`git tag -l ${plannedTag}`);
+      if (staleTag) {
+        throw new Error(
+          `Tag ${plannedTag} already exists locally from a previous failed release attempt.\n` +
+          `   Run the following to clean up and try again:\n` +
+          `   git tag -d ${plannedTag}`,
+        );
+      }
+
+      console.log(`Creating release branch: ${releaseBranch}...`);
+      exec(`git checkout -b ${releaseBranch}`, dryRun);
+
+      await generateAndCommitChangelog(plannedVersion, enhanceChangelog, dryRun);
+
+      exec(versionCmd, dryRun);
+
+      console.log('Pushing release branch (with tags)...');
+      exec(`git push --follow-tags origin ${releaseBranch}`, dryRun);
+
+      console.log('Publishing package...');
       exec('npm publish', dryRun);
-    }
+      console.log('Published successfully!\n');
 
-    console.log('Published successfully!\n');
+      console.log('Creating pull request...');
+      exec(
+        `gh pr create --title "chore: release ${plannedVersion}" --base ${mainBranch} --head ${releaseBranch} --body "Automated version bump for release ${plannedVersion}."`,
+        dryRun,
+      );
+
+      console.log('Merging pull request...');
+      exec(`gh pr merge ${releaseBranch} --merge --delete-branch`, dryRun);
+
+      console.log(`Pulling updated ${mainBranch}...`);
+      exec(`git checkout ${mainBranch}`, dryRun);
+      exec(`git pull origin ${mainBranch}`, dryRun);
+    } else {
+      exec(versionCmd, dryRun);
+
+      console.log('Pushing to git (with tags)...');
+      exec('git push --follow-tags', dryRun);
+
+      console.log('Publishing package...');
+      if (isPrerelease) {
+        exec(`npm publish --tag ${preid}`, dryRun);
+      } else {
+        exec('npm publish', dryRun);
+      }
+
+      console.log('Published successfully!\n');
+    }
 
     if (!isPrerelease && reverseMerge) {
       console.log(`Merging ${mainBranch} into ${devBranch}...`);
@@ -1243,6 +1302,7 @@ export function registerReleaseCommand(program: Command) {
     .option('--no-merge', 'Skip reverse merge to dev after stable release')
     .option('--main-branch <name>', 'Override main branch name')
     .option('--dev-branch <name>', 'Override dev branch name')
+    .option('--enhance-changelog', 'Enhance the generated changelog using an AI CLI (set via $SOLIDCTL_AI_CMD)')
     .addHelpText('after', `
 Examples:
   Stable releases (from main branch):
@@ -1262,7 +1322,9 @@ Examples:
     $ solidctl release --force      # Override branch checks
     $ solidctl release --skip-tests # Skip local release validation
     $ solidctl release --tests-only # Run validation workflow only
-    $ solidctl release --no-merge   # Skip main → dev merge after stable release
+    $ solidctl release --no-merge          # Skip main → dev merge after stable release
+    $ solidctl release --enhance-changelog # AI-enhanced changelog (requires $SOLIDCTL_AI_CMD to be set)
+
 
 Local release validation:
   For solid-core-module and solid-core-ui releases, solidctl now runs local validation commands
@@ -1296,6 +1358,9 @@ Configuration:
           break;
         case 'solid-library-management':
           runSolidLibraryManagementReleaseFlow(versionType, options, project);
+          break;
+        case 'solid-code-builder':
+          await runSharedReleaseFlow(versionType, options, project);
           break;
       }
     });

@@ -40,14 +40,14 @@ export async function copyAndInstallTemplate(
 ) {
   try {
     await copyTemplate(source, target);
-    return installTemplate(target, showLogs, onOutput);
+    return installFromPath(target, showLogs, onOutput);
   } catch (error) {
     console.error(chalk.red('Error in copyAndInstallTemplate:'), error);
     throw error;
   }
 }
 
-async function installTemplate(
+export async function installFromPath(
   target: string,
   showLogs: boolean,
   onOutput?: (line: string) => void,
@@ -69,6 +69,34 @@ async function installTemplate(
     await child;
   } catch (error) {
     console.error(chalk.red('Error during npm install in', target));
+    throw error;
+  }
+}
+
+export function updateSolidxPackageVersions(
+  targetPath: string,
+  subProject: string,
+  tag: string,
+) {
+  try {
+    const packageJsonPath = path.join(targetPath, subProject, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      const error = `package.json not found at ${packageJsonPath}`;
+      console.error(chalk.red(error));
+      throw new Error(error);
+    }
+    const packageJson = fs.readJsonSync(packageJsonPath);
+    for (const section of ['dependencies', 'devDependencies'] as const) {
+      if (!packageJson[section]) continue;
+      for (const pkg of Object.keys(packageJson[section])) {
+        if (pkg.startsWith('@solidxai/')) {
+          packageJson[section][pkg] = tag;
+        }
+      }
+    }
+    fs.writeJsonSync(packageJsonPath, packageJson, { spaces: 2 });
+  } catch (error) {
+    console.error(chalk.red('Error in updateSolidxPackageVersions:'), error);
     throw error;
   }
 }
@@ -225,12 +253,50 @@ export async function createDatabaseIfNotExists(answers: SetupAnswers): Promise<
   }
 }
 
-export function getBackendEnvConfig(answers: SetupAnswers) {
+export async function verifyDatabaseExists(answers: SetupAnswers): Promise<boolean> {
+  const { solidApiDatabaseClient: client, solidApiDatabaseHost: host, solidApiDatabasePort: port,
+          solidApiDatabaseName: dbName, solidApiDatabaseUsername: user, solidApiDatabasePassword: password } = answers;
+
+  if (client === 'PostgreSQL') {
+    const pg = new PgClient({ host, port: parseInt(port), user, password, database: 'postgres' });
+    await pg.connect();
+    try {
+      const res = await pg.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [dbName]);
+      return (res.rowCount ?? 0) > 0;
+    } finally {
+      await pg.end();
+    }
+  } else if (client === 'MySQL') {
+    const conn = await mysql.createConnection({ host, port: parseInt(port), user, password });
+    try {
+      const [rows] = await conn.query<any[]>(`SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?`, [dbName]);
+      return rows.length > 0;
+    } finally {
+      await conn.end();
+    }
+  } else if (client === 'MSSQL') {
+    const pool = await mssql.connect({
+      server: host, port: parseInt(port), user, password,
+      database: 'master',
+      options: { trustServerCertificate: true },
+    });
+    try {
+      const result = await pool.request().query(`SELECT name FROM sys.databases WHERE name = N'${dbName}'`);
+      return result.recordset.length > 0;
+    } finally {
+      await pool.close();
+    }
+  }
+  return true;
+}
+
+export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string) {
+  const isEmbedded = answers.databaseMode === 'embedded';
   return {
     General: {
       ENV: 'dev',
       PORT: answers.solidApiPort,
-      SOLID_APP_NAME: answers.projectName,
+      SOLID_APP_NAME: properAppName,
       BASE_URL: `http://localhost:${answers.solidApiPort}`,
     },
     'Default DB Configuration': {
@@ -242,6 +308,12 @@ export function getBackendEnvConfig(answers: SetupAnswers) {
       DEFAULT_DATABASE_SYNCHRONIZE:
         answers.solidApiDatabaseSynchronize === 'Yes' ? 'true' : 'false',
       DEFAULT_DATABASE_LOGGING: 'false',
+      // Marks an embedded PGlite project so solidctl manages the database lifecycle.
+      // The PGlite socket server exposes a single backend, so app-side pooling must
+      // stay at one connection to avoid protocol-level prepared-statement collisions.
+      ...(isEmbedded
+        ? { DEFAULT_DATABASE_DRIVER: 'pglite', DEFAULT_DATABASE_POOL_MAX: '1' }
+        : {}),
     },
     'IAM Registration': {
       IAM_PASSWORD_LESS_REGISTRATION: 'false',
@@ -258,13 +330,13 @@ export function getBackendEnvConfig(answers: SetupAnswers) {
   };
 }
 
-export function getFrontendEnvJson(answers: SetupAnswers) {
+export function getFrontendEnvJson(answers: SetupAnswers, properAppName: string) {
   return {
     General: {
       VITE_BACKEND_API_URL: `http://localhost:${answers.solidApiPort}`,
       VITE_API_URL: `http://localhost:${answers.solidApiPort}`,
       VITE_SOLIDX_ENV: 'dev',
-      VITE_SOLID_APP_TITLE: answers.projectName,
+      VITE_SOLID_APP_TITLE: properAppName,
       VITE_SOLID_APP_DESCRIPTION: '',
     },
   };

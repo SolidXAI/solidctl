@@ -127,6 +127,25 @@ Under the hood, this proxies to `solid refresh-model` / `solid refresh-module`, 
 
 ---
 
+### `migration`
+
+Runs the TypeORM migration workflow for a chosen datasource, while keeping migration files organized under the module-specific datasource folder.
+
+```bash
+# Generate a migration file into src/<module>/migrations/<datasource>/
+npx @solidxai/solidctl migration -d applications -m onboarding generate Added_PreApplication_Master
+
+# Run all pending migrations for a datasource
+npx @solidxai/solidctl migration -d applications run
+
+# Revert the last migration for a datasource
+npx @solidxai/solidctl migration -d applications revert
+```
+
+This command validates the datasource file, validates the module’s `entities` folder for `generate`, and then runs `typeorm-ts-node-commonjs` inside `solid-api/`.
+
+---
+
 ### `upgrade`
 
 Upgrades the core SolidX dependencies in both `solid-api` and `solid-ui` to the latest available version.
@@ -178,24 +197,24 @@ npx @solidxai/solidctl info
 
 ### `start:dev`
 
-Starts both consuming-project dev servers in one supervised terminal session with merged logs and keyboard shortcuts.
+Starts both consuming-project dev servers in one supervised terminal session with merged logs by default.
 
 ```bash
 npx @solidxai/solidctl start:dev
 ```
 
-Keyboard shortcuts in interactive terminals:
+Enable the interactive control pane and keyboard shortcuts when you want them:
+
+```bash
+npx @solidxai/solidctl start:dev --controls
+```
+
+Keyboard shortcuts in interactive terminals with `--controls`:
 - `a` restart `solid-api`
 - `u` restart `solid-ui`
 - `r` restart both
 - `c` clear the terminal
 - `q` stop both and quit
-
-Use plain merged logs without the control pane:
-
-```bash
-npx @solidxai/solidctl start:dev --plain
-```
 
 This command validates that both `solid-api/package.json` and `solid-ui/package.json` define a `solidx:dev` script before starting either process.
 
@@ -212,7 +231,7 @@ my-solid-app/
 │   │   ├── app.module.ts       # Root module importing SolidCoreModule
 │   │   ├── main.ts             # Application entry point
 │   │   └── {your-modules}/     # Generated modules live here
-│   ├── module-metadata/        # Metadata JSON files driving code generation
+│   │       └── metadata/       # Metadata JSON files driving code generation
 │   └── package.json
 │
 └── solid-ui/                   # React frontend

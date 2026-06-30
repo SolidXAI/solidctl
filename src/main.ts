@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import fs from 'fs';
 import path from 'path';
 import { AppModule } from './app.module';
+import { checkForUpdates } from './version-check';
 import { registerLocalUpgradeCommand } from './commands/local-upgrade.command';
 import { registerBuildCommand } from './commands/build.command';
 import { registerUpgradeCommand } from './commands/upgrade.command';
@@ -16,13 +17,16 @@ import { registerLegacyMigrateCommand } from './commands/legacy-migrate.command'
 import { registerGenerateCommand } from './commands/generate.command';
 import { registerMcpCommand } from './commands/mcp.command';
 import { registerAgentCommand } from './commands/agent.command';
+import { registerMigrationCommand } from './commands/migration.command';
 import { registerStartCommand } from './commands/start.command';
 
 function getCliVersion(): string {
   const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
 
   try {
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as { version?: string };
+    const packageJson = JSON.parse(
+      fs.readFileSync(packageJsonPath, 'utf-8'),
+    ) as { version?: string };
     return packageJson.version || '0.1.0';
   } catch {
     return '0.1.0';
@@ -32,10 +36,16 @@ function getCliVersion(): string {
 async function bootstrap() {
   const appContext = await NestFactory.createApplicationContext(
     AppModule,
-    { logger: false } // CLI usually doesn't need Nest logs
+    { logger: false }, // CLI usually doesn't need Nest logs
   );
 
   const program = new Command();
+
+  // Ensure options appearing after a subcommand name belong to that subcommand,
+  // not the root program. Without this, the root program's `--version` would
+  // intercept `solidctl agent --version` / `solidctl mcp --version` and print
+  // the CLI version instead of letting the subcommand handle it.
+  program.enablePositionalOptions();
 
   program
     .name('solidctl')
@@ -52,12 +62,18 @@ async function bootstrap() {
   registerReleaseCommand(program);
   registerLegacyMigrateCommand(program);
   registerGenerateCommand(program);
+  registerMigrationCommand(program);
   registerMcpCommand(program);
   registerAgentCommand(program);
   registerStartCommand(program);
+
+  program.hook('preAction', async () => {
+    await checkForUpdates();
+  });
+
   await program.parseAsync(process.argv);
 
   await appContext.close();
 }
 
-bootstrap();
+void bootstrap();

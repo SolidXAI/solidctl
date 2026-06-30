@@ -1,69 +1,26 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
-import path from 'path';
-import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
-import { ensureAgentInstalled, ensureAgentInstalledLocal } from './agent-helper';
+import { checkAgentUpdate, ensureAgentInstalled, ensureAgentInstalledLocal, getAgentVersion, printAgentVersion } from './agent-helper';
+import { buildBridgedEnv, printBridgeSummary } from './mcp-launch';
 import { registerMcpInstallCommand } from './mcp/mcp-install.command';
-
-/**
- * Build a DATABASE_URL from the consuming project's individual DB env vars,
- * unless DATABASE_URL is already explicitly set.
- */
-function resolveDatabaseUrl(): string | undefined {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-
-  const host = process.env.DEFAULT_DATABASE_HOST;
-  const port = process.env.DEFAULT_DATABASE_PORT;
-  const user = process.env.DEFAULT_DATABASE_USER;
-  const password = process.env.DEFAULT_DATABASE_PASSWORD;
-  const name = process.env.DEFAULT_DATABASE_NAME;
-
-  if (host && port && user && name) {
-    return `postgresql://${user}${password ? ':' + password : ''}@${host}:${port}/${name}`;
-  }
-  return undefined;
-}
-
-/**
- * Build the bridged environment object for the MCP server.
- *
- * Mirrors the env-bridging logic in agent.command.ts — loads the consuming
- * project's solid-api/.env, resolves DATABASE_URL from individual DB vars
- * if needed, and sets SOLIDX_PROJECT_ROOT to the consuming project root.
- */
-function buildBridgedEnv(): Record<string, string> {
-  const projectRoot = process.cwd();
-
-  // Load consuming project's .env (lives in solid-api/)
-  loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
-
-  const databaseUrl = resolveDatabaseUrl();
-
-  return {
-    ...(process.env as Record<string, string>),
-    SOLIDX_PROJECT_ROOT: projectRoot,
-    ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
-    ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
-    ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
-  };
-}
-
-/**
- * Print which critical env vars were bridged vs. missing.
- */
-function printBridgeSummary(env: Record<string, string>): void {
-  const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'APP_ENCRYPTION_KEY'];
-  const bridged = bridgedKeys.filter((k) => env[k]);
-  const missing = bridgedKeys.filter((k) => !env[k]);
-  console.log(`✔ Bridged env: ${bridged.join(', ') || 'none'}`);
-  if (missing.length) console.warn(`⚠ Missing env: ${missing.join(', ')}`);
-}
 
 export function registerMcpCommand(program: Command) {
   const mcp = program
     .command('mcp')
     .description('SolidX MCP Server (Streamable HTTP) — for remote clients (Cursor, Codex, cloud desktops)');
+
+  mcp
+    .option('--version', 'Print the solidx-ai-agent version and exit')
+    .action(async (options: { version?: boolean }) => {
+      if (options.version) {
+        await checkAgentUpdate({ isLocal: false });
+        const agentCommand = ensureAgentInstalled();
+        console.log(`solidx-ai-agent v${getAgentVersion(agentCommand)}`);
+        process.exit(0);
+      }
+      mcp.help();
+    });
 
   mcp
     .command('start')
@@ -73,7 +30,8 @@ export function registerMcpCommand(program: Command) {
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
     .option('--mount-path <path>', 'Path under which to mount the MCP app', '/mcp')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
-    .action((options: { port: string; host: string; logLevel: string; mountPath: string; local?: boolean }) => {
+    .action(async (options: { port: string; host: string; logLevel: string; mountPath: string; local?: boolean }) => {
+      await checkAgentUpdate({ isLocal: Boolean(options.local) });
       validateProjectRoot();
       const env = buildBridgedEnv();
 
@@ -90,6 +48,7 @@ export function registerMcpCommand(program: Command) {
       // This keeps the CLI honest on Ubuntu: if Python/venv/bootstrap fails, we
       // should not imply that the MCP server actually started listening yet.
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
+      printAgentVersion(agentCommand);
       printBridgeSummary(env);
       console.log(`▶ Starting SolidX MCP Server on ${options.host}:${options.port}`);
       const result = spawnSync(

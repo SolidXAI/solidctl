@@ -4,8 +4,8 @@ import chalk from 'chalk';
 import path from 'path';
 import readline from 'readline';
 import { config as loadDotenv } from 'dotenv';
-import { validateProjectRoot } from '../helper';
-import { ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled } from './agent-helper';
+import { normalizeDatabaseUrl, validateProjectRoot } from '../helper';
+import { checkAgentUpdate, ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled, getAgentVersion, printAgentVersion } from './agent-helper';
 
 type AgentServiceName = 'agent' | 'ui';
 
@@ -30,20 +30,34 @@ type AgentStartOptions = {
 /**
  * Build a DATABASE_URL from the consuming project's individual DB env vars,
  * unless DATABASE_URL is already explicitly set.
+ *
+ * If SOLID_CORE_DB_TYPE is set to "mssql", the URL is built for
+ * SQL Server using mssql+pyodbc. Otherwise it defaults to PostgreSQL.
  */
 function resolveDatabaseUrl(): string | undefined {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.DATABASE_URL) return normalizeDatabaseUrl(process.env.DATABASE_URL);
 
   const host = process.env.DEFAULT_DATABASE_HOST;
   const port = process.env.DEFAULT_DATABASE_PORT;
   const user = process.env.DEFAULT_DATABASE_USER;
   const password = process.env.DEFAULT_DATABASE_PASSWORD;
   const name = process.env.DEFAULT_DATABASE_NAME;
+  const dbType = (process.env.SOLID_CORE_DB_TYPE || 'postgres').toLowerCase();
 
-  if (host && port && user && name) {
-    return `postgresql://${user}${password ? ':' + password : ''}@${host}:${port}/${name}`;
+  if (!host || !port || !user || !name) return undefined;
+
+  const encodedPw = password ? ':' + encodeURIComponent(password) : '';
+
+  if (dbType === 'mssql') {
+    return `mssql+pyodbc://${user}${encodedPw}@${host}:${port}/${name}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Encrypt=no`;
   }
-  return undefined;
+
+  if (dbType === 'mysql') {
+    return `mysql+pymysql://${user}${encodedPw}@${host}:${port}/${name}`;
+  }
+
+  // Default to PostgreSQL
+  return `postgresql://${user}${encodedPw}@${host}:${port}/${name}`;
 }
 
 class AgentSupervisor {
@@ -493,6 +507,18 @@ export function registerAgentCommand(program: Command) {
     .description('SolidX AI Agent — start the server or run a single task');
 
   agent
+    .option('--version', 'Print the solidx-ai-agent version and exit')
+    .action(async (options: { version?: boolean }) => {
+      if (options.version) {
+        await checkAgentUpdate({ isLocal: false });
+        const agentCommand = ensureAgentInstalled();
+        console.log(`solidx-ai-agent v${getAgentVersion(agentCommand)}`);
+        process.exit(0);
+      }
+      agent.help();
+    });
+
+  agent
     .command('start')
     .description('Start the AI agent server and chat UI in a single supervisor')
     .option('-p, --port <port>', 'Agent backend port', '8765')
@@ -501,6 +527,8 @@ export function registerAgentCommand(program: Command) {
     .option('--plain', 'Disable interactive controls and print merged logs only')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
     .action(async (options: { port: string; host: string; logLevel: string; plain?: boolean; local?: boolean }) => {
+      await checkAgentUpdate({ isLocal: Boolean(options.local) });
+
       validateProjectRoot();
       const projectRoot = process.cwd();
 
@@ -509,6 +537,8 @@ export function registerAgentCommand(program: Command) {
 
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       const agentUiDir = ensureAgentUIInstalled();
+
+      printAgentVersion(agentCommand);
 
       const supervisor = new AgentSupervisor(projectRoot, agentCommand, agentUiDir, options);
       await supervisor.start();
@@ -521,7 +551,9 @@ export function registerAgentCommand(program: Command) {
     .option('-m, --mode <mode>', 'Tool mode: native or mcp')
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
-    .action((task, options) => {
+    .action(async (task, options) => {
+      await checkAgentUpdate({ isLocal: Boolean(options.local) });
+
       validateProjectRoot();
       const projectRoot = process.cwd();
 
@@ -546,6 +578,7 @@ export function registerAgentCommand(program: Command) {
       // Match the MCP startup flow: do dependency resolution first so Ubuntu
       // users do not see a "running" banner when Python/bootstrap fails.
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
+      printAgentVersion(agentCommand);
       const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'APP_ENCRYPTION_KEY'];
       const bridged = bridgedKeys.filter((k) => env[k]);
       const missing = bridgedKeys.filter((k) => !env[k]);
