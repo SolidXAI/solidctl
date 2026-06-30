@@ -4,6 +4,7 @@ import path from 'path';
 import { config as loadDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
 import { ensureAgentInstalled, ensureAgentInstalledLocal } from './agent-helper';
+import { registerMcpInstallCommand } from './mcp/mcp-install.command';
 
 /**
  * Build a DATABASE_URL from the consuming project's individual DB env vars,
@@ -118,4 +119,6 @@ export function registerMcpCommand(program: Command) {
         process.exit(result.status ?? 1);
       }
     });
+
+  registerMcpInstallCommand(mcp);
 }
