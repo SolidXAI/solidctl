@@ -18,6 +18,7 @@ import {
 import {
   copyTemplate,
   createDatabaseIfNotExists,
+  verifyDatabaseExists,
   EXCLUDED_DIRS_FOR_INITIAL_COPY,
   generateEnvFileFromConfig,
   getBackendEnvConfig,
@@ -151,6 +152,24 @@ export function registerCreateAppCommand(program: Command) {
         }
 
         const isEmbedded = answers.databaseMode === 'embedded';
+
+        if (answers.databaseExists === 'Yes' && answers.databaseMode !== 'embedded') {
+          const dbCheckSpinner = ora(`Verifying database "${answers.solidApiDatabaseName}" exists...`).start();
+          try {
+            const exists = await verifyDatabaseExists(answers);
+            if (!exists) {
+              dbCheckSpinner.fail(
+                `Database "${answers.solidApiDatabaseName}" does not exist. ` +
+                `Please create it first, or choose "No" when asked if the database already exists to have it created automatically.`
+              );
+              process.exit(1);
+            }
+            dbCheckSpinner.succeed(`Database "${answers.solidApiDatabaseName}" verified`);
+          } catch (err: any) {
+            dbCheckSpinner.fail(`Could not connect to database server: ${err?.message ?? err}`);
+            process.exit(1);
+          }
+        }
 
         if (answers.databaseExists === 'No') {
           const dbSpinner = ora(`Creating database "${answers.solidApiDatabaseName}"...`).start();

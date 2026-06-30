@@ -253,6 +253,43 @@ export async function createDatabaseIfNotExists(answers: SetupAnswers): Promise<
   }
 }
 
+export async function verifyDatabaseExists(answers: SetupAnswers): Promise<boolean> {
+  const { solidApiDatabaseClient: client, solidApiDatabaseHost: host, solidApiDatabasePort: port,
+          solidApiDatabaseName: dbName, solidApiDatabaseUsername: user, solidApiDatabasePassword: password } = answers;
+
+  if (client === 'PostgreSQL') {
+    const pg = new PgClient({ host, port: parseInt(port), user, password, database: 'postgres' });
+    await pg.connect();
+    try {
+      const res = await pg.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [dbName]);
+      return (res.rowCount ?? 0) > 0;
+    } finally {
+      await pg.end();
+    }
+  } else if (client === 'MySQL') {
+    const conn = await mysql.createConnection({ host, port: parseInt(port), user, password });
+    try {
+      const [rows] = await conn.query<any[]>(`SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?`, [dbName]);
+      return rows.length > 0;
+    } finally {
+      await conn.end();
+    }
+  } else if (client === 'MSSQL') {
+    const pool = await mssql.connect({
+      server: host, port: parseInt(port), user, password,
+      database: 'master',
+      options: { trustServerCertificate: true },
+    });
+    try {
+      const result = await pool.request().query(`SELECT name FROM sys.databases WHERE name = N'${dbName}'`);
+      return result.recordset.length > 0;
+    } finally {
+      await pool.close();
+    }
+  }
+  return true;
+}
+
 export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string) {
   const isEmbedded = answers.databaseMode === 'embedded';
   return {
