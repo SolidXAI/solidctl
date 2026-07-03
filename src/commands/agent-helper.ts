@@ -6,6 +6,7 @@ import semver from 'semver';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
+import { isInteractiveSession } from '../utils/interactive';
 
 const AGENT_PACKAGE = 'solidx-ai-agent';
 const AGENT_UI_PACKAGE = '@solidxai/agent-ui';
@@ -344,19 +345,27 @@ export async function checkAgentUpdate(opts: { isLocal: boolean; exitMode?: Exit
   );
 
   let upgrade = false;
-  try {
-    const answer = await inquirer.prompt<{ upgrade: boolean }>([
-      {
-        type: 'confirm',
-        name: 'upgrade',
-        message: `Would you like to upgrade to ${latestRaw}?`,
-        default: false,
-      },
-    ]);
-    upgrade = answer.upgrade;
-  } catch {
-    // Non-interactive (no TTY) or prompt cancelled → don't upgrade
+  if (isInteractiveSession()) {
+    try {
+      const answer = await inquirer.prompt<{ upgrade: boolean }>([
+        {
+          type: 'confirm',
+          name: 'upgrade',
+          message: `Would you like to upgrade to ${latestRaw}?`,
+          default: false,
+        },
+      ]);
+      upgrade = answer.upgrade;
+    } catch {
+      // Prompt cancelled (e.g. Ctrl+C) → don't upgrade
+    }
   }
+  // Non-interactive (no TTY, or CI) → skip the prompt entirely and fall
+  // through to the "upgrade later" message below, using the prompt's own
+  // default of false. Never call inquirer here: with piped/ignored stdin
+  // (every solidctl child process) it can hang indefinitely instead of
+  // rejecting, which is what caused release-validation to time out waiting
+  // for services that never got a chance to start.
 
   const preFlag = track === 'beta' ? ['--pre'] : [];
   const manual = `pip install ${preFlag.length ? '--pre ' : ''}--upgrade ${AGENT_PACKAGE}`;
