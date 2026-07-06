@@ -7,7 +7,12 @@ import {
   InstallDeps,
   McpInstallOptions,
 } from './types';
-import { cursorConfigPath, backupFile, commandExists } from './config-paths';
+import {
+  cursorConfigPath,
+  backupFile,
+  commandExists,
+  isCursorDesktopInstalled,
+} from './config-paths';
 
 export interface CursorEntry {
   url: string;
@@ -151,7 +156,9 @@ function installViaFile(
 export const cursorInstaller: AgentInstaller = {
   name: 'cursor',
   isDetected: () =>
-    commandExists('cursor') || fs.existsSync(cursorConfigPath()),
+    commandExists('cursor') ||
+    fs.existsSync(cursorConfigPath()) ||
+    isCursorDesktopInstalled(),
   install: (opts, deps?) =>
     Promise.resolve(runInstall(opts, (deps as CursorInstallDeps) ?? {})),
 };

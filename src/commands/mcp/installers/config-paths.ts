@@ -13,6 +13,44 @@ export function cursorConfigPath(homeDir: string = os.homedir()): string {
   return path.join(homeDir, '.cursor', 'mcp.json');
 }
 
+export interface CursorDesktopDetectOpts {
+  homeDir?: string;
+  platform?: NodeJS.Platform;
+  localAppData?: string;
+}
+
+/**
+ * Detect a Cursor Desktop install independently of whether ~/.cursor/mcp.json
+ * exists yet. Cursor Desktop reads its global MCP config from ~/.cursor/mcp.json,
+ * but that file is absent until an MCP server is added, so relying on it alone
+ * makes a fresh Desktop-only machine look "not detected".
+ */
+export function isCursorDesktopInstalled(
+  opts: CursorDesktopDetectOpts = {},
+): boolean {
+  const platform = opts.platform ?? process.platform;
+  const homeDir = opts.homeDir ?? os.homedir();
+  // The ~/.cursor dir is created by Cursor on first run (desktop or CLI).
+  if (fs.existsSync(path.join(homeDir, '.cursor'))) return true;
+  if (platform === 'darwin') {
+    return (
+      fs.existsSync('/Applications/Cursor.app') ||
+      fs.existsSync(path.join(homeDir, 'Applications', 'Cursor.app'))
+    );
+  }
+  if (platform === 'win32') {
+    const localAppData =
+      opts.localAppData ??
+      process.env.LOCALAPPDATA ??
+      path.join(homeDir, 'AppData', 'Local');
+    return fs.existsSync(
+      path.join(localAppData, 'Programs', 'cursor', 'Cursor.exe'),
+    );
+  }
+  // linux & other: the ~/.cursor dir check above is the reliable signal.
+  return false;
+}
+
 /** ~/.codex/config.toml — codex loads config from ~/.codex/config.toml on all platforms. */
 export function codexConfigPath(homeDir: string = os.homedir()): string {
   return path.join(homeDir, '.codex', 'config.toml');

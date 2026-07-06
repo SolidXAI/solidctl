@@ -6,6 +6,7 @@ import {
   cursorConfigPath,
   codexConfigPath,
   claudeDesktopConfigPath,
+  isCursorDesktopInstalled,
   backupFile,
   commandExists,
 } from './config-paths';
@@ -59,6 +60,54 @@ describe('config paths', () => {
         appData: undefined,
       }),
     ).toThrow(/APPDATA/i);
+  });
+});
+
+describe('isCursorDesktopInstalled', () => {
+  let tmpHome: string;
+  beforeEach(() => {
+    tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'solidx-curdesk-'));
+  });
+  afterEach(() => fs.removeSync(tmpHome));
+
+  it('detects via the ~/.cursor directory even without mcp.json', () => {
+    fs.mkdirSync(path.join(tmpHome, '.cursor'), { recursive: true });
+    expect(
+      isCursorDesktopInstalled({ homeDir: tmpHome, platform: 'darwin' }),
+    ).toBe(true);
+  });
+
+  it('detects via a home-dir Cursor.app bundle on macOS', () => {
+    fs.mkdirSync(path.join(tmpHome, 'Applications', 'Cursor.app'), {
+      recursive: true,
+    });
+    expect(
+      isCursorDesktopInstalled({ homeDir: tmpHome, platform: 'darwin' }),
+    ).toBe(true);
+  });
+
+  it('detects via Cursor.exe under LOCALAPPDATA on Windows', () => {
+    const localAppData = path.join(tmpHome, 'AppData', 'Local');
+    fs.mkdirSync(path.join(localAppData, 'Programs', 'cursor'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(localAppData, 'Programs', 'cursor', 'Cursor.exe'),
+      '',
+    );
+    expect(
+      isCursorDesktopInstalled({
+        homeDir: tmpHome,
+        platform: 'win32',
+        localAppData,
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false when neither dir nor app bundle is present', () => {
+    expect(
+      isCursorDesktopInstalled({ homeDir: tmpHome, platform: 'linux' }),
+    ).toBe(false);
   });
 });
 
