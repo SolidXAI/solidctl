@@ -41,6 +41,10 @@ import {
   stopEmbeddedServer,
 } from '../../db/embedded';
 import { getCurrentVersion, getDistTag } from '../../version-check';
+import {
+  isValidPortValue,
+  validateCreateAppPorts,
+} from '../../utils/dev-ports';
 
 function detectSolidxVersion(): string {
   const tag = getDistTag(getCurrentVersion());
@@ -48,38 +52,37 @@ function detectSolidxVersion(): string {
 }
 
 
+function failCreateApp(message: string): never {
+  console.error(chalk.red(message));
+  process.exit(1);
+}
+
 function buildAnswersFromOptions(options: Record<string, string | boolean | undefined>): SetupAnswers {
   function validatePort(flag: string, value: string): void {
-    const n = Number(value);
-    if (!Number.isInteger(n) || n < 1 || n > 65535) {
-      console.error(chalk.red(`Invalid ${flag} value "${value}". Must be a port number 1–65535.`));
-      process.exit(1);
+    if (!isValidPortValue(value)) {
+      failCreateApp(`Invalid ${flag} value "${value}". Must be a port number 1–65535.`);
     }
   }
 
   const dbClient = (options.dbClient as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseClient;
 
   if (options.dbClient !== undefined && !DATABASE_CLIENTS.includes(dbClient as any)) {
-    console.error(chalk.red(`Invalid --db-client "${dbClient}". Must be one of: ${DATABASE_CLIENTS.join(', ')}`));
-    process.exit(1);
+    failCreateApp(`Invalid --db-client "${dbClient}". Must be one of: ${DATABASE_CLIENTS.join(', ')}`);
   }
 
   const dbSynchronize = (options.dbSynchronize as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseSynchronize;
   if (options.dbSynchronize !== undefined && !SYNCHRONIZE_OPTIONS.includes(dbSynchronize as any)) {
-    console.error(chalk.red(`Invalid --db-synchronize "${dbSynchronize}". Must be one of: ${SYNCHRONIZE_OPTIONS.join(', ')}`));
-    process.exit(1);
+    failCreateApp(`Invalid --db-synchronize "${dbSynchronize}". Must be one of: ${SYNCHRONIZE_OPTIONS.join(', ')}`);
   }
 
   const dbExists = (options.dbExists as string | undefined) ?? SETUP_DEFAULTS.databaseExists;
   if (options.dbExists !== undefined && !DATABASE_EXISTS_OPTIONS.includes(dbExists as any)) {
-    console.error(chalk.red(`Invalid --db-exists "${dbExists}". Must be one of: ${DATABASE_EXISTS_OPTIONS.join(', ')}`));
-    process.exit(1);
+    failCreateApp(`Invalid --db-exists "${dbExists}". Must be one of: ${DATABASE_EXISTS_OPTIONS.join(', ')}`);
   }
 
   const solidxVersion = options.beta ? 'beta' : detectSolidxVersion();
   if (!SOLIDX_VERSION_OPTIONS.includes(solidxVersion as any)) {
-    console.error(chalk.red(`Invalid SolidX version "${solidxVersion}". Must be one of: ${SOLIDX_VERSION_OPTIONS.join(', ')}`));
-    process.exit(1);
+    failCreateApp(`Invalid SolidX version "${solidxVersion}". Must be one of: ${SOLIDX_VERSION_OPTIONS.join(', ')}`);
   }
 
   const dbPortDefault = dbClient === 'PostgreSQL'
@@ -110,7 +113,16 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
     solidUiPort:                 (options.uiPort     as string | undefined) ?? SETUP_DEFAULTS.solidUiPort,
   };
 
-  return isEmbedded ? applyEmbeddedDatabaseDefaults(answers) : answers;
+  const resolvedAnswers = isEmbedded ? applyEmbeddedDatabaseDefaults(answers) : answers;
+  const portConflict = validateCreateAppPorts(
+    resolvedAnswers.solidApiPort,
+    resolvedAnswers.solidUiPort,
+  );
+  if (portConflict) {
+    failCreateApp(portConflict);
+  }
+
+  return resolvedAnswers;
 }
 
 export function registerCreateAppCommand(program: Command) {
@@ -149,6 +161,14 @@ export function registerCreateAppCommand(program: Command) {
           answers.solidxVersion = detectSolidxVersion();
           if (answers.databaseMode === 'embedded') {
             answers = applyEmbeddedDatabaseDefaults(answers);
+          }
+
+          const portConflict = validateCreateAppPorts(
+            answers.solidApiPort,
+            answers.solidUiPort,
+          );
+          if (portConflict) {
+            failCreateApp(portConflict);
           }
         }
 

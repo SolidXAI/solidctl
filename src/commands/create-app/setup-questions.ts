@@ -1,3 +1,8 @@
+import {
+  validateCreateAppApiPort,
+  validateCreateAppUiPort,
+} from '../../utils/dev-ports';
+
 export interface SetupAnswers {
   projectName: string;
   solidxVersion: string;
@@ -48,8 +53,9 @@ export const setupQuestions = [
   {
     type: 'input',
     name: 'solidApiPort',
-    message: 'Enter your backend api port',
+    message: 'Enter your backend API port',
     default: '3000',
+    validate: (input: string) => validateCreateAppApiPort(input),
   },
   {
     type: 'list',
@@ -130,5 +136,7 @@ export const setupQuestions = [
     name: 'solidUiPort',
     message: 'Enter your frontend app port',
     default: '3001',
+    validate: (input: string, answers: SetupAnswers) =>
+      validateCreateAppUiPort(input, answers.solidApiPort),
   },
 ];

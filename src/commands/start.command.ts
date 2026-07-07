@@ -14,6 +14,7 @@ import {
 } from '../db/embedded';
 import { AgentCommandExit } from './agent-helper';
 import { MCP_DEFAULT_OPTIONS, resolveMcpLaunchConfig, spawnMcpServer, type McpLaunchConfig } from './mcp-launch';
+import { type DevPortMap, validateDevPortAssignments } from '../utils/dev-ports';
 
 type ServiceName = 'api' | 'ui' | 'mcp';
 
@@ -113,6 +114,8 @@ class StartSupervisor {
     let shouldStartServices = true;
 
     try {
+      this.validatePortAssignments();
+
       if (this.isEmbedded) {
         await this.startEmbeddedDatabase();
         shouldStartServices = !this.shuttingDown;
@@ -146,6 +149,10 @@ class StartSupervisor {
       } else if (this.exitCode === 0) {
         this.exitCode = 1;
       }
+      if (!(error instanceof AgentCommandExit)) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(chalk.red(message));
+      }
       this.shuttingDown = true;
     } finally {
       this.startupPhase = false;
@@ -154,6 +161,27 @@ class StartSupervisor {
     }
 
     process.exit(this.exitCode);
+  }
+
+  private validatePortAssignments() {
+    const ports: DevPortMap = {};
+
+    if (this.activeServices.includes('api')) {
+      ports.api = this.apiPort;
+    }
+
+    if (this.activeServices.includes('ui')) {
+      ports.ui = this.uiPort;
+    }
+
+    if (this.activeServices.includes('mcp')) {
+      ports.mcp = this.mcpPort;
+    }
+
+    const conflict = validateDevPortAssignments(ports);
+    if (conflict) {
+      throw new Error(conflict);
+    }
   }
 
   private async startEmbeddedDatabase() {
