@@ -342,6 +342,15 @@ export function getFrontendEnvJson(answers: SetupAnswers, properAppName: string)
   };
 }
 
+export function setEnvValue(envFilePath: string, key: string, value: string): void {
+  const content = fs.readFileSync(envFilePath, 'utf8');
+  const pattern = new RegExp(`^${key}=.*$`, 'm');
+  const nextContent = pattern.test(content)
+    ? content.replace(pattern, `${key}=${value}`)
+    : `${content}${content.endsWith('\n') ? '' : '\n'}${key}=${value}\n`;
+  fs.writeFileSync(envFilePath, nextContent);
+}
+
 export function generateEnvFileFromConfig(
   targetPath: string,
   envConfig: Record<string, Record<string, string>>,

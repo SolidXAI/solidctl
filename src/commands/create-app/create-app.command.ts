@@ -25,6 +25,7 @@ import {
   getFrontendEnvJson,
   getTemplatesPath,
   installFromPath,
+  setEnvValue,
   SOURCE_TEMPLATE_FOLDER_API,
   SOURCE_TEMPLATE_FOLDER_UI,
   TARGET_FOLDER_API,
@@ -257,7 +258,14 @@ export function registerCreateAppCommand(program: Command) {
         // Step 4: Generate .env files
         spinner = ora('Step 4: Generating environment files...').start();
         const backendPath = path.join(targetPath, TARGET_FOLDER_API);
-        generateEnvFileFromConfig(backendPath, getBackendEnvConfig(answers, properAppName));
+        // Bootstrapping (build + seed below) needs the schema to exist, so
+        // synchronize is forced on for this initial write regardless of the
+        // user's choice. It's restored to the user's actual choice once
+        // seeding succeeds (Step 6).
+        generateEnvFileFromConfig(
+          backendPath,
+          getBackendEnvConfig({ ...answers, solidApiDatabaseSynchronize: 'Yes' }, properAppName),
+        );
         const frontendPath = path.join(targetPath, TARGET_FOLDER_UI);
         generateEnvFileFromConfig(frontendPath, getFrontendEnvJson(answers, properAppName));
         if (isEmbedded) {
@@ -302,6 +310,11 @@ export function registerCreateAppCommand(program: Command) {
           } catch (err: any) {
             spinner.fail(`Step 6: Seed failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
             process.exit(1);
+          }
+
+          // Bootstrap is done — restore the user's actual synchronize choice.
+          if (answers.solidApiDatabaseSynchronize !== 'Yes') {
+            setEnvValue(path.join(backendPath, '.env'), 'DEFAULT_DATABASE_SYNCHRONIZE', 'false');
           }
         } finally {
           if (embeddedServer) {
