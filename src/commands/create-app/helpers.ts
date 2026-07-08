@@ -291,7 +291,6 @@ export async function verifyDatabaseExists(answers: SetupAnswers): Promise<boole
 }
 
 export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string) {
-  const isEmbedded = answers.databaseMode === 'embedded';
   return {
     General: {
       ENV: 'dev',
@@ -308,12 +307,6 @@ export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string
       DEFAULT_DATABASE_SYNCHRONIZE:
         answers.solidApiDatabaseSynchronize === 'Yes' ? 'true' : 'false',
       DEFAULT_DATABASE_LOGGING: 'false',
-      // Marks an embedded PGlite project so solidctl manages the database lifecycle.
-      // The PGlite socket server exposes a single backend, so app-side pooling must
-      // stay at one connection to avoid protocol-level prepared-statement collisions.
-      ...(isEmbedded
-        ? { DEFAULT_DATABASE_DRIVER: 'pglite', DEFAULT_DATABASE_POOL_MAX: '1' }
-        : {}),
     },
     'IAM Registration': {
       IAM_PASSWORD_LESS_REGISTRATION: 'false',

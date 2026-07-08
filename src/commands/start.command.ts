@@ -5,13 +5,6 @@ import fs from 'fs-extra';
 import path from 'path';
 import readline from 'readline';
 import { validateProjectRoot, validateProjectScript } from '../helper';
-import {
-  EmbeddedServerHandle,
-  getEmbeddedConfig,
-  isEmbeddedProject,
-  startEmbeddedServer,
-  stopEmbeddedServer,
-} from '../db/embedded';
 import { AgentCommandExit } from './agent-helper';
 import { MCP_DEFAULT_OPTIONS, resolveMcpLaunchConfig, spawnMcpServer, type McpLaunchConfig } from './mcp-launch';
 import { type DevPortMap, validateDevPortAssignments } from '../utils/dev-ports';
@@ -54,10 +47,8 @@ class StartSupervisor {
   private readonly serviceStates: Record<ServiceName, ServiceState>;
   private readonly isInteractive: boolean;
   private readonly npmCommand: string;
-  private readonly isEmbedded: boolean;
   private readonly supportsMcp: boolean;
   private mcpPort: string;
-  private embeddedServer: EmbeddedServerHandle | null = null;
   private mcpLaunchConfig: McpLaunchConfig | null = null;
   private shuttingDown = false;
   private startupPhase = true;
@@ -73,7 +64,6 @@ class StartSupervisor {
   ) {
     this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    this.isEmbedded = isEmbeddedProject(projectRoot);
     this.supportsMcp = supportsMcp;
     this.serviceScripts = serviceScripts;
     this.activeServices = this.resolveActiveServices(options);
@@ -116,11 +106,6 @@ class StartSupervisor {
     try {
       this.validatePortAssignments();
 
-      if (this.isEmbedded) {
-        await this.startEmbeddedDatabase();
-        shouldStartServices = !this.shuttingDown;
-      }
-
       if (shouldStartServices && this.activeServices.includes('mcp')) {
         await this.startMcpServer();
         shouldStartServices = !this.shuttingDown;
@@ -156,7 +141,6 @@ class StartSupervisor {
       this.shuttingDown = true;
     } finally {
       this.startupPhase = false;
-      await this.stopEmbeddedDatabase();
       this.cleanupTerminal();
     }
 
@@ -182,43 +166,6 @@ class StartSupervisor {
     if (conflict) {
       throw new Error(conflict);
     }
-  }
-
-  private async startEmbeddedDatabase() {
-    const config = getEmbeddedConfig(this.projectRoot);
-    this.printStatus('Starting embedded database (PGlite)');
-
-    this.embeddedServer = startEmbeddedServer(config);
-    this.embeddedServer.child.on('exit', () => {
-      if (!this.shuttingDown) {
-        this.printStatus('Embedded database stopped unexpectedly');
-        this.shutdown(1);
-      }
-    });
-
-    try {
-      await this.embeddedServer.ready;
-      if (this.shuttingDown) {
-        return;
-      }
-      this.printStatus(`Embedded database ready on ${config.host}:${config.port}`);
-    } catch (error) {
-      if (this.shuttingDown) {
-        return;
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      this.printStatus(`Embedded database failed to start: ${message}`);
-      throw error;
-    }
-  }
-
-  private async stopEmbeddedDatabase() {
-    if (!this.embeddedServer) {
-      return;
-    }
-    this.printStatus('Stopping embedded database');
-    await stopEmbeddedServer(this.embeddedServer.child);
-    this.embeddedServer = null;
   }
 
   private async startMcpServer() {
@@ -680,8 +627,7 @@ class StartSupervisor {
     this.renderFooter();
   }
 
-  private async abortStartup() {
-    await this.stopEmbeddedDatabase();
+  private abortStartup() {
     this.cleanupTerminal();
     process.exit(this.exitCode);
   }

@@ -7,7 +7,6 @@ export interface SetupAnswers {
   projectName: string;
   solidxVersion: string;
   solidApiPort: string;
-  databaseMode: string;
   solidApiDatabaseClient: string;
   solidApiDatabaseHost: string;
   solidApiDatabasePort: string;
@@ -23,7 +22,6 @@ export const SETUP_DEFAULTS = {
   projectName:                  'my-solid-app',
   solidxVersion:                'stable',
   solidApiPort:                 '3000',
-  databaseMode:                 'embedded',
   solidApiDatabaseClient:       'PostgreSQL',
   solidApiDatabaseHost:         'localhost',
   solidApiDatabasePortPostgres: '5432',
@@ -38,7 +36,6 @@ export const SETUP_DEFAULTS = {
 } as const;
 
 export const DATABASE_CLIENTS = ['PostgreSQL', 'MySQL', 'MSSQL'] as const;
-export const DATABASE_MODES = ['embedded', 'external'] as const;
 export const SYNCHRONIZE_OPTIONS = ['Yes', 'No'] as const;
 export const DATABASE_EXISTS_OPTIONS = ['Yes', 'No'] as const;
 export const SOLIDX_VERSION_OPTIONS = ['stable', 'beta'] as const;
@@ -59,28 +56,16 @@ export const setupQuestions = [
   },
   {
     type: 'list',
-    name: 'databaseMode',
-    message: 'How do you want to run the database?',
-    choices: [
-      { name: 'Embedded (zero-config, no Docker or PostgreSQL — recommended to try SolidX)', value: 'embedded' },
-      { name: 'External (connect to your own PostgreSQL, MySQL or MSSQL)', value: 'external' },
-    ],
-    default: 'embedded',
-  },
-  {
-    type: 'list',
     name: 'solidApiDatabaseClient',
     message: 'Select your database?',
     choices: ['PostgreSQL', 'MySQL', 'MSSQL'],
     default: 'PostgreSQL',
-    when: (answers: SetupAnswers) => answers.databaseMode !== 'embedded',
   },
   {
     type: 'input',
     name: 'solidApiDatabaseHost',
     message: 'Enter your database host',
     default: 'localhost',
-    when: (answers: SetupAnswers) => answers.databaseMode !== 'embedded',
   },
   {
     type: 'input',
@@ -91,28 +76,24 @@ export const setupQuestions = [
       if (answers.solidApiDatabaseClient === 'MySQL') return '3306';
       return '1433';
     },
-    when: (answers: SetupAnswers) => answers.databaseMode !== 'embedded',
   },
   {
     type: 'input',
     name: 'solidApiDatabaseName',
     message: 'Enter your database name',
     default: 'solidx_app_db',
-    when: (answers: SetupAnswers) => answers.databaseMode !== 'embedded',
   },
   {
     type: 'input',
     name: 'solidApiDatabaseUsername',
     message: 'Enter your database username',
     default: 'solidx_app_user',
-    when: (answers: SetupAnswers) => answers.databaseMode !== 'embedded',
   },
   {
     type: 'password',
     name: 'solidApiDatabasePassword',
     message: 'Enter your database password',
     default: 'strongpassword',
-    when: (answers: SetupAnswers) => answers.databaseMode !== 'embedded',
   },
   {
     type: 'list',
@@ -121,7 +102,6 @@ export const setupQuestions = [
       'Automatically update database schema when models change? (Not recommended for production)',
     choices: ['Yes', 'No'],
     default: 'Yes',
-    when: (answers: SetupAnswers) => answers.databaseMode !== 'embedded',
   },
   {
     type: 'list',
@@ -129,7 +109,6 @@ export const setupQuestions = [
     message: 'Does this database already exist?',
     choices: ['Yes', 'No'],
     default: 'Yes',
-    when: (answers: SetupAnswers) => answers.databaseMode !== 'embedded',
   },
   {
     type: 'input',

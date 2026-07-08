@@ -34,12 +34,6 @@ import {
   updatePortInPackageJson,
   updateSolidxPackageVersions,
 } from './helpers';
-import {
-  applyEmbeddedDatabaseDefaults,
-  getEmbeddedConfig,
-  startEmbeddedServer,
-  stopEmbeddedServer,
-} from '../../db/embedded';
 import { getCurrentVersion, getDistTag } from '../../version-check';
 import {
   isValidPortValue,
@@ -95,13 +89,10 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
   if (options.dbPort)  validatePort('--db-port',  options.dbPort  as string);
   if (options.uiPort)  validatePort('--ui-port',  options.uiPort  as string);
 
-  const isEmbedded = options.embedded === true;
-
   const answers: SetupAnswers = {
     projectName:                 (options.name       as string | undefined) ?? SETUP_DEFAULTS.projectName,
     solidxVersion,
     solidApiPort:                (options.apiPort    as string | undefined) ?? SETUP_DEFAULTS.solidApiPort,
-    databaseMode:                isEmbedded ? 'embedded' : 'external',
     solidApiDatabaseClient:      dbClient,
     solidApiDatabaseHost:        (options.dbHost     as string | undefined) ?? SETUP_DEFAULTS.solidApiDatabaseHost,
     solidApiDatabasePort:        (options.dbPort     as string | undefined) ?? dbPortDefault,
@@ -113,16 +104,15 @@ function buildAnswersFromOptions(options: Record<string, string | boolean | unde
     solidUiPort:                 (options.uiPort     as string | undefined) ?? SETUP_DEFAULTS.solidUiPort,
   };
 
-  const resolvedAnswers = isEmbedded ? applyEmbeddedDatabaseDefaults(answers) : answers;
   const portConflict = validateCreateAppPorts(
-    resolvedAnswers.solidApiPort,
-    resolvedAnswers.solidUiPort,
+    answers.solidApiPort,
+    answers.solidUiPort,
   );
   if (portConflict) {
     failCreateApp(portConflict);
   }
 
-  return resolvedAnswers;
+  return answers;
 }
 
 export function registerCreateAppCommand(program: Command) {
@@ -135,7 +125,6 @@ export function registerCreateAppCommand(program: Command) {
     .option('--no-interactive', 'Skip all prompts and use defaults (or provided flags)')
     .option('--name <name>',             `Project name (default: "${SETUP_DEFAULTS.projectName}")`)
     .option('--api-port <port>',         `Backend API port (default: ${SETUP_DEFAULTS.solidApiPort})`)
-    .option('--embedded',                'Use an embedded zero-config database (PGlite) — no Docker or PostgreSQL required')
     .option('--db-client <client>',      `Database: PostgreSQL, MySQL or MSSQL (default: ${SETUP_DEFAULTS.solidApiDatabaseClient})`)
     .option('--db-host <host>',          `Database host (default: ${SETUP_DEFAULTS.solidApiDatabaseHost})`)
     .option('--db-port <port>',          'Database port (default: 5432/PostgreSQL, 1433/MSSQL)')
@@ -159,9 +148,6 @@ export function registerCreateAppCommand(program: Command) {
           console.log(chalk.cyan("Hello, Let's setup your SolidX project!"));
           answers = await inquirer.prompt(setupQuestions);
           answers.solidxVersion = detectSolidxVersion();
-          if (answers.databaseMode === 'embedded') {
-            answers = applyEmbeddedDatabaseDefaults(answers);
-          }
 
           const portConflict = validateCreateAppPorts(
             answers.solidApiPort,
@@ -172,9 +158,7 @@ export function registerCreateAppCommand(program: Command) {
           }
         }
 
-        const isEmbedded = answers.databaseMode === 'embedded';
-
-        if (answers.databaseExists === 'Yes' && answers.databaseMode !== 'embedded') {
+        if (answers.databaseExists === 'Yes') {
           const dbCheckSpinner = ora(`Verifying database "${answers.solidApiDatabaseName}" exists...`).start();
           try {
             const exists = await verifyDatabaseExists(answers);
@@ -288,58 +272,31 @@ export function registerCreateAppCommand(program: Command) {
         );
         const frontendPath = path.join(targetPath, TARGET_FOLDER_UI);
         generateEnvFileFromConfig(frontendPath, getFrontendEnvJson(answers, properAppName));
-        if (isEmbedded) {
-          const gitignorePath = path.join(targetPath, '.gitignore');
-          const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
-          if (!existing.split(/\r?\n/).some((line) => line.trim() === '.solidx/')) {
-            fs.writeFileSync(gitignorePath, `${existing}${existing && !existing.endsWith('\n') ? '\n' : ''}\n# Embedded SolidX database (PGlite)\n.solidx/\n`);
-          }
-        }
         spinner.succeed('Step 4: Environment files generated');
 
-        // For embedded projects, the database must be running while build and seed execute.
-        let embeddedServer: ReturnType<typeof startEmbeddedServer> | null = null;
-        if (isEmbedded) {
-          const dbSpinner = ora('Starting embedded database...').start();
-          try {
-            embeddedServer = startEmbeddedServer(getEmbeddedConfig(targetPath));
-            await embeddedServer.ready;
-            dbSpinner.succeed('Embedded database ready');
-          } catch (err: any) {
-            dbSpinner.fail(`Failed to start embedded database: ${err?.message ?? err}`);
-            process.exit(1);
-          }
+        // Step 5: Build the SolidX project
+        spinner = ora('Step 5: Building SolidX project...').start();
+        try {
+          execSync(`npx @solidxai/solidctl@${solidctlTag} build`, { cwd: targetPath, stdio: 'pipe' });
+          spinner.succeed('Step 5: Build complete');
+        } catch (err: any) {
+          spinner.fail(`Step 5: Build failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
+          process.exit(1);
         }
 
+        // Step 6: Seed the database
+        spinner = ora('Step 6: Seeding database...').start();
         try {
-          // Step 5: Build the SolidX project
-          spinner = ora('Step 5: Building SolidX project...').start();
-          try {
-            execSync(`npx @solidxai/solidctl@${solidctlTag} build`, { cwd: targetPath, stdio: 'pipe' });
-            spinner.succeed('Step 5: Build complete');
-          } catch (err: any) {
-            spinner.fail(`Step 5: Build failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
-            process.exit(1);
-          }
+          execSync(`npx @solidxai/solidctl@${solidctlTag} seed`, { cwd: targetPath, stdio: 'pipe' });
+          spinner.succeed('Step 6: Database seeded');
+        } catch (err: any) {
+          spinner.fail(`Step 6: Seed failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
+          process.exit(1);
+        }
 
-          // Step 6: Seed the database
-          spinner = ora('Step 6: Seeding database...').start();
-          try {
-            execSync(`npx @solidxai/solidctl@${solidctlTag} seed`, { cwd: targetPath, stdio: 'pipe' });
-            spinner.succeed('Step 6: Database seeded');
-          } catch (err: any) {
-            spinner.fail(`Step 6: Seed failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
-            process.exit(1);
-          }
-
-          // Bootstrap is done — restore the user's actual synchronize choice.
-          if (answers.solidApiDatabaseSynchronize !== 'Yes') {
-            setEnvValue(path.join(backendPath, '.env'), 'DEFAULT_DATABASE_SYNCHRONIZE', 'false');
-          }
-        } finally {
-          if (embeddedServer) {
-            await stopEmbeddedServer(embeddedServer.child);
-          }
+        // Bootstrap is done — restore the user's actual synchronize choice.
+        if (answers.solidApiDatabaseSynchronize !== 'Yes') {
+          setEnvValue(path.join(backendPath, '.env'), 'DEFAULT_DATABASE_SYNCHRONIZE', 'false');
         }
 
         console.log(
@@ -347,19 +304,6 @@ export function registerCreateAppCommand(program: Command) {
             `\nProject ${chalk.cyan(projectName)} created successfully!`,
           ),
         );
-
-        if (isEmbedded) {
-          console.log(
-            chalk.green(
-              '\nUsing an embedded database (PGlite) — no Docker or PostgreSQL required.',
-            ),
-          );
-          console.log(
-            chalk.dim(
-              'It starts and stops automatically with the dev server. Data is stored in .solidx/db.',
-            ),
-          );
-        }
 
         console.log(chalk.yellow('\nDefault Admin Credentials:'));
         console.log(chalk.magenta('Username:'), chalk.green('sa'));
