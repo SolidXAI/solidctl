@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.47] - 2026-07-09
+
+### Fixed
+
+- include SOURCE_TEMPLATE_FOLDER_UI_MODULE in exclude template paths to avoid copying it in the final output
+
 ## [0.1.46] - 2026-07-09
 
 ### Added
