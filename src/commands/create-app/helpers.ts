@@ -14,11 +14,13 @@ import { SetupAnswers } from './setup-questions';
 export const HIDDEN_TEMPLATES_FOLDER = 'dot-templates';
 export const SOURCE_TEMPLATE_FOLDER_API = 'api-template';
 export const SOURCE_TEMPLATE_FOLDER_UI = 'ui-template';
+export const SOURCE_TEMPLATE_FOLDER_UI_MODULE = 'ui-module-template';
 export const TARGET_FOLDER_API = 'solid-api';
 export const TARGET_FOLDER_UI = 'solid-ui';
 export const EXCLUDED_DIRS_FOR_INITIAL_COPY = [
   SOURCE_TEMPLATE_FOLDER_API,
   SOURCE_TEMPLATE_FOLDER_UI,
+  SOURCE_TEMPLATE_FOLDER_UI_MODULE,
 ];
 
 export function getTemplatesPath(): string {
