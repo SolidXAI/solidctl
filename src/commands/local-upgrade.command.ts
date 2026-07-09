@@ -151,6 +151,8 @@ Required environment variables:
       if (doUi) {
         console.log('\n=== solid-ui → solid-ui ===');
         packAndInstall(process.env.SOLID_UI_PATH!, './solid-ui', showNpmLogs);
+        console.log('\n▶ Syncing UI resources (postinstall)');
+        exec('npm run postinstall', './solid-ui');
       }
 
       if (doCodeBuilder) {

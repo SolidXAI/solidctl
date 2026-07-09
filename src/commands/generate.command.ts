@@ -78,4 +78,17 @@ export function registerGenerateCommand(program: Command) {
 
       console.log('✔ solidctl generate module completed');
     });
+
+  generate
+    .command('ui-module')
+    .description('Generate only the solid-ui module scaffold (no database connection required). Useful when API code was generated in-process.')
+    .requiredOption('-n, --name <moduleName>', 'Module name')
+    .action((options) => {
+      validateProjectRoot();
+      const projectRoot = process.cwd();
+
+      console.log('▶ Running solidctl generate ui-module');
+      generateSolidUiModule(projectRoot, kebabCase(options.name));
+      console.log('✔ solidctl generate ui-module completed');
+    });
 }

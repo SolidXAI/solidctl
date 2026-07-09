@@ -200,6 +200,49 @@ Notes:
 
 ---
 
+### 7) mcp install
+
+Installs the SolidX MCP server into all supported AI coding agents on your machine (Claude Code, Cursor, Codex, Claude Desktop) across macOS, Linux, and Windows. Idempotent; backs up any config file it overwrites.
+
+Usage:
+
+```bash
+npx @solidxai/solidctl mcp install [options]
+```
+
+Options:
+
+- `--project <name>` Consuming project name (kebab-case). Default: derived from cwd basename when cwd is a SolidX project root.
+- `--api-key <key>` Override the API key read from `~/.solidx/<project>/mcp.json` (must start with `sldx_`).
+- `--url <url>` MCP server URL (default: `http://localhost:9000/mcp`).
+- `--name <server>` Override the generated entry name (default: `solidx-<project>-mcp`).
+- `--agents <list>` Comma-separated subset: `claude-code,cursor,codex,claude-desktop`. Default: all detected agents.
+- `--dry-run` Print planned changes, touch nothing.
+- `--force` Re-write even when an identical entry already exists.
+
+Examples:
+
+```bash
+# from inside a SolidX project root — uses the project's key
+solidctl mcp install
+
+# explicit project name + url + agent subset
+solidctl mcp install --project new-todo-app --url http://localhost:9000/mcp --agents cursor,codex
+
+# preview changes only
+solidctl mcp install --dry-run
+```
+
+Notes:
+
+- The API key is read from `~/.solidx/<project>/mcp.json` (written by `solidctl create-app`). Missing keys fail fast with a pointer to run `create-app` first.
+- Entries are named `solidx-<project>-mcp` so multiple SolidX projects can coexist in one agent config.
+- Prefer each agent's official CLI (`claude mcp`, `cursor mcp`, `codex mcp`) when available; falls back to surgical config-file edits otherwise.
+- Claude Desktop is configured via a stdio bridge using `npx -y mcp-remote`; on Windows the entry wraps `npx` in `cmd /c`.
+- The MCP server itself must be started separately via `solidctl mcp start`.
+
+---
+
 ## Common help
 
 ```bash

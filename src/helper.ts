@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 
 const requiredProjectFiles = ['solid-api/package.json', 'solid-ui/package.json'] as const;
+const validPercentEscapePattern = /^%[0-9A-Fa-f]{2}$/;
 
 export function validateProjectRoot() {
   const cwd = process.cwd();
@@ -47,4 +48,42 @@ export function getSolidCommandEnv() {
     ...process.env,
     PATH: `${solidctlBinDir}${path.delimiter}${currentPath}`,
   };
+}
+
+function encodeUserInfoComponent(value: string) {
+  return value
+    .split(/(%[0-9A-Fa-f]{2})/)
+    .map((part) => (validPercentEscapePattern.test(part) ? part : encodeURIComponent(part)))
+    .join('');
+}
+
+export function normalizeDatabaseUrl(urlValue: string) {
+  const trimmedUrl = urlValue.trim();
+  const schemeMatch = trimmedUrl.match(/^([a-z][a-z0-9+.-]*:\/\/)([\s\S]+)$/i);
+
+  if (!schemeMatch) return trimmedUrl;
+
+  const [, scheme, remainder] = schemeMatch;
+  const userInfoSeparatorIndex = remainder.lastIndexOf('@');
+
+  if (userInfoSeparatorIndex < 0) return trimmedUrl;
+
+  const userInfo = remainder.slice(0, userInfoSeparatorIndex);
+  const hostAndSuffix = remainder.slice(userInfoSeparatorIndex + 1);
+  const authorityEndIndex = ['/', '?', '#']
+    .map((separator) => hostAndSuffix.indexOf(separator))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0] ?? hostAndSuffix.length;
+  const hostInfo = hostAndSuffix.slice(0, authorityEndIndex);
+  const suffix = hostAndSuffix.slice(authorityEndIndex);
+  const passwordSeparatorIndex = userInfo.indexOf(':');
+
+  if (passwordSeparatorIndex < 0) {
+    return `${scheme}${encodeUserInfoComponent(userInfo)}@${hostInfo}${suffix}`;
+  }
+
+  const username = userInfo.slice(0, passwordSeparatorIndex);
+  const password = userInfo.slice(passwordSeparatorIndex + 1);
+
+  return `${scheme}${encodeUserInfoComponent(username)}:${encodeUserInfoComponent(password)}@${hostInfo}${suffix}`;
 }

@@ -1,6 +1,6 @@
 {
   "name": "@solidxai/solidctl",
-  "version": "0.1.45",
+  "version": "0.1.46-beta.8",
   "description": "",
   "author": "",
   "private": false,
@@ -41,8 +41,6 @@
     "release:alpha:major": "npx ts-node src/main.ts release major --preid=alpha"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.3",
-    "@electric-sql/pglite-socket": "^0.2.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",

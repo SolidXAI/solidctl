@@ -5,11 +5,12 @@ import semver from 'semver';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
+import { isInteractiveSession } from './utils/interactive';
 
 const PACKAGE_NAME = '@solidxai/solidctl';
 const NPM_TIMEOUT_MS = 10_000;
 
-function getCurrentVersion(): string {
+export function getCurrentVersion(): string {
   const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
   try {
     const packageJson = JSON.parse(
@@ -21,7 +22,7 @@ function getCurrentVersion(): string {
   }
 }
 
-function getDistTag(version: string): string {
+export function getDistTag(version: string): string {
   const prerelease = semver.prerelease(version);
   if (prerelease && prerelease.length > 0) {
     return String(prerelease[0]);
@@ -80,16 +81,22 @@ export async function checkForUpdates(): Promise<void> {
       ),
     );
 
-    const { upgrade } = await inquirer.prompt<{
-      upgrade: boolean;
-    }>([
-      {
-        type: 'confirm',
-        name: 'upgrade',
-        message: `Would you like to upgrade to ${latestVersion}?`,
-        default: false,
-      },
-    ]);
+    // Skip the prompt entirely when not attached to a real TTY (e.g. this
+    // process's stdin is piped or ignored, as it is for every solidctl
+    // child process). inquirer can hang indefinitely on non-interactive
+    // stdin instead of rejecting, so default to "no" without ever asking.
+    const upgrade = isInteractiveSession()
+      ? (
+          await inquirer.prompt<{ upgrade: boolean }>([
+            {
+              type: 'confirm',
+              name: 'upgrade',
+              message: `Would you like to upgrade to ${latestVersion}?`,
+              default: false,
+            },
+          ])
+        ).upgrade
+      : false;
 
     if (!upgrade) {
       console.log(

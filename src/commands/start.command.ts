@@ -5,17 +5,16 @@ import fs from 'fs-extra';
 import path from 'path';
 import readline from 'readline';
 import { validateProjectRoot, validateProjectScript } from '../helper';
-import {
-  EmbeddedServerHandle,
-  getEmbeddedConfig,
-  isEmbeddedProject,
-  startEmbeddedServer,
-  stopEmbeddedServer,
-} from '../db/embedded';
+import { AgentCommandExit } from './agent-helper';
+import { MCP_DEFAULT_OPTIONS, resolveMcpLaunchConfig, spawnMcpServer, type McpLaunchConfig } from './mcp-launch';
+import { type DevPortMap, validateDevPortAssignments } from '../utils/dev-ports';
 
-type ServiceName = 'api' | 'ui';
+type ServiceName = 'api' | 'ui' | 'mcp';
 
-type ServiceScripts = Record<ServiceName, string>;
+/** Services that are launched via an npm script. MCP is spawned directly. */
+type ScriptServiceName = 'api' | 'ui';
+
+type ServiceScripts = Record<ScriptServiceName, string>;
 
 type ServiceConfig = {
   cwd: string;
@@ -36,6 +35,7 @@ type StartOptions = {
   controls?: boolean;
   plain?: boolean;
   ui?: boolean;
+  mcp?: boolean;
 };
 
 class StartSupervisor {
@@ -47,9 +47,12 @@ class StartSupervisor {
   private readonly serviceStates: Record<ServiceName, ServiceState>;
   private readonly isInteractive: boolean;
   private readonly npmCommand: string;
-  private readonly isEmbedded: boolean;
-  private embeddedServer: EmbeddedServerHandle | null = null;
+  private readonly supportsMcp: boolean;
+  private mcpPort: string;
+  private mcpLaunchConfig: McpLaunchConfig | null = null;
   private shuttingDown = false;
+  private startupPhase = true;
+  private startupAbortInProgress = false;
   private exitCode = 0;
   private stdinWasRaw = false;
 
@@ -57,14 +60,16 @@ class StartSupervisor {
     private readonly projectRoot: string,
     serviceScripts: ServiceScripts,
     options: StartOptions,
+    supportsMcp = false,
   ) {
     this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    this.isEmbedded = isEmbeddedProject(projectRoot);
+    this.supportsMcp = supportsMcp;
     this.serviceScripts = serviceScripts;
     this.activeServices = this.resolveActiveServices(options);
     this.apiPort = this.resolveApiPort();
     this.uiPort = this.resolveUiPort();
+    this.mcpPort = MCP_DEFAULT_OPTIONS.port;
 
     this.serviceConfigs = {
       api: {
@@ -77,74 +82,115 @@ class StartSupervisor {
         label: 'ui',
         color: chalk.magenta,
       },
+      mcp: {
+        cwd: projectRoot,
+        label: 'mcp',
+        color: chalk.green,
+      },
     };
 
     this.serviceStates = {
       api: this.createInitialState(),
       ui: this.createInitialState(),
+      mcp: this.createInitialState(),
     };
   }
 
   async start() {
     this.attachSignalHandlers();
-    this.attachKeyboardControls();
 
     this.printStatus('Starting SolidX dev processes');
 
-    if (this.isEmbedded) {
-      await this.startEmbeddedDatabase();
-    }
+    let shouldStartServices = true;
 
-    for (const serviceName of this.activeServices) {
-      this.spawnService(serviceName);
-    }
-    this.renderFooter();
+    try {
+      this.validatePortAssignments();
 
-    await new Promise<void>((resolve) => {
-      const poll = setInterval(() => {
-        if (!this.hasRunningChildren()) {
-          clearInterval(poll);
-          this.cleanupTerminal();
-          resolve();
+      if (shouldStartServices && this.activeServices.includes('mcp')) {
+        await this.startMcpServer();
+        shouldStartServices = !this.shuttingDown;
+      }
+
+      if (shouldStartServices) {
+        this.startupPhase = false;
+        this.attachKeyboardControls();
+        for (const serviceName of this.activeServices) {
+          this.spawnService(serviceName);
         }
-      }, 100);
-    });
+        this.renderFooter();
 
-    await this.stopEmbeddedDatabase();
+        await new Promise<void>((resolve) => {
+          const poll = setInterval(() => {
+            if (!this.hasRunningChildren()) {
+              clearInterval(poll);
+              resolve();
+            }
+          }, 100);
+        });
+      }
+    } catch (error) {
+      if (error instanceof AgentCommandExit) {
+        this.exitCode = error.exitCode;
+      } else if (this.exitCode === 0) {
+        this.exitCode = 1;
+      }
+      if (!(error instanceof AgentCommandExit)) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(chalk.red(message));
+      }
+      this.shuttingDown = true;
+    } finally {
+      this.startupPhase = false;
+      this.cleanupTerminal();
+    }
 
     process.exit(this.exitCode);
   }
 
-  private async startEmbeddedDatabase() {
-    const config = getEmbeddedConfig(this.projectRoot);
-    this.printStatus('Starting embedded database (PGlite)');
+  private validatePortAssignments() {
+    const ports: DevPortMap = {};
 
-    this.embeddedServer = startEmbeddedServer(config);
-    this.embeddedServer.child.on('exit', () => {
-      if (!this.shuttingDown) {
-        this.printStatus('Embedded database stopped unexpectedly');
-        this.shutdown(1);
-      }
-    });
+    if (this.activeServices.includes('api')) {
+      ports.api = this.apiPort;
+    }
 
-    try {
-      await this.embeddedServer.ready;
-      this.printStatus(`Embedded database ready on ${config.host}:${config.port}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.printStatus(`Embedded database failed to start: ${message}`);
-      this.embeddedServer = null;
-      process.exit(1);
+    if (this.activeServices.includes('ui')) {
+      ports.ui = this.uiPort;
+    }
+
+    if (this.activeServices.includes('mcp')) {
+      ports.mcp = this.mcpPort;
+    }
+
+    const conflict = validateDevPortAssignments(ports);
+    if (conflict) {
+      throw new Error(conflict);
     }
   }
 
-  private async stopEmbeddedDatabase() {
-    if (!this.embeddedServer) {
-      return;
+  private async startMcpServer() {
+    this.printStatus('Starting MCP server');
+
+    try {
+      this.mcpLaunchConfig = await resolveMcpLaunchConfig(
+        { ...MCP_DEFAULT_OPTIONS },
+        this.projectRoot,
+      );
+      this.mcpPort = this.mcpLaunchConfig.args[
+        this.mcpLaunchConfig.args.indexOf('--port') + 1
+      ];
+      this.printStatus(`MCP server config resolved (port ${this.mcpPort})`);
+    } catch (error) {
+      if (this.shuttingDown) {
+        return;
+      }
+      if (error instanceof AgentCommandExit) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      this.printStatus(`MCP server failed to initialize: ${message}`);
+      throw error;
     }
-    this.printStatus('Stopping embedded database');
-    await stopEmbeddedServer(this.embeddedServer.child);
-    this.embeddedServer = null;
   }
 
   private createInitialState(): ServiceState {
@@ -168,24 +214,48 @@ class StartSupervisor {
       selectedServices.push('ui');
     }
 
-    return selectedServices.length ? selectedServices : ['api', 'ui'];
+    if (this.supportsMcp && options.mcp) {
+      selectedServices.push('mcp');
+    }
+
+    if (selectedServices.length) {
+      return selectedServices;
+    }
+
+    // No explicit selection: default to all available services.
+    const defaults: ServiceName[] = ['api', 'ui'];
+    if (this.supportsMcp) {
+      defaults.push('mcp');
+    }
+    return defaults;
   }
 
   private spawnService(serviceName: ServiceName) {
     const config = this.serviceConfigs[serviceName];
     const state = this.serviceStates[serviceName];
-    const scriptName = this.serviceScripts[serviceName];
 
     state.restartRequested = false;
     state.stoppingForShutdown = false;
 
-    const child = spawn(this.npmCommand, ['run', scriptName], {
-      cwd: config.cwd,
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false,
-      detached: process.platform !== 'win32',
-    });
+    let child: ChildProcess;
+
+    if (serviceName === 'mcp') {
+      if (!this.mcpLaunchConfig) {
+        this.printLog(serviceName, 'MCP launch config not available', true);
+        this.handleUnexpectedExit(serviceName, 1);
+        return;
+      }
+      child = spawnMcpServer(this.mcpLaunchConfig);
+    } else {
+      const scriptName = this.serviceScripts[serviceName as ScriptServiceName];
+      child = spawn(this.npmCommand, ['run', scriptName], {
+        cwd: config.cwd,
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        detached: process.platform !== 'win32',
+      });
+    }
 
     state.child = child;
     this.printStatus(`Started ${config.label}`);
@@ -279,13 +349,15 @@ class StartSupervisor {
     const controlSegments = ['q quit', 'c clear'];
 
     if (this.activeServices.includes('api')) {
-      serviceSegments.push(`API (a restart, d open docs, :${this.apiPort})`);
-      controlSegments.push('a restart API');
+      serviceSegments.push(`API (a restart, d docs, :${this.apiPort})`);
     }
 
     if (this.activeServices.includes('ui')) {
       serviceSegments.push(`UI (u restart, o open, :${this.uiPort})`);
-      controlSegments.push('u restart UI');
+    }
+
+    if (this.activeServices.includes('mcp')) {
+      serviceSegments.push(`MCP (m restart, :${this.mcpPort})`);
     }
 
     if (this.activeServices.length > 1) {
@@ -407,6 +479,11 @@ class StartSupervisor {
         case 'u':
           if (this.activeServices.includes('ui')) {
             this.restartService('ui');
+          }
+          break;
+        case 'm':
+          if (this.activeServices.includes('mcp')) {
+            this.restartService('mcp');
           }
           break;
         case 'r':
@@ -532,6 +609,14 @@ class StartSupervisor {
     this.shuttingDown = true;
     this.printStatus('Shutting down');
 
+    if (this.startupPhase) {
+      if (!this.startupAbortInProgress) {
+        this.startupAbortInProgress = true;
+        void this.abortStartup();
+      }
+      return;
+    }
+
     for (const serviceName of this.activeServices) {
       const state = this.serviceStates[serviceName];
       state.stoppingForShutdown = true;
@@ -540,6 +625,11 @@ class StartSupervisor {
     }
 
     this.renderFooter();
+  }
+
+  private abortStartup() {
+    this.cleanupTerminal();
+    process.exit(this.exitCode);
   }
 
   private hasRunningChildren() {
@@ -639,42 +729,53 @@ export function registerStartCommand(program: Command) {
     commandName: string,
     description: string,
     serviceScripts: ServiceScripts,
+    supportsMcp = false,
   ) => {
-    program
+    const command = program
       .command(commandName)
       .description(description)
       .option('--api', 'Only supervise solid-api')
       .option('--controls', 'Enable interactive controls with pinned footer and keyboard shortcuts (default on TTYs)')
       .option('--plain', 'Disable interactive controls and print merged logs only')
-      .option('--ui', 'Only supervise solid-ui')
-      .action(async (options: StartOptions) => {
+      .option('--ui', 'Only supervise solid-ui');
+
+    if (supportsMcp) {
+      command.option('--mcp', 'Only supervise the MCP server');
+    }
+
+    command.action(async (options: StartOptions) => {
         validateProjectRoot();
 
         const selectedServices = [
           ...(options.api ? (['api'] as const) : []),
           ...(options.ui ? (['ui'] as const) : []),
+          ...(supportsMcp && options.mcp ? (['mcp'] as const) : []),
         ];
-        const activeServices = selectedServices.length ? selectedServices : (['api', 'ui'] as const);
+        const activeServices = selectedServices.length ? selectedServices : (
+          supportsMcp ? (['api', 'ui', 'mcp'] as const) : (['api', 'ui'] as const)
+        );
 
         for (const serviceName of activeServices) {
+          if (serviceName === 'mcp') continue;
           validateProjectScript(
             serviceName === 'api' ? 'solid-api' : 'solid-ui',
-            serviceScripts[serviceName],
+            serviceScripts[serviceName as ScriptServiceName],
           );
         }
 
-        const supervisor = new StartSupervisor(process.cwd(), serviceScripts, options);
+        const supervisor = new StartSupervisor(process.cwd(), serviceScripts, options, supportsMcp);
         await supervisor.start();
       });
   };
 
   registerSupervisorCommand(
     'start:dev',
-    'Start solid-api and solid-ui dev processes in a single supervisor',
+    'Start solid-api, solid-ui, and MCP dev processes in a single supervisor',
     {
       api: 'solidx:dev',
       ui: 'solidx:dev',
     },
+    true,
   );
 
   registerSupervisorCommand(
