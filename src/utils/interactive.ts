@@ -3,7 +3,7 @@
  *
  * inquirer's prompts don't reliably reject when stdin is piped/ignored (the
  * case for every child process solidctl spawns, e.g. release-validation's
- * `npx solidctl start:dev`) — they can just hang waiting for input instead
+ * `solidctl start:dev`) — they can just hang waiting for input instead
  * of throwing. Callers must check this *before* invoking inquirer rather
  * than relying on a try/catch around the prompt.
  */

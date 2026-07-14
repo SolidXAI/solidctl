@@ -97,11 +97,11 @@ export function registerMigrationCommand(program: Command) {
     .option('--apply', 'Apply the cleanup instead of running a dry-run preview (used with remove-field)')
     .addHelpText('after', `
 Examples:
-  npx @solidxai/solidctl migration -d default -m onboarding generate AddPreApplicationMaster
-  npx @solidxai/solidctl migration -d default run
-  npx @solidxai/solidctl migration -d default revert
-  npx @solidxai/solidctl migration -n book remove-field
-  npx @solidxai/solidctl migration -n book remove-field --apply`)
+  solidctl migration -d default -m onboarding generate AddPreApplicationMaster
+  solidctl migration -d default run
+  solidctl migration -d default revert
+  solidctl migration -n book remove-field
+  solidctl migration -n book remove-field --apply`)
     .action((action: string, migrationName: string | undefined, options: MigrationOptions) => {
       validateProjectRoot();
 
@@ -180,7 +180,7 @@ Examples:
         const mainCliPath = path.join(solidApiDir, 'dist', 'main-cli.js');
 
         if (!fs.existsSync(mainCliPath)) {
-          console.error(`solid-api CLI not found at ${mainCliPath}. Run "npx @solidxai/solidctl build" or "cd solid-api && npm run build" first.`);
+          console.error(`solid-api CLI not found at ${mainCliPath}. Run "solidctl build" or "cd solid-api && npm run build" first.`);
           process.exit(1);
         }
 

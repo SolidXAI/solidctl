@@ -201,7 +201,6 @@ export function registerCreateAppCommand(program: Command) {
 
         const templatesPath = getTemplatesPath();
         const isBeta = answers.solidxVersion === 'beta';
-        const solidctlTag = isBeta ? 'beta' : 'latest';
 
         const stepOutput = (stepLabel: string) => (line: string) => {
           spinner.text = `${stepLabel} ${chalk.dim('> ' + line)}`;
@@ -277,7 +276,7 @@ export function registerCreateAppCommand(program: Command) {
         // Step 5: Build the SolidX project
         spinner = ora('Step 5: Building SolidX project...').start();
         try {
-          execSync(`npx @solidxai/solidctl@${solidctlTag} build`, { cwd: targetPath, stdio: 'pipe' });
+          execSync('solidctl build', { cwd: targetPath, stdio: 'pipe' });
           spinner.succeed('Step 5: Build complete');
         } catch (err: any) {
           spinner.fail(`Step 5: Build failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
@@ -287,7 +286,7 @@ export function registerCreateAppCommand(program: Command) {
         // Step 6: Seed the database
         spinner = ora('Step 6: Seeding database...').start();
         try {
-          execSync(`npx @solidxai/solidctl@${solidctlTag} seed`, { cwd: targetPath, stdio: 'pipe' });
+          execSync('solidctl seed', { cwd: targetPath, stdio: 'pipe' });
           spinner.succeed('Step 6: Database seeded');
         } catch (err: any) {
           spinner.fail(`Step 6: Seed failed — ${err?.stderr?.toString().trim() || err?.message || err}`);
@@ -310,7 +309,7 @@ export function registerCreateAppCommand(program: Command) {
         console.log(chalk.magenta('Password:'), chalk.green('Admin@3214$'));
 
         console.log(chalk.cyan('\nNext steps — start the dev server:'));
-        console.log(`  ${chalk.magenta(`npx @solidxai/solidctl@${solidctlTag} start:dev`)}\n`);
+        console.log(`  ${chalk.magenta('solidctl start:dev')}\n`);
         console.log(`  ${chalk.dim('API      ')}  ${chalk.blue(`http://localhost:${answers.solidApiPort}`)}`);
         console.log(`  ${chalk.dim('API Ref  ')}  ${chalk.blue(`http://localhost:${answers.solidApiPort}/docs`)}`);
         console.log(`  ${chalk.dim('UI       ')}  ${chalk.blue(`http://localhost:${answers.solidUiPort}`)}\n`);

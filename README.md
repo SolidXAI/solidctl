@@ -16,7 +16,7 @@
 The recommended way to run `solidctl` is via `npx`, which ensures you are always using the latest version without needing a global install:
 
 ```bash
-npx @solidxai/solidctl <command>
+solidctl <command>
 ```
 
 All examples in this README use `npx`. If you prefer a global install:
@@ -35,7 +35,7 @@ However please note that a global install may become outdated, so we recommend u
 Scaffold a new SolidX project with a single command:
 
 ```bash
-npx @solidxai/solidctl create-app
+solidctl create-app
 ```
 
 The interactive wizard will ask for your project name, database connection details, and port configuration, then scaffold a complete project structure:
@@ -50,8 +50,8 @@ Once created, build the API and bootstrap the database:
 
 ```bash
 cd my-solid-app
-npx @solidxai/solidctl build   # compiles solid-api and sets up the local solid CLI
-npx @solidxai/solidctl seed    # seeds the database with SolidX metadata and system defaults
+solidctl build   # compiles solid-api and sets up the local solid CLI
+solidctl seed    # seeds the database with SolidX metadata and system defaults
 ```
 
 ---
@@ -63,7 +63,7 @@ npx @solidxai/solidctl seed    # seeds the database with SolidX metadata and sys
 Scaffolds a new SolidX project. Runs an interactive setup wizard by default; all options can also be passed as flags for non-interactive use.
 
 ```bash
-npx @solidxai/solidctl create-app [options]
+solidctl create-app [options]
 ```
 
 | Flag | Default | Description |
@@ -87,7 +87,7 @@ npx @solidxai/solidctl create-app [options]
 Builds the NestJS API and sets up the local `solid` CLI shim so subsequent `solidctl` commands that proxy into the API (like `seed`, `generate`, and `test`) work correctly. Run this after project creation and after any changes to `solid-api`.
 
 ```bash
-npx @solidxai/solidctl build
+solidctl build
 ```
 
 This command:
@@ -104,7 +104,7 @@ This command:
 Seeds the database with SolidX system metadata, permissions, default settings, and the initial admin user. Run once after the database is created and after any module metadata changes.
 
 ```bash
-npx @solidxai/solidctl seed
+solidctl seed
 ```
 
 Proxies to the `solid seed` command inside `solid-api/`. Any additional arguments are passed through.
@@ -117,10 +117,10 @@ Regenerates NestJS boilerplate (entity, service, controller, repository, DTOs) f
 
 ```bash
 # Regenerate a single model and its related models
-npx @solidxai/solidctl generate model <model-name>
+solidctl generate model <model-name>
 
 # Regenerate all models within a module
-npx @solidxai/solidctl generate module <module-name>
+solidctl generate module <module-name>
 ```
 
 Under the hood, this proxies to `solid refresh-model` / `solid refresh-module`, which invokes `@solidxai/code-builder` to perform AST-level file updates.
@@ -133,13 +133,13 @@ Runs the TypeORM migration workflow for a chosen datasource, while keeping migra
 
 ```bash
 # Generate a migration file into src/<module>/migrations/<datasource>/
-npx @solidxai/solidctl migration -d applications -m onboarding generate Added_PreApplication_Master
+solidctl migration -d applications -m onboarding generate Added_PreApplication_Master
 
 # Run all pending migrations for a datasource
-npx @solidxai/solidctl migration -d applications run
+solidctl migration -d applications run
 
 # Revert the last migration for a datasource
-npx @solidxai/solidctl migration -d applications revert
+solidctl migration -d applications revert
 ```
 
 This command validates the datasource file, validates the module’s `entities` folder for `generate`, and then runs `typeorm-ts-node-commonjs` inside `solid-api/`.
@@ -152,19 +152,19 @@ Upgrades the core SolidX dependencies in both `solid-api` and `solid-ui` to the 
 
 ```bash
 # Upgrade to the latest beta pre-release (default)
-npx @solidxai/solidctl upgrade
+solidctl upgrade
 
 # Upgrade to the latest alpha pre-release
-npx @solidxai/solidctl upgrade --alpha
+solidctl upgrade --alpha
 
 # Upgrade to the latest stable release
-npx @solidxai/solidctl upgrade --stable
+solidctl upgrade --stable
 
 # Upgrade to a specific dist-tag
-npx @solidxai/solidctl upgrade --tag next
+solidctl upgrade --tag next
 
 # Preview what would change without installing
-npx @solidxai/solidctl upgrade --dry-run
+solidctl upgrade --dry-run
 ```
 
 Packages upgraded:
@@ -178,7 +178,7 @@ Packages upgraded:
 Runs the SolidX metadata-driven test suite defined in your module metadata. Proxies to `solid test` inside `solid-api/`.
 
 ```bash
-npx @solidxai/solidctl test [args]
+solidctl test [args]
 ```
 
 All arguments are passed through to the underlying `solid test` command. See the [testing framework documentation](https://docs.solidxai.com/docs) for details on writing test scenarios.
@@ -190,7 +190,7 @@ All arguments are passed through to the underlying `solid test` command. See the
 Prints information about the current SolidX project — versions, configuration, and environment. Useful for debugging and support.
 
 ```bash
-npx @solidxai/solidctl info
+solidctl info
 ```
 
 ---
@@ -200,13 +200,13 @@ npx @solidxai/solidctl info
 Starts both consuming-project dev servers in one supervised terminal session with merged logs by default.
 
 ```bash
-npx @solidxai/solidctl start:dev
+solidctl start:dev
 ```
 
 Enable the interactive control pane and keyboard shortcuts when you want them:
 
 ```bash
-npx @solidxai/solidctl start:dev --controls
+solidctl start:dev --controls
 ```
 
 Keyboard shortcuts in interactive terminals with `--controls`:

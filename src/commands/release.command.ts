@@ -510,10 +510,6 @@ function runReleaseValidationTestCommand(
   });
 }
 
-function getNpxCommand(): string {
-  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
-}
-
 function getReleaseValidationLogPath(cwd: string): string {
   const logsDir = path.join(cwd, 'logs', 'solidctl', 'release-validation');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -521,7 +517,7 @@ function getReleaseValidationLogPath(cwd: string): string {
 }
 
 function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingProject {
-  const commandText = 'npx @solidxai/solidctl@beta start:dev';
+  const commandText = 'solidctl start:dev';
 
   if (dryRun) {
     console.log(`[dry-run] (${cwd}) ${commandText}`);
@@ -533,7 +529,7 @@ function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingPr
   console.log(`Starting consuming project from ${cwd}`);
   console.log(`Consuming project logs: ${logPath}`);
 
-  const child = spawn(getNpxCommand(), ['@solidxai/solidctl@beta', 'start:dev'], {
+  const child = spawn('solidctl', ['start:dev'], {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
@@ -750,7 +746,7 @@ async function waitForReleaseValidationServices(
 async function runReleaseValidationTeardown(cwd: string, dryRun: boolean): Promise<void> {
   if (dryRun) {
     runReleaseValidationCommand(
-      'npx @solidxai/solidctl@latest test data --teardown',
+      'solidctl test data --teardown',
       true,
       cwd,
       'Warning: release test data teardown failed.',
@@ -760,7 +756,7 @@ async function runReleaseValidationTeardown(cwd: string, dryRun: boolean): Promi
 
   for (let attempt = 1; attempt <= RELEASE_VALIDATION_TEARDOWN_RETRY_COUNT; attempt += 1) {
     const succeeded = runReleaseValidationCommand(
-      'npx @solidxai/solidctl@latest test data --teardown',
+      'solidctl test data --teardown',
       false,
       cwd,
       `Warning: release test data teardown failed on attempt ${attempt}.`,
@@ -792,23 +788,23 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
 
   const commands: Array<{ command: string; failureMessage: string }> = [
     {
-      command: 'npx @solidxai/solidctl@latest local-upgrade',
+      command: 'solidctl local-upgrade',
       failureMessage: 'Warning: local-upgrade failed.',
     },
     {
-      command: 'npx @solidxai/solidctl@latest build',
+      command: 'solidctl build',
       failureMessage: 'Warning: consuming project build failed.',
     },
     {
-      command: 'npx @solidxai/solidctl@latest test data --setup',
+      command: 'solidctl test data --setup',
       failureMessage: 'Warning: release test data setup failed.',
     },
     {
-      command: 'npx @solidxai/solidctl@latest seed',
+      command: 'solidctl seed',
       failureMessage: 'Warning: release seed failed.',
     },
     {
-      command: 'npx @solidxai/solidctl@latest test data --load',
+      command: 'solidctl test data --load',
       failureMessage: 'Warning: release test data load failed.',
     },
   ];
@@ -817,12 +813,12 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
 
   if (project.type === 'solid-core-module') {
     testCommands.push({
-      command: `npx --yes @solidxai/solidctl@beta test run --module library-management --include-tags api-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
+      command: `solidctl test run --module library-management --include-tags api-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
       summaryLabel: 'solid-core-module API release tests',
     });
   } else if (project.type === 'solid-core-ui') {
     testCommands.push({
-      command: `npx --yes @solidxai/solidctl@beta test run --module library-management --include-tags ui-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
+      command: `solidctl test run --module library-management --include-tags ui-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
       summaryLabel: 'solid-core-ui UI release tests',
     });
   }
