@@ -6,6 +6,11 @@ import net from 'net';
 import os from 'os';
 import path from 'path';
 import { generateAndCommitChangelog } from './release-changelog';
+import {
+  loadSolidModulePublishConfig,
+  SolidModulePublishConfig,
+} from '../module-package';
+import { runSolidModuleRelease } from './module-release';
 
 interface PublishConfig {
   mainBranch: string;
@@ -47,13 +52,14 @@ const RELEASE_VALIDATION_POST_STOP_DELAY_MS = 3_000;
 const RELEASE_VALIDATION_TEARDOWN_RETRY_COUNT = 3;
 const RELEASE_VALIDATION_TEARDOWN_RETRY_DELAY_MS = 3_000;
 
-type ReleaseProjectType = 'solidctl' | 'solid-core-module' | 'solid-core-ui' | 'solid-library-management' | 'solid-code-builder';
+type ReleaseProjectType = 'solidctl' | 'solid-core-module' | 'solid-core-ui' | 'solid-library-management' | 'solid-code-builder' | 'solidx-module';
 
 interface ResolvedReleaseProject {
   type: ReleaseProjectType;
   cwdName: string;
   packageName?: string;
   versionSourcePath?: string;
+  moduleConfig?: SolidModulePublishConfig;
 }
 
 interface RunningConsumingProject {
@@ -135,6 +141,18 @@ function resolveReleaseProject(): ResolvedReleaseProject {
   const packageName = packageJson?.name;
   const solidApiPackageJsonPath = path.join(process.cwd(), 'solid-api', 'package.json');
   const solidApiPackageName = readPackageJson(solidApiPackageJsonPath)?.name;
+  const moduleConfig = loadSolidModulePublishConfig(process.cwd());
+
+  if (moduleConfig) {
+    console.log(`Release project resolved: SolidX module (${moduleConfig.moduleName})`);
+    return {
+      type: 'solidx-module',
+      cwdName,
+      packageName,
+      versionSourcePath: path.join(process.cwd(), 'package.json'),
+      moduleConfig,
+    };
+  }
 
   switch (cwdName) {
     case 'solidctl':
@@ -1357,6 +1375,12 @@ Configuration:
           break;
         case 'solid-code-builder':
           await runSharedReleaseFlow(versionType, options, project);
+          break;
+        case 'solidx-module':
+          if (!project.moduleConfig) {
+            throw new Error('Resolved SolidX module release is missing its publish configuration.');
+          }
+          await runSolidModuleRelease(versionType, options, project.moduleConfig);
           break;
       }
     });
