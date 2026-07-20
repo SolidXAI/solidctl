@@ -161,12 +161,14 @@ function resolveReleaseProject(): ResolvedReleaseProject {
         return { type: 'solidctl', cwdName, packageName, versionSourcePath: path.join(process.cwd(), 'package.json') };
       }
       break;
+    case 'core':
     case 'solid-core-module':
       if (packageName === '@solidxai/core') {
         console.log(`Release project resolved: solid-core-module (${packageName})`);
         return { type: 'solid-core-module', cwdName, packageName, versionSourcePath: path.join(process.cwd(), 'package.json') };
       }
       break;
+    case 'core-ui':
     case 'solid-core-ui':
       if (packageName === '@solidxai/core-ui') {
         console.log(`Release project resolved: solid-core-ui (${packageName})`);
@@ -185,6 +187,7 @@ function resolveReleaseProject(): ResolvedReleaseProject {
       }
 
       break;
+    case 'code-builder':
     case 'solid-code-builder':
       if (packageName === '@solidxai/code-builder') {
         console.log(`Release project resolved: solid-code-builder (${packageName})`);
@@ -196,7 +199,7 @@ function resolveReleaseProject(): ResolvedReleaseProject {
   console.error(
     `❌ Could not resolve release project from folder "${cwdName}" and package name "${packageName || solidApiPackageName || 'unknown'}".`,
   );
-  console.error('   Supported release folders are solidctl, solid-core-module, solid-core-ui, solid-library-management, and solid-code-builder.');
+  console.error('   Supported release folders are solidctl, core/solid-core-module, core-ui/solid-core-ui, solid-library-management, and code-builder/solid-code-builder.');
   process.exit(1);
 }
 
