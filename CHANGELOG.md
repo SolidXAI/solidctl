@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.48-beta.3] - 2026-07-29
+
+### Added
+
+- update release project resolution to include core modules
+
+### Other
+
+- add_changelog_for_prerelease
+
 ## [0.1.47] - 2026-07-09
 
 ### Fixed
