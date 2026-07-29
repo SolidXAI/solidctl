@@ -51,6 +51,15 @@ function getPreviousStableTag(): string | undefined {
   }
 }
 
+function getLatestTag(): string | undefined {
+  try {
+    const tag = capture('git tag --sort=-version:refname | head -1');
+    return tag || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function getCommitsSinceTag(tag?: string): string[] {
   try {
     const range = tag ? `${tag}..HEAD` : 'HEAD';
@@ -148,11 +157,12 @@ export function generateChangelog(
   plannedVersion: string,
   enhanceChangelog: boolean,
   dryRun: boolean,
+  isPrerelease = false,
 ): void {
   const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
   const today = new Date().toISOString().slice(0, 10);
 
-  const prevTag = getPreviousStableTag();
+  const prevTag = isPrerelease ? getLatestTag() : getPreviousStableTag();
   const commits = getCommitsSinceTag(prevTag);
   console.log(`Generating changelog (${commits.length} commits since ${prevTag ?? 'beginning'})...`);
 
@@ -175,8 +185,9 @@ export async function generateAndCommitChangelog(
   plannedVersion: string,
   enhanceChangelog: boolean,
   dryRun: boolean,
+  isPrerelease = false,
 ): Promise<void> {
-  generateChangelog(plannedVersion, enhanceChangelog, dryRun);
+  generateChangelog(plannedVersion, enhanceChangelog, dryRun, isPrerelease);
   run('git add CHANGELOG.md', dryRun);
   run(`git commit -m "docs: update changelog for ${plannedVersion}"`, dryRun);
 }

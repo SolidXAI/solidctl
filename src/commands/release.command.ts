@@ -1163,6 +1163,12 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       exec(`git checkout ${mainBranch}`, dryRun);
       exec(`git pull origin ${mainBranch}`, dryRun);
     } else {
+      if (!plannedVersion) {
+        throw new Error('Cannot determine planned version for pre-release. Ensure the project has a valid package.json with a version field.');
+      }
+
+      await generateAndCommitChangelog(plannedVersion, enhanceChangelog, dryRun, true);
+
       exec(versionCmd, dryRun);
 
       console.log('Pushing to git (with tags)...');
