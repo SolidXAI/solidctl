@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.48-beta.4] - 2026-07-31
+
+### Added
+
+- enhance runReleaseValidationTestCommand to support progress indication in TTY environments
+
 ## [0.1.48-beta.3] - 2026-07-29
 
 ### Added
