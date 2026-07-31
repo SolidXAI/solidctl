@@ -481,9 +481,14 @@ function runReleaseValidationTestCommand(
   }
 
   return new Promise((resolve) => {
+    const env = {
+      ...process.env,
+      ...(process.stdout.isTTY ? { SOLIDCTL_TEST_PROGRESS: '1' } : {}),
+    };
+
     const child = spawn(command, {
       cwd,
-      env: process.env,
+      env,
       shell: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
