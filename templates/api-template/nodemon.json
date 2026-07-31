@@ -6,6 +6,8 @@
     "ignore": [
         "src/**/*.spec.ts",
         "src/**/migrations/**",
+        "src/**/metadata/**/*.json",
+        "src/typeorm-*-datasource.ts",
         "dist",
         "node_modules"
     ],

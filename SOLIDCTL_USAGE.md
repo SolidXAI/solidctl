@@ -18,7 +18,7 @@ Builds the Solid API, sets up a `solid` shim in `~/.solidctl/bin`, and makes the
 Usage:
 
 ```bash
-npx @solidxai/solidctl build
+solidctl build
 ```
 
 Example workflow:
@@ -40,7 +40,7 @@ Upgrades Solid dependencies used by both `solid-api` and `solid-ui`.
 Usage:
 
 ```bash
-npx @solidxai/solidctl upgrade [--dry-run]
+solidctl upgrade [--dry-run]
 ```
 
 Examples:
@@ -81,7 +81,7 @@ Required environment variables:
 Usage:
 
 ```bash
-npx @solidxai/solidctl local-upgrade [--core] [--ui] [--code-builder]
+solidctl local-upgrade [--core] [--ui] [--code-builder]
 ```
 
 Examples:
@@ -91,16 +91,16 @@ Examples:
 export SOLID_CORE_MODULE_PATH=~/code/solid-core
 export SOLID_UI_PATH=~/code/solid-ui
 export SOLID_CODE_BUILDER_PATH=~/code/solid-code-builder
-npx @solidxai/solidctl local-upgrade
+solidctl local-upgrade
 
 # upgrade only solid-core
-npx @solidxai/solidctl local-upgrade --core
+solidctl local-upgrade --core
 
 # upgrade only solid-ui
-npx @solidxai/solidctl local-upgrade --ui
+solidctl local-upgrade --ui
 
 # upgrade only solid-code-builder
-npx @solidxai/solidctl local-upgrade --code-builder
+solidctl local-upgrade --code-builder
 ```
 
 Notes:
@@ -117,7 +117,7 @@ Bootstraps SolidX metadata, settings, and the system user by running the `solid`
 Usage:
 
 ```bash
-npx @solidxai/solidctl seed [-s|--seeder <seeder-name>] [-c|--conf <json-string>]
+solidctl seed [-s|--seeder <seeder-name>] [-c|--conf <json-string>]
 ```
 
 Options:
@@ -145,7 +145,7 @@ Runs both consuming-project dev servers in one supervised terminal session.
 Usage:
 
 ```bash
-npx @solidxai/solidctl start:dev [--controls]
+solidctl start:dev [--controls]
 ```
 
 What it runs:
@@ -177,9 +177,9 @@ Runs datasource-specific TypeORM migrations from the SolidX project root.
 Usage:
 
 ```bash
-npx @solidxai/solidctl migration -d <datasource> -m <module> generate <MigrationName>
-npx @solidxai/solidctl migration -d <datasource> run
-npx @solidxai/solidctl migration -d <datasource> revert
+solidctl migration -d <datasource> -m <module> generate <MigrationName>
+solidctl migration -d <datasource> run
+solidctl migration -d <datasource> revert
 ```
 
 Examples:
@@ -197,6 +197,49 @@ Notes:
 - `-m, --module` is required only for `generate`.
 - Generated files are written under `solid-api/src/<module>/migrations/<datasource>/`.
 - `run` and `revert` execute against the full datasource configuration, so they apply to all module migration folders wired into that datasource.
+
+---
+
+### 7) mcp install
+
+Installs the SolidX MCP server into all supported AI coding agents on your machine (Claude Code, Cursor, Codex, Claude Desktop) across macOS, Linux, and Windows. Idempotent; backs up any config file it overwrites.
+
+Usage:
+
+```bash
+solidctl mcp install [options]
+```
+
+Options:
+
+- `--project <name>` Consuming project name (kebab-case). Default: derived from cwd basename when cwd is a SolidX project root.
+- `--api-key <key>` Override the API key read from `~/.solidx/<project>/mcp.json` (must start with `sldx_`).
+- `--url <url>` MCP server URL (default: `http://localhost:9000/mcp`).
+- `--name <server>` Override the generated entry name (default: `solidx-<project>-mcp`).
+- `--agents <list>` Comma-separated subset: `claude-code,cursor,codex,claude-desktop`. Default: all detected agents.
+- `--dry-run` Print planned changes, touch nothing.
+- `--force` Re-write even when an identical entry already exists.
+
+Examples:
+
+```bash
+# from inside a SolidX project root — uses the project's key
+solidctl mcp install
+
+# explicit project name + url + agent subset
+solidctl mcp install --project new-todo-app --url http://localhost:9000/mcp --agents cursor,codex
+
+# preview changes only
+solidctl mcp install --dry-run
+```
+
+Notes:
+
+- The API key is read from `~/.solidx/<project>/mcp.json` (written by `solidctl create-app`). Missing keys fail fast with a pointer to run `create-app` first.
+- Entries are named `solidx-<project>-mcp` so multiple SolidX projects can coexist in one agent config.
+- Prefer each agent's official CLI (`claude mcp`, `cursor mcp`, `codex mcp`) when available; falls back to surgical config-file edits otherwise.
+- Claude Desktop is configured via a stdio bridge using `npx -y mcp-remote`; on Windows the entry wraps `npx` in `cmd /c`.
+- The MCP server itself must be started separately via `solidctl mcp start`.
 
 ---
 

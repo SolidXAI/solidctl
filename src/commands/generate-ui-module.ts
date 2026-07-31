@@ -1,10 +1,9 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { kebabCase } from 'lodash';
-import { getTemplatesPath } from './create-app/helpers';
+import { getTemplatesPath, SOURCE_TEMPLATE_FOLDER_UI_MODULE } from './create-app/helpers';
 
 const UI_SRC_RELATIVE = path.join('solid-ui', 'src');
-const UI_MODULE_TEMPLATE = 'ui-module-template';
 const MODULE_PLACEHOLDER = '__module-name__';
 
 export function extractModuleNameFromArgs(args: string[]): string | undefined {
@@ -32,7 +31,7 @@ export function generateSolidUiModule(projectRoot: string, moduleFolderName: str
     return;
   }
 
-  const templateDir = path.join(getTemplatesPath(), UI_MODULE_TEMPLATE);
+  const templateDir = path.join(getTemplatesPath(), SOURCE_TEMPLATE_FOLDER_UI_MODULE);
   const templateFiles = fs.readdirSync(templateDir);
 
   for (const templateFile of templateFiles) {

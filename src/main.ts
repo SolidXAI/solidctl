@@ -19,6 +19,7 @@ import { registerMcpCommand } from './commands/mcp.command';
 import { registerAgentCommand } from './commands/agent.command';
 import { registerMigrationCommand } from './commands/migration.command';
 import { registerStartCommand } from './commands/start.command';
+import { registerModuleCommand } from './commands/module.command';
 
 function getCliVersion(): string {
   const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -41,6 +42,12 @@ async function bootstrap() {
 
   const program = new Command();
 
+  // Ensure options appearing after a subcommand name belong to that subcommand,
+  // not the root program. Without this, the root program's `--version` would
+  // intercept `solidctl agent --version` / `solidctl mcp --version` and print
+  // the CLI version instead of letting the subcommand handle it.
+  program.enablePositionalOptions();
+
   program
     .name('solidctl')
     .description('Solidctl tool')
@@ -60,6 +67,7 @@ async function bootstrap() {
   registerMcpCommand(program);
   registerAgentCommand(program);
   registerStartCommand(program);
+  registerModuleCommand(program);
 
   program.hook('preAction', async () => {
     await checkForUpdates();

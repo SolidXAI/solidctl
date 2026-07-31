@@ -1,5 +1,83 @@
 # Changelog
 
+## [0.1.48-beta.3] - 2026-07-29
+
+### Added
+
+- update release project resolution to include core modules
+
+### Other
+
+- add_changelog_for_prerelease
+
+## [0.1.47] - 2026-07-09
+
+### Fixed
+
+- include SOURCE_TEMPLATE_FOLDER_UI_MODULE in exclude template paths to avoid copying it in the final output
+
+## [0.1.46] - 2026-07-09
+
+### Added
+
+- orchestrator + `solidctl mcp install` registration
+- Claude Code installer (CLI-first, JSON fallback)
+- Codex installer (CLI hybrid + surgical TOML edit)
+- Cursor installer (CLI-first, JSON file fallback)
+- Claude Desktop installer (OS-branched stdio bridge)
+- per-OS config paths, commandExists, backupFile
+- shared types and agent-list parsing
+
+### Fixed
+
+- add missing datasource file pattern to nodemon ignore list
+
+### Changed
+
+- detect solidx version and tag and accordingly install the corresponding depdency tags
+
+### Documentation
+
+- document `solidctl mcp install`
+
+### Maintenance
+
+- update package.json to add @codemirror/view dependency Changes to handle bootsrap even if synchronize flag is set to no Ticket: synchronize question changes
+
+### Other
+
+- removed embedded db option
+- Add dev port validation for create-app and start commands.
+- Detect Cursor Desktop independently of mcp.json existence
+- changes to ask for upgrades only if it is an interactive session otherwise for non interactive session, keep upgrade as false
+- added a generate ui-module sub-command only used by embedded db
+- Add database verification logic to create-app command Ticket description: Create solid app database issue
+- Extract MCP launch logic and integrate MCP into start supervisor
+- remove comments
+- added postinstall post upgrading ui, to ensure themes are copied properly
+- added metadata folder to nodemon ignore path
+- version check added before verifying project root
+- added agent and mcp auto version check and update feature
+- added version check for agent and mcp sub commands
+- move code from generation to migration file
+- restricted db pool again to 1 for embedded db as it was causing "unnamed prepared statement does not exist" error
+- add new command and make url encoded
+
+## [0.1.45] - 2026-06-24
+
+### Added
+
+- enhance StartSupervisor to support selective service supervision
+- implement force kill mechanism for child processes in StartSupervisor
+
+### Fixed
+
+- update isInteractive logic and enhance controls option description
+
+### Other
+
+- revert setting db pool max to 1 for embedded DB
+
 ## [0.1.43] - 2026-06-22
 
 ### Added
