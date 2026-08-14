@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.48-beta.5] - 2026-08-14
+
+### Other
+
+- getting rid of this from solidctl since chromium now gets installed during first ui test run lazily instead
+- removed redis-store since it is not being used in solid-core now. backwards compatible safe, since this dependency was already present in solid-core so it should be provided transitively anyways
+
 ## [0.1.48-beta.4] - 2026-07-31
 
 ### Added
