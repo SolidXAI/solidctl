@@ -51,9 +51,19 @@ function getPreviousStableTag(): string | undefined {
   }
 }
 
-function getCommitsSinceTag(tag: string): string[] {
+function getLatestTag(): string | undefined {
   try {
-    const raw = capture(`git log ${tag}..HEAD --format="%s" --no-merges`);
+    const tag = capture('git tag --sort=-version:refname | head -1');
+    return tag || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getCommitsSinceTag(tag?: string): string[] {
+  try {
+    const range = tag ? `${tag}..HEAD` : 'HEAD';
+    const raw = capture(`git log ${range} --format="%s" --no-merges`);
     return raw
       .split('\n')
       .map((l) => l.trim())
@@ -143,16 +153,17 @@ function writeChangelog(entry: string, changelogPath: string): void {
   }
 }
 
-export async function generateAndCommitChangelog(
+export function generateChangelog(
   plannedVersion: string,
   enhanceChangelog: boolean,
   dryRun: boolean,
-): Promise<void> {
+  isPrerelease = false,
+): void {
   const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
   const today = new Date().toISOString().slice(0, 10);
 
-  const prevTag = getPreviousStableTag();
-  const commits = prevTag ? getCommitsSinceTag(prevTag) : [];
+  const prevTag = isPrerelease ? getLatestTag() : getPreviousStableTag();
+  const commits = getCommitsSinceTag(prevTag);
   console.log(`Generating changelog (${commits.length} commits since ${prevTag ?? 'beginning'})...`);
 
   const groups = groupCommits(commits);
@@ -168,7 +179,32 @@ export async function generateAndCommitChangelog(
   } else {
     writeChangelog(entry, changelogPath);
   }
+}
 
+export async function generateAndCommitChangelog(
+  plannedVersion: string,
+  enhanceChangelog: boolean,
+  dryRun: boolean,
+  isPrerelease = false,
+): Promise<void> {
+  generateChangelog(plannedVersion, enhanceChangelog, dryRun, isPrerelease);
   run('git add CHANGELOG.md', dryRun);
   run(`git commit -m "docs: update changelog for ${plannedVersion}"`, dryRun);
+}
+
+export function getChangelogEntry(projectRoot: string, version: string): string {
+  const changelogPath = path.join(projectRoot, 'CHANGELOG.md');
+  if (!fs.existsSync(changelogPath)) {
+    throw new Error(`CHANGELOG.md does not exist at ${projectRoot}`);
+  }
+
+  const changelog = fs.readFileSync(changelogPath, 'utf-8');
+  const heading = `## [${version}]`;
+  const start = changelog.indexOf(heading);
+  if (start === -1) {
+    throw new Error(`CHANGELOG.md does not contain an entry for ${version}.`);
+  }
+
+  const nextEntry = changelog.indexOf('\n## [', start + heading.length);
+  return changelog.slice(start, nextEntry === -1 ? undefined : nextEntry).trim();
 }

@@ -18,7 +18,7 @@ Builds the Solid API, sets up a `solid` shim in `~/.solidctl/bin`, and makes the
 Usage:
 
 ```bash
-npx @solidxai/solidctl build
+solidctl build
 ```
 
 Example workflow:
@@ -40,7 +40,7 @@ Upgrades Solid dependencies used by both `solid-api` and `solid-ui`.
 Usage:
 
 ```bash
-npx @solidxai/solidctl upgrade [--dry-run]
+solidctl upgrade [--dry-run]
 ```
 
 Examples:
@@ -81,7 +81,7 @@ Required environment variables:
 Usage:
 
 ```bash
-npx @solidxai/solidctl local-upgrade [--core] [--ui] [--code-builder]
+solidctl local-upgrade [--core] [--ui] [--code-builder]
 ```
 
 Examples:
@@ -91,16 +91,16 @@ Examples:
 export SOLID_CORE_MODULE_PATH=~/code/solid-core
 export SOLID_UI_PATH=~/code/solid-ui
 export SOLID_CODE_BUILDER_PATH=~/code/solid-code-builder
-npx @solidxai/solidctl local-upgrade
+solidctl local-upgrade
 
 # upgrade only solid-core
-npx @solidxai/solidctl local-upgrade --core
+solidctl local-upgrade --core
 
 # upgrade only solid-ui
-npx @solidxai/solidctl local-upgrade --ui
+solidctl local-upgrade --ui
 
 # upgrade only solid-code-builder
-npx @solidxai/solidctl local-upgrade --code-builder
+solidctl local-upgrade --code-builder
 ```
 
 Notes:
@@ -117,7 +117,7 @@ Bootstraps SolidX metadata, settings, and the system user by running the `solid`
 Usage:
 
 ```bash
-npx @solidxai/solidctl seed [-s|--seeder <seeder-name>] [-c|--conf <json-string>]
+solidctl seed [-s|--seeder <seeder-name>] [-c|--conf <json-string>]
 ```
 
 Options:
@@ -145,7 +145,7 @@ Runs both consuming-project dev servers in one supervised terminal session.
 Usage:
 
 ```bash
-npx @solidxai/solidctl start:dev [--controls]
+solidctl start:dev [--controls]
 ```
 
 What it runs:
@@ -177,9 +177,9 @@ Runs datasource-specific TypeORM migrations from the SolidX project root.
 Usage:
 
 ```bash
-npx @solidxai/solidctl migration -d <datasource> -m <module> generate <MigrationName>
-npx @solidxai/solidctl migration -d <datasource> run
-npx @solidxai/solidctl migration -d <datasource> revert
+solidctl migration -d <datasource> -m <module> generate <MigrationName>
+solidctl migration -d <datasource> run
+solidctl migration -d <datasource> revert
 ```
 
 Examples:
@@ -207,7 +207,7 @@ Installs the SolidX MCP server into all supported AI coding agents on your machi
 Usage:
 
 ```bash
-npx @solidxai/solidctl mcp install [options]
+solidctl mcp install [options]
 ```
 
 Options:
