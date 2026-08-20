@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.48] - 2026-08-20
+
+### Added
+
+- enhance runReleaseValidationTestCommand to support progress indication in TTY environments
+- update release project resolution to include core modules
+- added release support for solidx modules
+
+### Other
+
+- getting rid of this from solidctl since chromium now gets installed during first ui test run lazily instead
+- removed redis-store since it is not being used in solid-core now. backwards compatible safe, since this dependency was already present in solid-core so it should be provided transitively anyways
+- add_changelog_for_prerelease
+- changed references in solidctl
+
 ## [0.1.48-beta.5] - 2026-08-14
 
 ### Other
