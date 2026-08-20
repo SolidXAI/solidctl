@@ -7,6 +7,19 @@ import os from 'os';
 import path from 'path';
 import { generateAndCommitChangelog } from './release-changelog';
 import {
+  assertCleanWorkingTree,
+  assertRefIsReleasable,
+  assertReleaseTreeMatchesRef,
+  confirmOrExit,
+  finishStrandedRelease,
+  planNextVersion,
+  printExcludedCommits,
+  readVersionAtRef,
+  resolveFromRef,
+  resolveReverseMergeConflict,
+  resolveToSha,
+} from './release-helper';
+import {
   loadSolidModulePublishConfig,
   SolidModulePublishConfig,
 } from '../module-package';
@@ -33,7 +46,10 @@ interface PublishOptions {
   mainBranch?: string;
   devBranch?: string;
   enhanceChangelog?: boolean;
+  from?: string;
+  fromDev?: boolean;
 }
+
 
 const DEFAULT_CONFIG: PublishConfig = {
   mainBranch: 'main',
@@ -385,18 +401,40 @@ function resolveReleaseValidationTargets(projectRoot: string): ReleaseValidation
   };
 }
 
-function getExpectedVersion(project: ResolvedReleaseProject, versionType: string, preid?: string): string | undefined {
+function getCurrentVersion(project: ResolvedReleaseProject, fromSha?: string): string | undefined {
   if (!project.versionSourcePath) {
     return undefined;
   }
 
-  const packageJson = readRequiredPackageJson(project.versionSourcePath);
-  if (!packageJson.version) {
-    console.error(`package.json is missing a version at ${project.versionSourcePath}`);
+  // With --from the release branch is cut from somewhere other than HEAD, so the
+  // version must come from that ref rather than from the working tree. Reading via
+  // git also keeps --dry-run honest, since the checkout never happens there.
+  const version = fromSha
+    ? readVersionAtRef(fromSha, project.versionSourcePath)
+    : readRequiredPackageJson(project.versionSourcePath).version;
+
+  if (!version) {
+    const location = fromSha ? `${fromSha}:${project.versionSourcePath}` : project.versionSourcePath;
+    console.error(`package.json is missing a version at ${location}`);
     process.exit(1);
   }
 
-  return planNextVersion(packageJson.version, versionType, preid);
+  return version;
+}
+
+function getExpectedVersion(
+  project: ResolvedReleaseProject,
+  versionType: string,
+  preid?: string,
+  fromSha?: string,
+): string | undefined {
+  const currentVersion = getCurrentVersion(project, fromSha);
+
+  if (!currentVersion) {
+    return undefined;
+  }
+
+  return planNextVersion(currentVersion, versionType, preid);
 }
 
 function shouldRunLocalReleaseValidation(project: ResolvedReleaseProject): boolean {
@@ -953,96 +991,6 @@ function getVersionCommand(versionType: string, preid?: string): string {
   return `npm version ${versionType}`;
 }
 
-interface ParsedVersion {
-  major: number;
-  minor: number;
-  patch: number;
-  prereleaseId?: string;
-  prereleaseNumber?: number;
-}
-
-function parseVersion(version: string): ParsedVersion {
-  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+)\.(\d+))?$/);
-
-  if (!match) {
-    throw new Error(`Unsupported version format: ${version}`);
-  }
-
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-    prereleaseId: match[4],
-    prereleaseNumber: match[5] === undefined ? undefined : Number(match[5]),
-  };
-}
-
-function formatVersion(parsed: ParsedVersion): string {
-  const base = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
-
-  if (parsed.prereleaseId === undefined || parsed.prereleaseNumber === undefined) {
-    return base;
-  }
-
-  return `${base}-${parsed.prereleaseId}.${parsed.prereleaseNumber}`;
-}
-
-function planNextVersion(currentVersion: string, versionType: string, preid?: string): string {
-  const parsed = parseVersion(currentVersion);
-
-  if (!preid) {
-    if (versionType === 'minor') {
-      return formatVersion({ major: parsed.major, minor: parsed.minor + 1, patch: 0 });
-    }
-    if (versionType === 'major') {
-      return formatVersion({ major: parsed.major + 1, minor: 0, patch: 0 });
-    }
-    // patch on a prerelease promotes to stable without incrementing (matches npm version behaviour)
-    if (parsed.prereleaseId) {
-      return formatVersion({ major: parsed.major, minor: parsed.minor, patch: parsed.patch });
-    }
-    return formatVersion({ major: parsed.major, minor: parsed.minor, patch: parsed.patch + 1 });
-  }
-
-  if (versionType === 'minor' || versionType === 'preminor') {
-    return formatVersion({
-      major: parsed.major,
-      minor: parsed.minor + 1,
-      patch: 0,
-      prereleaseId: preid,
-      prereleaseNumber: 0,
-    });
-  }
-
-  if (versionType === 'major' || versionType === 'premajor') {
-    return formatVersion({
-      major: parsed.major + 1,
-      minor: 0,
-      patch: 0,
-      prereleaseId: preid,
-      prereleaseNumber: 0,
-    });
-  }
-
-  if (parsed.prereleaseId) {
-    return formatVersion({
-      major: parsed.major,
-      minor: parsed.minor,
-      patch: parsed.patch,
-      prereleaseId: preid,
-      prereleaseNumber: parsed.prereleaseId === preid ? (parsed.prereleaseNumber ?? 0) + 1 : 0,
-    });
-  }
-
-  return formatVersion({
-    major: parsed.major,
-    minor: parsed.minor,
-    patch: parsed.patch + 1,
-    prereleaseId: preid,
-    prereleaseNumber: 0,
-  });
-}
-
 function getMovingDockerTag(preid?: string): string {
   if (preid) {
     return preid;
@@ -1089,7 +1037,28 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
   try {
     console.log(`Release started at: ${formatTimestamp(releaseStartedAt)}`);
     const currentBranch = validateReleaseBranch(preid, mainBranch, devBranch, force);
-    const plannedVersion = getExpectedVersion(project, versionType, preid);
+
+    const fromRef = resolveFromRef(options.from, options.fromDev, preid, devBranch);
+    let fromSha: string | undefined;
+
+    if (fromRef) {
+      assertCleanWorkingTree();
+
+      exec('git fetch --tags --force', dryRun);
+
+      fromSha = resolveToSha(fromRef);
+
+      console.log(`Releasing from ${fromRef} (${fromSha.slice(0, 9)})`);
+      assertRefIsReleasable(fromRef, fromSha, devBranch);
+
+      const excludedCount = printExcludedCommits(fromRef, fromSha, devBranch);
+      if (excludedCount > 0) {
+        await confirmOrExit(`Release from ${fromRef}, leaving those ${excludedCount} commit(s) for a later release?`);
+      }
+    }
+
+    const fromVersion = getCurrentVersion(project, fromSha);
+    const plannedVersion = getExpectedVersion(project, versionType, preid, fromSha);
 
     if (dryRun) {
       console.log('Dry run mode - no changes will be made\n');
@@ -1142,7 +1111,7 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
       }
 
       console.log(`Creating release branch: ${releaseBranch}...`);
-      exec(`git checkout -b ${releaseBranch}`, dryRun);
+      exec(`git checkout -b ${releaseBranch}${fromSha ? ` ${fromSha}` : ''}`, dryRun);
 
       await generateAndCommitChangelog(plannedVersion, enhanceChangelog, dryRun);
 
@@ -1150,6 +1119,11 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
 
       console.log('Pushing release branch (with tags)...');
       exec(`git push --follow-tags origin ${releaseBranch}`, dryRun);
+
+      if (fromRef && fromSha) {
+        // Last gate before an irreversible publish: npm never lets a version be replaced.
+        assertReleaseTreeMatchesRef(fromRef, fromSha, dryRun);
+      }
 
       console.log('Publishing package...');
       exec('npm publish', dryRun);
@@ -1199,9 +1173,32 @@ async function runSharedReleaseFlow(versionType: string, options: PublishOptions
         exec(`git push origin ${devBranch}`, dryRun);
         console.log(`Successfully merged ${mainBranch} into ${devBranch}\n`);
       } catch {
-        console.error('\nMerge conflict detected. Please resolve manually.');
-        console.error(`   You are now on the ${devBranch} branch.`);
-        process.exit(1);
+        if (!plannedVersion || !resolveReverseMergeConflict(mainBranch, plannedVersion, dryRun)) {
+          console.error('\nMerge conflict detected. Please resolve manually.');
+          console.error(`   You are now on the ${devBranch} branch.`);
+          process.exit(1);
+        }
+
+        exec(`git push origin ${devBranch}`, dryRun);
+        console.log(`Successfully merged ${mainBranch} into ${devBranch}\n`);
+      }
+
+      if (plannedVersion && fromVersion && project.packageName) {
+        await finishStrandedRelease({
+          packageName: project.packageName,
+          stableVersion: plannedVersion,
+          fromVersion,
+          devBranch,
+          dryRun,
+          // Injected rather than imported, so release-from does not depend back on
+          // this module. Runs on dev, which is where the reverse merge left us.
+          rollDevForward: () =>
+            runSharedReleaseFlow(
+              'patch',
+              { ...options, from: undefined, fromDev: false, preid: 'beta', skipTests: true },
+              project,
+            ),
+        });
       }
 
       exec(`git checkout ${mainBranch}`, dryRun);
@@ -1328,6 +1325,8 @@ export function registerReleaseCommand(program: Command) {
     .option('--skip-tests', 'Skip local release validation tests')
     .option('--tests-only', 'Run only the local release validation workflow and stop before publishing')
     .option('--no-merge', 'Skip reverse merge to dev after stable release')
+    .option('--from <ref>', 'Cut the release branch from <ref> (branch, tag or SHA) instead of HEAD. Stable releases only')
+    .option('--from-dev', 'Shorthand for --from <dev branch>')
     .option('--main-branch <name>', 'Override main branch name')
     .option('--dev-branch <name>', 'Override dev branch name')
     .option('--enhance-changelog', 'Enhance the generated changelog using an AI CLI (set via $SOLIDCTL_AI_CMD)')
@@ -1344,6 +1343,16 @@ Examples:
     $ solidctl release minor --preid=alpha     # from dev: 0.0.12 → 0.1.0-alpha.0
     $ solidctl release --preid=beta            # from dev: 0.0.13-alpha.1 → 0.0.13-beta.0
     $ solidctl release --preid=rc              # from dev: 0.0.13-beta.1 → 0.0.13-rc.0
+
+  Promoting dev code to a stable release (run from the main branch):
+    $ solidctl release --from-dev              # cut the stable from the tip of dev
+    $ solidctl release --from v0.1.13-beta.21  # cut the stable from a specific tested tag
+
+    --from cuts the release branch from that ref instead of HEAD, verifies the
+    published tree is identical to it, and resolves the reverse-merge conflict that
+    follows. When the release strands published pre-releases (anything newer than the
+    ref), dev is moved onto a fresh pre-release line and the stranded versions are
+    deprecated. Not valid with --preid.
 
   Options:
     $ solidctl release --dry-run    # Preview without making changes

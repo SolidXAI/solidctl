@@ -135,7 +135,7 @@ function enhanceWithAi(draft: string, version: string): string {
   return result.stdout.trim();
 }
 
-function writeChangelog(entry: string, changelogPath: string): void {
+export function writeChangelog(entry: string, changelogPath: string): void {
   if (!fs.existsSync(changelogPath)) {
     fs.writeFileSync(changelogPath, `# Changelog\n\n${entry}\n`, 'utf-8');
     return;
@@ -192,19 +192,27 @@ export async function generateAndCommitChangelog(
   run(`git commit -m "docs: update changelog for ${plannedVersion}"`, dryRun);
 }
 
+export function extractEntry(changelog: string, version: string): string | undefined {
+  const heading = `## [${version}]`;
+  const start = changelog.indexOf(heading);
+  if (start === -1) {
+    return undefined;
+  }
+
+  const nextEntry = changelog.indexOf('\n## [', start + heading.length);
+  return changelog.slice(start, nextEntry === -1 ? undefined : nextEntry).trim();
+}
+
 export function getChangelogEntry(projectRoot: string, version: string): string {
   const changelogPath = path.join(projectRoot, 'CHANGELOG.md');
   if (!fs.existsSync(changelogPath)) {
     throw new Error(`CHANGELOG.md does not exist at ${projectRoot}`);
   }
 
-  const changelog = fs.readFileSync(changelogPath, 'utf-8');
-  const heading = `## [${version}]`;
-  const start = changelog.indexOf(heading);
-  if (start === -1) {
+  const entry = extractEntry(fs.readFileSync(changelogPath, 'utf-8'), version);
+  if (entry === undefined) {
     throw new Error(`CHANGELOG.md does not contain an entry for ${version}.`);
   }
 
-  const nextEntry = changelog.indexOf('\n## [', start + heading.length);
-  return changelog.slice(start, nextEntry === -1 ? undefined : nextEntry).trim();
+  return entry;
 }
