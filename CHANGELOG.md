@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.50-beta.0] - 2026-08-25
+
+### Changed
+
+- simplify migration command options and remove unused functionality
+
+### Other
+
+- changes to release command to support --from <version> and --from-dev to release main from a particular beta version of dev or latest on dev
+
 ## [0.1.49] - 2026-08-20
 
 ## [0.1.48] - 2026-08-20
