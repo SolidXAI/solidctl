@@ -17,6 +17,7 @@ export const SOURCE_TEMPLATE_FOLDER_UI = 'ui-template';
 export const SOURCE_TEMPLATE_FOLDER_UI_MODULE = 'ui-module-template';
 export const TARGET_FOLDER_API = 'solid-api';
 export const TARGET_FOLDER_UI = 'solid-ui';
+export const CORE_MODULE_ICON_FILE = 'solid-core-menu-icon.png';
 export const EXCLUDED_DIRS_FOR_INITIAL_COPY = [
   SOURCE_TEMPLATE_FOLDER_API,
   SOURCE_TEMPLATE_FOLDER_UI,
@@ -32,6 +33,34 @@ export function getTemplatesPath(): string {
     throw new Error(error);
   }
   return templatesPath;
+}
+
+/**
+ * Install the default Core Module icon into an application's API storage.
+ * Existing files are preserved so custom or previously provisioned assets are
+ * never overwritten.
+ */
+export function backfillCoreModuleIcon(projectRoot = process.cwd()): boolean {
+  const sourcePath = path.join(
+    getTemplatesPath(),
+    SOURCE_TEMPLATE_FOLDER_API,
+    'media-files-storage',
+    CORE_MODULE_ICON_FILE,
+  );
+  const targetDirectory = path.join(projectRoot, TARGET_FOLDER_API, 'media-files-storage');
+  const targetPath = path.join(targetDirectory, CORE_MODULE_ICON_FILE);
+
+  if (fs.existsSync(targetPath)) {
+    return false;
+  }
+
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(`Core Module icon template not found at ${sourcePath}`);
+  }
+
+  fs.ensureDirSync(targetDirectory);
+  fs.copyFileSync(sourcePath, targetPath);
+  return true;
 }
 
 export async function copyAndInstallTemplate(

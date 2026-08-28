@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { execSync } from 'child_process';
 import { validateProjectRoot } from '../helper';
+import { backfillCoreModuleIcon } from './create-app/helpers';
 
 type UpgradeCommandStep = {
   label: string;
@@ -104,6 +105,19 @@ Examples:
           });
         } catch {
           console.warn(`\n⚠️  Skipped: ${label} (package or tag not found)`);
+        }
+      }
+
+      if (!options.dryRun && doCore) {
+        try {
+          const installed = backfillCoreModuleIcon();
+          console.log(
+            installed
+              ? '\n▶ Installed default Core Module icon in solid-api/media-files-storage'
+              : '\n▶ Core Module icon already exists; left it unchanged',
+          );
+        } catch (error) {
+          console.warn(`\n⚠️  Core Module icon backfill skipped: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
