@@ -22,7 +22,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "postinstall": "copyfiles -f \"node_modules/@solidxai/core/media-files-storage/solid-core-menu-icon.png\" media-files-storage",
+    "sync-core-module-assets": "copyfiles -f \"node_modules/@solidxai/core/dist/media-files-storage/**/*\" media-files-storage",
+    "postinstall": "npm run sync-core-module-assets",
     "solidx:dev": "NODE_OPTIONS=--no-deprecation nodemon"
   },
   "dependencies": {
