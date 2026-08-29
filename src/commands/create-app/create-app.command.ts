@@ -30,7 +30,6 @@ import {
   SOURCE_TEMPLATE_FOLDER_UI,
   TARGET_FOLDER_API,
   TARGET_FOLDER_UI,
-  syncCoreModuleIcon,
   updatePackageName,
   updatePortInPackageJson,
   updateSolidxPackageVersions,
@@ -226,7 +225,6 @@ export function registerCreateAppCommand(program: Command) {
           showLogs,
           stepOutput('Step 1: Setting up boilerplate for the backend...'),
         );
-        syncCoreModuleIcon(targetPath);
         spinner.succeed('Step 1: Backend boilerplate ready');
 
         // Step 2: Copy and install frontend
