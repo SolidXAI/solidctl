@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.50-beta.1] - 2026-08-31
+
+### Added
+
+- add core module icon provisioning and sync functionality
+
+### Fixed
+
+- update sync-core-module-assets script to include all resource files
+- update sync-core-module-assets script to reference correct image path
+- update postinstall script to sync all core module assets
+
+### Changed
+
+- remove syncCoreModuleIcon function and related references; add postinstall script for core module icon
+
 ## [0.1.50-beta.0] - 2026-08-25
 
 ### Changed
