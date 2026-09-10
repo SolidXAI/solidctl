@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.50-beta.2] - 2026-09-10
+
+### Fixed
+
+- update description for start command to include MCP processes
+
 ## [0.1.50-beta.1] - 2026-08-31
 
 ### Added
