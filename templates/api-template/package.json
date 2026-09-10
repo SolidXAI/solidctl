@@ -22,6 +22,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "sync-core-module-assets": "copyfiles -f \"node_modules/@solidxai/core/dist/resources/**/*\" media-files-storage",
+    "postinstall": "npm run sync-core-module-assets",
     "solidx:dev": "NODE_OPTIONS=--no-deprecation nodemon"
   },
   "dependencies": {
@@ -87,6 +89,7 @@
     "@types/mongoose": "^5.11.97",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.3.1",
+    "copyfiles": "^2.4.1",
     "@types/nodemailer": "^6.4.15",
     "@types/passport-google-oauth2": "^0.1.8",
     "@types/passport-jwt": "^4.0.1",
