@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.50] - 2026-09-17
+
+### Added
+
+- add core module icon provisioning and sync functionality
+
+### Fixed
+
+- update description for start command to include MCP processes
+- update sync-core-module-assets script to include all resource files
+- update sync-core-module-assets script to reference correct image path
+- update postinstall script to sync all core module assets
+
+### Changed
+
+- remove syncCoreModuleIcon function and related references; add postinstall script for core module icon
+- simplify migration command options and remove unused functionality
+
+### Other
+
+- changes to release command to support --from <version> and --from-dev to release main from a particular beta version of dev or latest on dev
+
 ## [0.1.50-beta.8] - 2026-09-10
 
 ## [0.1.50-beta.7] - 2026-09-10
