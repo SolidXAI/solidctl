@@ -128,6 +128,59 @@ function ensureGlobalSolid(shimFiles: any, shimDir: string) {
  * 4. ~/.solidctl/bin/solid-shim.js uses ~/.solidctl/solid-current to point directly to <consuming-project-root>/solid-api/dist/main-cli.js
  * @param program
  */
+/**
+ * Build the project and install the `solid` CLI shim.
+ *
+ * Exported so other commands (e.g. `solidctl setup`) can run the same steps
+ * in-process instead of shelling out to `solidctl build`, which would require
+ * solidctl to be on PATH.
+ */
+export function runBuild(projectRoot: string, options: { uiOnly?: boolean } = {}) {
+  if (options.uiOnly) {
+    const solidUiDir = path.join(projectRoot, 'solid-ui');
+    if (!fs.existsSync(solidUiDir)) {
+      throw new Error(`Required folder not found: ${solidUiDir}`);
+    }
+
+    console.log('▶ Building solid-ui');
+    exec('npm run build', solidUiDir);
+    return;
+  }
+
+  console.log('▶ Building solid-api');
+  exec('npm run build', `${projectRoot}/solid-api`);
+
+  console.log('▶ Ensuring CLI files are executable');
+  const mainCli = path.join(projectRoot, 'solid-api', 'dist', 'main-cli.js');
+  chmodIfExists(mainCli);
+
+  console.log('▶ Updating solid CLI shim');
+  const shimFiles = ensureSolidShim(mainCli);
+
+  console.log('▶ Linking solid CLI for global use');
+  const linkResult = ensureGlobalSolid(shimFiles, shimFiles.solidctlBinDir);
+  if (!linkResult.linked) {
+    console.warn(`⚠️  Add ${shimFiles.solidctlBinDir} to PATH to use "solid" globally.`);
+  }
+
+  console.log('▶ Adding local bin to PATH');
+  process.env.PATH = `${shimFiles.solidctlBinDir}${path.delimiter}${process.env.PATH || ''}`;
+  console.log('▶ Verifying solid CLI availability');
+  const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
+  const result = spawnSync(solidCommand, ['--help'], {
+    stdio: 'ignore',
+    env: process.env,
+    shell: process.platform === 'win32' ? true : false,
+  });
+
+  if (result.error) {
+    console.error('❌ solid CLI not found');
+    process.exit(1);
+  }
+
+  console.log('✔ solid CLI ready');
+}
+
 export function registerBuildCommand(program: Command) {
   program
     .command('build')
@@ -135,50 +188,6 @@ export function registerBuildCommand(program: Command) {
     .option('--ui-only', 'Build only solid-ui and skip solid-api build')
     .action((options: { uiOnly?: boolean }) => {
       validateProjectRoot();
-      const projectRoot = process.cwd();
-
-      if (options.uiOnly) {
-        const solidUiDir = path.join(projectRoot, 'solid-ui');
-        if (!fs.existsSync(solidUiDir)) {
-          throw new Error(`Required folder not found: ${solidUiDir}`);
-        }
-
-        console.log('▶ Building solid-ui');
-        exec('npm run build', solidUiDir);
-        return;
-      }
-
-      console.log('▶ Building solid-api');
-      exec('npm run build', `${projectRoot}/solid-api`);
-
-      console.log('▶ Ensuring CLI files are executable');
-      const mainCli = path.join(projectRoot, 'solid-api', 'dist', 'main-cli.js');
-      chmodIfExists(mainCli);
-
-      console.log('▶ Updating solid CLI shim');
-      const shimFiles = ensureSolidShim(mainCli);
-
-      console.log('▶ Linking solid CLI for global use');
-      const linkResult = ensureGlobalSolid(shimFiles, shimFiles.solidctlBinDir);
-      if (!linkResult.linked) {
-        console.warn(`⚠️  Add ${shimFiles.solidctlBinDir} to PATH to use "solid" globally.`);
-      }
-
-      console.log('▶ Adding local bin to PATH');
-      process.env.PATH = `${shimFiles.solidctlBinDir}${path.delimiter}${process.env.PATH || ''}`;
-      console.log('▶ Verifying solid CLI availability');
-      const solidCommand = process.platform === 'win32' ? 'solid.cmd' : 'solid';
-      const result = spawnSync(solidCommand, ['--help'], {
-        stdio: 'ignore',
-        env: process.env,
-        shell: process.platform === 'win32' ? true : false, 
-      });
-
-      if (result.error) {
-        console.error('❌ solid CLI not found');
-        process.exit(1);
-      }
-
-      console.log('✔ solid CLI ready');
+      runBuild(process.cwd(), options);
     });
 }
