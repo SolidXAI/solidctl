@@ -82,6 +82,36 @@ solidctl create-app [options]
 
 ---
 
+### `setup`
+
+Sets up an **already-bootstrapped** SolidX project you've just cloned — the counterpart to `create-app` for a project that already exists. Infers what it can from the repo (project name, UI port), prompts only for the database connection, then installs, configures, builds, seeds, and starts the project.
+
+```bash
+solidctl setup [options]
+```
+
+| Flag | Description |
+|---|---|
+| `--no-start` | Skip starting the dev servers after setup |
+| `--no-interactive` | Skip all prompts and use defaults (or provided flags) |
+| `--verbose` | Show detailed logs during installation |
+| `--skip-install` | Skip `npm install` for `solid-api` and `solid-ui` |
+| `--skip-build` | Skip the build step |
+| `--skip-seed` | Skip the seed step |
+| `--force-env` | Regenerate `.env` files even if they already exist |
+| `--db-client <client>` | `PostgreSQL`, `MySQL`, or `MSSQL` |
+| `--db-host <host>` | Database host |
+| `--db-port <port>` | Database port |
+| `--db-name <name>` | Database name |
+| `--db-username <username>` | Database username |
+| `--db-password <password>` | Database password |
+
+If `solid-api/.env` already exists, it's left untouched (pass `--force-env` to regenerate). If a `solid-api/.env.example` exists, its non-secret values are carried over and only the gaps (and the database password) are prompted for. Otherwise, only the database connection is prompted for — other project-specific settings (RabbitMQ, OAuth, SMTP, Redis, etc., if the project uses them) aren't known ahead of time and need to be added manually afterward.
+
+> Requires both `solid-api/package.json` and `solid-ui/package.json` to define a `solidx:dev` script. If either is missing (a project that predates that script), setup fails fast and tells you the exact line to add.
+
+---
+
 ### `build`
 
 Builds the NestJS API and sets up the local `solid` CLI shim so subsequent `solidctl` commands that proxy into the API (like `seed`, `generate`, and `test`) work correctly. Run this after project creation and after any changes to `solid-api`.

@@ -20,6 +20,7 @@ import { registerAgentCommand } from './commands/agent.command';
 import { registerMigrationCommand } from './commands/migration.command';
 import { registerStartCommand } from './commands/start.command';
 import { registerModuleCommand } from './commands/module.command';
+import { registerSetupCommand } from './commands/setup/setup.command';
 
 function getCliVersion(): string {
   const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -68,6 +69,7 @@ async function bootstrap() {
   registerAgentCommand(program);
   registerStartCommand(program);
   registerModuleCommand(program);
+  registerSetupCommand(program);
 
   program.hook('preAction', async () => {
     await checkForUpdates();

@@ -11,7 +11,45 @@ This document lists the exact commands exposed by `solidctl` and practical usage
 
 ## Commands
 
-### 1) build
+### 1) setup
+
+Sets up an already-bootstrapped SolidX project you've just cloned: installs dependencies, configures `.env`, verifies/creates the database, builds, seeds, and starts the dev servers — all in one command. This is the counterpart to `create-app` for a project that already exists rather than one being scaffolded from scratch.
+
+Usage:
+
+```bash
+solidctl setup [options]
+```
+
+Options:
+
+- `--no-start` Skip starting the dev servers after setup finishes
+- `--no-interactive` Skip all prompts and use defaults / flags
+- `--verbose` Show detailed `npm install` logs
+- `--skip-install` / `--skip-build` / `--skip-seed` Skip that step
+- `--force-env` Regenerate `.env` files even if they already exist
+- `--db-client <client>`, `--db-host <host>`, `--db-port <port>`, `--db-name <name>`, `--db-username <username>`, `--db-password <password>`
+
+Examples:
+
+```bash
+# from a freshly cloned SolidX project
+solidctl setup
+
+# non-interactive, e.g. in CI
+solidctl setup --no-interactive --db-password "$DB_PASSWORD" --no-start
+```
+
+Notes:
+
+- Project name and UI port are inferred from `solid-api/package.json` and `solid-ui/package.json` — you're only prompted for the database connection.
+- If `solid-api/.env` already exists, it's left untouched. If a `solid-api/.env.example` exists, its values are carried over and only the gaps and the password are prompted for.
+- Both `solid-api/package.json` and `solid-ui/package.json` must define a `solidx:dev` script; if either predates that script, setup fails fast and names the exact line to add.
+- See [Environment variables](#environment-variables) below for what setup writes into `.env`.
+
+---
+
+### 2) build
 
 Builds the Solid API, sets up a `solid` shim in `~/.solidctl/bin`, and makes the `solid` CLI available locally (and globally if a writable PATH dir is found).
 
@@ -33,7 +71,7 @@ solid --help
 
 ---
 
-### 2) upgrade
+### 3) upgrade
 
 Upgrades Solid dependencies used by both `solid-api` and `solid-ui`.
 
@@ -68,7 +106,7 @@ What it runs (in order):
 
 ---
 
-### 3) local-upgrade
+### 4) local-upgrade
 
 Installs local, checked-out Solid packages into your project by running `npm pack` on each repo and installing the resulting `.tgz` into the SolidX project.
 
@@ -110,7 +148,7 @@ Notes:
 
 ---
 
-### 4) seed
+### 5) seed
 
 Bootstraps SolidX metadata, settings, and the system user by running the `solid` CLI’s `seed` command inside `solid-api`.
 
@@ -138,7 +176,7 @@ solidctl seed --conf "{\"modulesToSeed\": [\"onboarding\"]}"
 
 ---
 
-### 5) start:dev
+### 6) start:dev
 
 Runs both consuming-project dev servers in one supervised terminal session.
 
@@ -170,7 +208,7 @@ Notes:
 
 ---
 
-### 6) migration
+### 7) migration
 
 Runs datasource-specific TypeORM migrations from the SolidX project root.
 
@@ -200,7 +238,7 @@ Notes:
 
 ---
 
-### 7) mcp install
+### 8) mcp install
 
 Installs the SolidX MCP server into all supported AI coding agents on your machine (Claude Code, Cursor, Codex, Claude Desktop) across macOS, Linux, and Windows. Idempotent; backs up any config file it overwrites.
 
@@ -240,6 +278,15 @@ Notes:
 - Prefer each agent's official CLI (`claude mcp`, `cursor mcp`, `codex mcp`) when available; falls back to surgical config-file edits otherwise.
 - Claude Desktop is configured via a stdio bridge using `npx -y mcp-remote`; on Windows the entry wraps `npx` in `cmd /c`.
 - The MCP server itself must be started separately via `solidctl mcp start`.
+
+---
+
+## Environment variables
+
+Two `solid-api/.env` keys are worth knowing about if you're debugging `setup` or the MCP server:
+
+- `SOLID_CORE_DB_TYPE` — `postgres`, `mysql`, or `mssql`. Written by `solidctl setup` from the database client you select. Read by `solidctl mcp start` (and `solidctl agent`) to build the right `DATABASE_URL` scheme when one isn't already set. Defaults to `postgres` when absent, so existing PostgreSQL projects are unaffected.
+- `DATABASE_URL` — written directly by `solidctl setup`. If absent, it's synthesized at runtime from the `DEFAULT_DATABASE_*` vars and `SOLID_CORE_DB_TYPE`.
 
 ---
 

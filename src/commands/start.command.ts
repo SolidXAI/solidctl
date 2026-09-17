@@ -12,9 +12,9 @@ import { type DevPortMap, validateDevPortAssignments } from '../utils/dev-ports'
 type ServiceName = 'api' | 'ui' | 'mcp';
 
 /** Services that are launched via an npm script. MCP is spawned directly. */
-type ScriptServiceName = 'api' | 'ui';
+export type ScriptServiceName = 'api' | 'ui';
 
-type ServiceScripts = Record<ScriptServiceName, string>;
+export type ServiceScripts = Record<ScriptServiceName, string>;
 
 type ServiceConfig = {
   cwd: string;
@@ -30,7 +30,7 @@ type ServiceState = {
   forceKillTimer: NodeJS.Timeout | null;
 };
 
-type StartOptions = {
+export type StartOptions = {
   api?: boolean;
   controls?: boolean;
   plain?: boolean;
@@ -38,7 +38,19 @@ type StartOptions = {
   mcp?: boolean;
 };
 
-class StartSupervisor {
+/** Service scripts used by `start:dev` — mirrors the mapping passed to registerSupervisorCommand. */
+export const DEV_SERVICE_SCRIPTS: ServiceScripts = {
+  api: 'solidx:dev',
+  ui: 'solidx:dev',
+};
+
+/** Service scripts used by `start` — mirrors the mapping passed to registerSupervisorCommand. */
+export const START_SERVICE_SCRIPTS: ServiceScripts = {
+  api: 'start',
+  ui: 'dev',
+};
+
+export class StartSupervisor {
   private readonly activeServices: ServiceName[];
   private readonly apiPort: string;
   private readonly uiPort: string;
@@ -771,20 +783,14 @@ export function registerStartCommand(program: Command) {
   registerSupervisorCommand(
     'start:dev',
     'Start solid-api, solid-ui, and MCP dev processes in a single supervisor',
-    {
-      api: 'solidx:dev',
-      ui: 'solidx:dev',
-    },
+    DEV_SERVICE_SCRIPTS,
     true,
   );
 
   registerSupervisorCommand(
     'start',
     'Start solid-api, solid-ui, and MCP standard processes in a single supervisor',
-    {
-      api: 'start',
-      ui: 'dev',
-    },
+    START_SERVICE_SCRIPTS,
     true,
   );
 }
