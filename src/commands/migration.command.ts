@@ -7,8 +7,6 @@ import { validateProjectRoot } from '../helper';
 type MigrationOptions = {
   datasource?: string;
   module?: string;
-  name?: string;
-  apply?: boolean;
 };
 
 function getNpxCommand() {
@@ -90,18 +88,14 @@ function runTypeormCli(args: string[], solidApiDir: string, failureLabel: string
 export function registerMigrationCommand(program: Command) {
   program
     .command('migration <action> [migrationName]')
-    .description('Generate, run, revert, or remove-field TypeORM migrations for a datasource')
+    .description('Generate, run, or revert TypeORM migrations for a datasource')
     .option('-d, --datasource <datasource>', 'Datasource name (maps to src/typeorm-<datasource>-datasource.ts), required for generate/run/revert')
     .option('-m, --module <module>', 'Module name, required for generate')
-    .option('-n, --name <modelName>', 'Model name (singularName), required for remove-field')
-    .option('--apply', 'Apply the cleanup instead of running a dry-run preview (used with remove-field)')
     .addHelpText('after', `
 Examples:
   solidctl migration -d default -m onboarding generate AddPreApplicationMaster
   solidctl migration -d default run
-  solidctl migration -d default revert
-  solidctl migration -n book remove-field
-  solidctl migration -n book remove-field --apply`)
+  solidctl migration -d default revert`)
     .action((action: string, migrationName: string | undefined, options: MigrationOptions) => {
       validateProjectRoot();
 
@@ -171,51 +165,6 @@ Examples:
         return;
       }
 
-      if (normalizedAction === 'remove-field') {
-        if (!options.name) {
-          console.error('Option --name <model> is required for remove-field.');
-          process.exit(1);
-        }
-
-        const mainCliPath = path.join(solidApiDir, 'dist', 'main-cli.js');
-
-        if (!fs.existsSync(mainCliPath)) {
-          console.error(`solid-api CLI not found at ${mainCliPath}. Run "solidctl build" or "cd solid-api && npm run build" first.`);
-          process.exit(1);
-        }
-
-        const args = [
-          path.relative(solidApiDir, mainCliPath),
-          'migrate-removed-fields',
-          '-n',
-          options.name,
-        ];
-
-        if (options.apply) {
-          args.push('-d', 'false');
-        }
-
-        console.log(`▶ Running removed-field cleanup for model "${options.name}"${options.apply ? ' (apply)' : ' (dry-run)'}`);
-        const result = spawnSync(process.execPath, args, {
-          cwd: solidApiDir,
-          stdio: 'inherit',
-          env: process.env,
-        });
-
-        if (result.error) {
-          console.error(`Failed to run cleanup-removed-fields: ${result.error.message}`);
-          process.exit(1);
-        }
-
-        if (result.status !== 0) {
-          console.error(`cleanup-removed-fields exited with code ${result.status}`);
-          process.exit(result.status ?? 1);
-        }
-
-        console.log(`✔ cleanup-removed-fields completed for model "${options.name}"`);
-        return;
-      }
-
-      fail(`Unknown action "${action}". Expected generate, run, revert, or remove-field.`);
+      fail(`Unknown action "${action}". Expected generate, run, or revert.`);
     });
 }

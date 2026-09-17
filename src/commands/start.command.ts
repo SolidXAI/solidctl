@@ -780,10 +780,11 @@ export function registerStartCommand(program: Command) {
 
   registerSupervisorCommand(
     'start',
-    'Start solid-api and solid-ui standard processes in a single supervisor',
+    'Start solid-api, solid-ui, and MCP standard processes in a single supervisor',
     {
       api: 'start',
       ui: 'dev',
     },
+    true,
   );
 }
