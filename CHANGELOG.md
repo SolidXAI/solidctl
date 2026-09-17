@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.51-beta.0] - 2026-09-17
+
+### Added
+
+- add solidctl setup for already-bootstrapped projects
+
 ## [0.1.50] - 2026-09-17
 
 ### Added
