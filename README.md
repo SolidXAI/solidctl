@@ -108,6 +108,7 @@ solidctl seed
 ```
 
 Proxies to the `solid seed` command inside `solid-api/`. Any additional arguments are passed through.
+Use `solidctl seed --verbose` to show detailed Nest/Winston logs during seeding.
 
 ---
 

@@ -9,6 +9,11 @@ export function registerSeedCommand(program: Command) {
     .helpOption(false)
     .allowUnknownOption(true)
     .allowExcessArguments(true)
+    .addHelpText(
+      'after',
+      '\nOptions forwarded to the Solid CLI:\n' +
+        '  -v, --verbose  Show detailed Nest/Winston logs during seeding\n',
+    )
     .action((_options, command) => {
       validateProjectRoot();
       const projectRoot = process.cwd();

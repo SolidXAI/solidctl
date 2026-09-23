@@ -124,6 +124,7 @@ Options:
 
 - `-s, --seeder` The seeder to run. Default: `ModuleMetadataSeederService`
 - `-c, --conf` A JSON string passed through to the `solid seed` command
+- `-v, --verbose` Show detailed Nest/Winston logs during seeding
 
 Examples:
 

@@ -51,7 +51,12 @@ async function bootstrap() {
   program
     .name('solidctl')
     .description('Solidctl tool')
-    .version(getCliVersion());
+    .version(getCliVersion())
+    .addHelpText(
+      'after',
+      '\nGlobal options:\n' +
+        '  -v, --verbose  Show detailed logs for commands that invoke the Solid CLI\n',
+    );
 
   registerUpgradeCommand(program);
   registerBuildCommand(program);
