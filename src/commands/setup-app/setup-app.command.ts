@@ -202,9 +202,9 @@ async function gatherDbAnswers(
   return { ...prompted, ...explicit };
 }
 
-export function registerSetupCommand(program: Command) {
+export function registerSetupAppCommand(program: Command) {
   program
-    .command('setup')
+    .command('setup-app')
     .description(
       'Install, configure, build, and seed an already-bootstrapped SolidX project, then start it',
     )

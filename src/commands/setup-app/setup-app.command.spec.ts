@@ -1,4 +1,4 @@
-import { collectExplicitDbFlags } from './setup.command';
+import { collectExplicitDbFlags } from './setup-app.command';
 
 // Only the valid-input paths are covered here: the validation branches call
 // failSetup(), which is process.exit(1) and would take the jest worker with it.

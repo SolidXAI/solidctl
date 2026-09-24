@@ -11,14 +11,14 @@ This document lists the exact commands exposed by `solidctl` and practical usage
 
 ## Commands
 
-### 1) setup
+### 1) setup-app
 
 Sets up an already-bootstrapped SolidX project you've just cloned: installs dependencies, configures `.env`, verifies/creates the database, builds, seeds, and starts the dev servers — all in one command. This is the counterpart to `create-app` for a project that already exists rather than one being scaffolded from scratch.
 
 Usage:
 
 ```bash
-solidctl setup [options]
+solidctl setup-app [options]
 ```
 
 Options:
@@ -34,10 +34,10 @@ Examples:
 
 ```bash
 # from a freshly cloned SolidX project
-solidctl setup
+solidctl setup-app
 
 # non-interactive, e.g. in CI
-solidctl setup --no-interactive --db-password "$DB_PASSWORD" --no-start
+solidctl setup-app --no-interactive --db-password "$DB_PASSWORD" --no-start
 ```
 
 Notes:
@@ -284,10 +284,10 @@ Notes:
 
 ## Environment variables
 
-Two `solid-api/.env` keys are worth knowing about if you're debugging `setup` or the MCP server:
+Two `solid-api/.env` keys are worth knowing about if you're debugging `setup-app` or the MCP server:
 
-- `SOLID_CORE_DB_TYPE` — `postgres`, `mysql`, or `mssql`. Written by `solidctl setup` from the database client you select. Read by `solidctl mcp start` (and `solidctl agent`) to build the right `DATABASE_URL` scheme when one isn't already set. Defaults to `postgres` when absent, so existing PostgreSQL projects are unaffected.
-- `DATABASE_URL` — written directly by `solidctl setup`. If absent, it's synthesized at runtime from the `DEFAULT_DATABASE_*` vars and `SOLID_CORE_DB_TYPE`.
+- `SOLID_CORE_DB_TYPE` — `postgres`, `mysql`, or `mssql`. Written by `solidctl setup-app` from the database client you select. Read by `solidctl mcp start` (and `solidctl agent`) to build the right `DATABASE_URL` scheme when one isn't already set. Defaults to `postgres` when absent, so existing PostgreSQL projects are unaffected.
+- `DATABASE_URL` — written directly by `solidctl setup-app`. If absent, it's synthesized at runtime from the `DEFAULT_DATABASE_*` vars and `SOLID_CORE_DB_TYPE`.
 
 ---
 

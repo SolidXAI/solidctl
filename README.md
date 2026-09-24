@@ -82,12 +82,12 @@ solidctl create-app [options]
 
 ---
 
-### `setup`
+### `setup-app`
 
 Sets up an **already-bootstrapped** SolidX project you've just cloned — the counterpart to `create-app` for a project that already exists. Infers what it can from the repo (project name, UI port), prompts only for the database connection, then installs, configures, builds, seeds, and starts the project.
 
 ```bash
-solidctl setup [options]
+solidctl setup-app [options]
 ```
 
 | Flag | Description |

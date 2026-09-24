@@ -5,7 +5,7 @@ import { getSolidCommandEnv, validateProjectRoot } from '../helper';
 /**
  * Run `solid seed` inside the project's solid-api directory.
  *
- * Exported so other commands (e.g. `solidctl setup`) can seed in-process
+ * Exported so other commands (e.g. `solidctl setup-app`) can seed in-process
  * instead of shelling out to `solidctl seed`.
  */
 export function runSeed(projectRoot: string, passthroughArgs: string[] = []) {

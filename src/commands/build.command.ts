@@ -131,7 +131,7 @@ function ensureGlobalSolid(shimFiles: any, shimDir: string) {
 /**
  * Build the project and install the `solid` CLI shim.
  *
- * Exported so other commands (e.g. `solidctl setup`) can run the same steps
+ * Exported so other commands (e.g. `solidctl setup-app`) can run the same steps
  * in-process instead of shelling out to `solidctl build`, which would require
  * solidctl to be on PATH.
  */
