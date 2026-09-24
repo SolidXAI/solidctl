@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.51-beta.1] - 2026-09-24
+
+### Documentation
+
+- add verbose option documentation for seed command
+
+### Other
+
+- setup -> setup-app
+
 ## [0.1.51-beta.0] - 2026-09-17
 
 ### Added
