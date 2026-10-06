@@ -213,10 +213,13 @@ class AgentSupervisor {
       SOLIDX_PROJECT_ROOT: this.projectRoot,
       ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
       ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
+      ...((process.env.SOLIDX_API_BASE_URL || process.env.BASE_URL)
+        ? { SOLIDX_API_BASE_URL: process.env.SOLIDX_API_BASE_URL || process.env.BASE_URL }
+        : {}),
       ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
     };
 
-    const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'APP_ENCRYPTION_KEY'];
+    const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'SOLIDX_API_BASE_URL', 'APP_ENCRYPTION_KEY'];
     const bridged = bridgedKeys.filter((k) => env[k]);
     const missing = bridgedKeys.filter((k) => !env[k]);
     this.printStatus(`Agent bridged env: ${bridged.join(', ') || 'none'}`);
@@ -566,6 +569,9 @@ export function registerAgentCommand(program: Command) {
         SOLIDX_PROJECT_ROOT: projectRoot,
         ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
         ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
+        ...((process.env.SOLIDX_API_BASE_URL || process.env.BASE_URL)
+          ? { SOLIDX_API_BASE_URL: process.env.SOLIDX_API_BASE_URL || process.env.BASE_URL }
+          : {}),
         ...(process.env.APP_ENCRYPTION_KEY ? { APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY } : {}),
       };
 
@@ -579,7 +585,7 @@ export function registerAgentCommand(program: Command) {
       // users do not see a "running" banner when Python/bootstrap fails.
       const agentCommand = options.local ? ensureAgentInstalledLocal() : ensureAgentInstalled();
       printAgentVersion(agentCommand);
-      const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'BASE_URL', 'APP_ENCRYPTION_KEY'];
+      const bridgedKeys = ['DATABASE_URL', 'SOLIDX_PROJECT_ROOT', 'SOLIDX_API_BASE_URL', 'APP_ENCRYPTION_KEY'];
       const bridged = bridgedKeys.filter((k) => env[k]);
       const missing = bridgedKeys.filter((k) => !env[k]);
       console.log(`✔ Bridged env: ${bridged.join(', ') || 'none'}`);

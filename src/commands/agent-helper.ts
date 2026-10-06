@@ -150,7 +150,7 @@ function parsePythonProbeOutput(output: string): { executable: string; major: nu
  * Detect the best available Python executable that is version 3.11+.
  * Returns the resolved executable path so later subprocesses do not depend on shell aliases.
  */
-function findPython(): string | null {
+export function findPython(): string | null {
   for (const cmd of ['python3', 'python']) {
     const probe = probePythonCommand(cmd);
     if (probe && (probe.major > 3 || (probe.major === 3 && probe.minor >= 11))) {
@@ -163,7 +163,7 @@ function findPython(): string | null {
 /**
  * Detect uv on PATH and verify it actually works.
  */
-function findUv(): string | null {
+export function findUv(): string | null {
   if (!commandExists('uv')) {
     return null;
   }
@@ -178,21 +178,21 @@ function findUv(): string | null {
  * Create ~/.solidx/venv if it doesn't exist, using the best available tool.
  * Returns true on success.
  */
-function ensureVenv(pythonCmd: string, uvCmd: string | null): boolean {
-  if (fs.existsSync(path.join(VENV_DIR, 'pyvenv.cfg'))) {
+export function ensureVenv(pythonCmd: string, uvCmd: string | null, venvDir = VENV_DIR): boolean {
+  if (fs.existsSync(path.join(venvDir, 'pyvenv.cfg'))) {
     return true; // venv already exists
   }
 
-  fs.mkdirSync(path.dirname(VENV_DIR), { recursive: true });
+  fs.mkdirSync(path.dirname(venvDir), { recursive: true });
 
-  console.log(`📦 Creating virtual environment at ${VENV_DIR}`);
+  console.log(`📦 Creating virtual environment at ${venvDir}`);
 
   if (uvCmd) {
     // --seed ensures pip and setuptools are included in the venv,
     // matching the behavior of `python -m venv`.
     const result = spawnSync(
       uvCmd,
-      ['venv', VENV_DIR, '--python', pythonCmd, '--seed'],
+      ['venv', venvDir, '--python', pythonCmd, '--seed'],
       {
         stdio: 'inherit',
       },
@@ -201,7 +201,7 @@ function ensureVenv(pythonCmd: string, uvCmd: string | null): boolean {
     console.warn('⚠ uv venv failed, falling back to python -m venv');
   }
 
-  const result = spawnSync(pythonCmd, ['-m', 'venv', VENV_DIR], {
+  const result = spawnSync(pythonCmd, ['-m', 'venv', venvDir], {
     stdio: 'inherit',
   });
   return result.status === 0;

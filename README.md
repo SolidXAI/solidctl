@@ -251,6 +251,30 @@ This command validates that both `solid-api/package.json` and `solid-ui/package.
 
 ---
 
+### `start agenthub`
+
+Starts the AgentHub runtime manager from your SolidX project root (default: `127.0.0.1:9000`).
+
+```bash
+# Local checkout; creates/reuses its .venv and installs editable source
+export SOLIDX_AGENTHUB_RUNTIME_PATH=/path/to/agent-hub-runtime
+solidctl start agenthub --local
+
+# After solidx-agenthub-runtime is published to PyPI
+solidctl start agenthub
+
+# Change the manager bind address/port
+solidctl start agenthub --local --host 127.0.0.1 --port 9001
+```
+
+Python 3.11+ is required. Published installs use a separate `~/.solidx/agenthub-venv`; prerelease versions of solidctl allow prerelease packages with `--pre`. Until the runtime package is published, use `--local`.
+
+Like `solidctl agent start`, published mode checks PyPI for updates on solidctl's stable/beta track and asks before upgrading in an interactive terminal (default: no). Non-interactive runs print the manual upgrade command. A successful upgrade exits so you can rerun the command; `--local` skips the update check.
+
+Settings load from the OS environment, project-root `.env`, then `solid-api/.env` (earlier values win). `DATABASE_URL` can be built from `DEFAULT_DATABASE_*`; `SOLIDX_API_BASE_URL` is preferred for SolidX API calls, with `BASE_URL` as a compatibility fallback. Pass `APP_ENCRYPTION_KEY` for linked secrets and `AGENTHUB_MANAGER_INTERNAL_TOKEN` for chat/MCP, along with any other `AGENTHUB_*` settings. Ctrl+C stops the manager and its agent processes.
+
+---
+
 ## Project structure
 
 A project created by `solidctl create-app` follows this layout:
