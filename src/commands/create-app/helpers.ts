@@ -172,6 +172,25 @@ function handleHiddenTemplateFiles(targetDir: string) {
   fs.removeSync(hiddenTemplatesPath);
 }
 
+const AGENTS_FILE = 'AGENTS.md';
+const AGENTS_PROJECT_NAME_PLACEHOLDER = '<consumingProjectName>';
+
+/**
+ * Fill the project name into the AGENTS.md copied from templates/ so it
+ * references the same `solidx-<project>-mcp` server that `solidctl mcp install` registers.
+ */
+export function updateAgentsFile(targetDir: string, projectName: string): void {
+  const agentsPath = path.join(targetDir, AGENTS_FILE);
+  if (!fs.existsSync(agentsPath)) {
+    return;
+  }
+  const content = fs.readFileSync(agentsPath, 'utf8');
+  fs.writeFileSync(
+    agentsPath,
+    content.split(AGENTS_PROJECT_NAME_PLACEHOLDER).join(projectName),
+  );
+}
+
 export function updatePackageName(
   targetPath: string,
   subProject: string,
