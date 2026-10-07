@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.51-beta.2] - 2026-10-07
+
+### Added
+
+- add AGENTS.md to create-app boilerplate
+- add AgentHub runtime manager command and update environment handling
+
 ## [0.1.51-beta.1] - 2026-09-24
 
 ### Documentation
