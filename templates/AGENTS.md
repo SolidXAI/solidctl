@@ -1,0 +1,1 @@
+For work in this repository, use the connected solidx-<consumingProjectName>-mcp tools for SolidX workspace operations. If a resource listing does not show the server, check the registered MCP tools before concluding it is unavailable. For non-trivial tasks, read the relevant SolidX skill first.
