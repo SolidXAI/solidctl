@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.51-beta.3] - 2026-10-07
+
+### Added
+
+- update default port for AgentHub from 9000 to 9001 and adjust tests accordingly
+- update AgentHub command structure and improve error messages
+
 ## [0.1.51-beta.2] - 2026-10-07
 
 ### Added
