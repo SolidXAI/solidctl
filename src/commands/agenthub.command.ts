@@ -85,7 +85,7 @@ export function registerAgentHubCommand(program: Command) {
 
   agenthub.command('start')
     .description('Start the AgentHub runtime manager')
-    .option('-p, --port <port>', 'Manager port', '9000')
+    .option('-p, --port <port>', 'Manager port', '9001')
     .option('-H, --host <host>', 'Manager bind host (default: AGENTHUB_MANAGER_BIND_HOST or 127.0.0.1)')
     .option('--local', 'Install from SOLIDX_AGENTHUB_RUNTIME_PATH in editable mode')
     .action(async (options: AgentHubOptions) => {

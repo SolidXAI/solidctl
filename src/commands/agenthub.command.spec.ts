@@ -74,7 +74,10 @@ describe('AgentHub startup', () => {
     expect(ensureAgentHubInstalled).not.toHaveBeenCalled();
   });
 
-  it('dispatches agenthub start to the runtime without starting the API/UI/MCP supervisor', async () => {
+  it.each([
+    { portArgs: [], port: '9001' },
+    { portArgs: ['--port', '9010'], port: '9010' },
+  ])('dispatches agenthub start on port $port without starting the API/UI/MCP supervisor', async ({ portArgs, port }) => {
     process.env.DATABASE_URL = 'postgresql://user:pw@localhost/app';
     process.env.BASE_URL = 'http://localhost:3000';
     jest.spyOn(helper, 'validateProjectRoot').mockImplementation(() => {});
@@ -82,11 +85,11 @@ describe('AgentHub startup', () => {
     const program = new Command().enablePositionalOptions().exitOverride();
     registerStartCommand(program);
     registerAgentHubCommand(program);
-    const pending = program.parseAsync(['agenthub', 'start', '--local', '--port', '9010'], { from: 'user' });
+    const pending = program.parseAsync(['agenthub', 'start', '--local', ...portArgs], { from: 'user' });
     await new Promise(setImmediate);
     expect(checkAgentHubUpdate).toHaveBeenCalledWith({ isLocal: true });
     expect(ensureAgentHubInstalled).toHaveBeenCalledWith(expect.objectContaining({ local: true }));
-    expect(spawn).toHaveBeenCalledWith('/local/.venv/bin/agenthub-runtime', ['manager', '--port', '9010'],
+    expect(spawn).toHaveBeenCalledWith('/local/.venv/bin/agenthub-runtime', ['manager', '--port', port],
       expect.objectContaining({ env: expect.objectContaining({ SOLIDX_API_BASE_URL: 'http://localhost:3000' }) }));
     expect(validateScript).not.toHaveBeenCalled();
     child.emit('close', 0);

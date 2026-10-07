@@ -253,7 +253,7 @@ This command validates that both `solid-api/package.json` and `solid-ui/package.
 
 ### `agenthub start`
 
-Starts the AgentHub runtime manager from your SolidX project root (default: `127.0.0.1:9000`).
+Starts the AgentHub runtime manager from your SolidX project root (default: `127.0.0.1:9001`).
 
 ```bash
 # Local checkout; creates/reuses its .venv and installs editable source
@@ -264,7 +264,7 @@ solidctl agenthub start --local
 solidctl agenthub start
 
 # Change the manager bind address/port
-solidctl agenthub start --local --host 127.0.0.1 --port 9001
+solidctl agenthub start --local --host 127.0.0.1 --port 9002
 ```
 
 Python 3.11+ is required. Published installs use a separate `~/.solidx/agenthub-venv`; prerelease versions of solidctl allow prerelease packages with `--pre`. Until the runtime package is published, use `--local`.
