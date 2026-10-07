@@ -78,8 +78,12 @@ export function runAgentHubManager(command: string, projectRoot: string, env: Re
   });
 }
 
-export function registerAgentHubCommand(start: Command) {
-  start.command('agenthub')
+export function registerAgentHubCommand(program: Command) {
+  const agenthub = program
+    .command('agenthub')
+    .description('SolidX AgentHub runtime manager');
+
+  agenthub.command('start')
     .description('Start the AgentHub runtime manager')
     .option('-p, --port <port>', 'Manager port', '9000')
     .option('-H, --host <host>', 'Manager bind host (default: AGENTHUB_MANAGER_BIND_HOST or 127.0.0.1)')

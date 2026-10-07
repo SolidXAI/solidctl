@@ -103,7 +103,7 @@ describe('AgentHub runtime installation', () => {
   it('gives actionable local-mode guidance when published installation fails', () => {
     mockExists.mockReturnValue(false);
     mockSpawn.mockReturnValue({ status: 1 } as any);
-    expect(() => ensureAgentHubInstalled({})).toThrow('solidctl start agenthub --local');
+    expect(() => ensureAgentHubInstalled({})).toThrow('solidctl agenthub start --local');
   });
 
   it('probes PATH binaries with --help instead of unsupported --version', () => {

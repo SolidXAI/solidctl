@@ -6,7 +6,7 @@ import os from 'os';
 import path from 'path';
 import * as helper from '../helper';
 import { checkAgentHubUpdate, ensureAgentHubInstalled, getAgentHubVersion } from './agenthub-helper';
-import { buildAgentHubEnv, runAgentHubManager } from './agenthub.command';
+import { buildAgentHubEnv, registerAgentHubCommand, runAgentHubManager } from './agenthub.command';
 import { registerStartCommand } from './start.command';
 
 jest.mock('child_process', () => ({ spawn: jest.fn(), spawnSync: jest.fn() }));
@@ -74,14 +74,15 @@ describe('AgentHub startup', () => {
     expect(ensureAgentHubInstalled).not.toHaveBeenCalled();
   });
 
-  it('dispatches start agenthub to the runtime without starting the API/UI/MCP supervisor', async () => {
+  it('dispatches agenthub start to the runtime without starting the API/UI/MCP supervisor', async () => {
     process.env.DATABASE_URL = 'postgresql://user:pw@localhost/app';
     process.env.BASE_URL = 'http://localhost:3000';
     jest.spyOn(helper, 'validateProjectRoot').mockImplementation(() => {});
     const validateScript = jest.spyOn(helper, 'validateProjectScript').mockImplementation(() => {});
     const program = new Command().enablePositionalOptions().exitOverride();
     registerStartCommand(program);
-    const pending = program.parseAsync(['start', 'agenthub', '--local', '--port', '9010'], { from: 'user' });
+    registerAgentHubCommand(program);
+    const pending = program.parseAsync(['agenthub', 'start', '--local', '--port', '9010'], { from: 'user' });
     await new Promise(setImmediate);
     expect(checkAgentHubUpdate).toHaveBeenCalledWith({ isLocal: true });
     expect(ensureAgentHubInstalled).toHaveBeenCalledWith(expect.objectContaining({ local: true }));
@@ -95,8 +96,8 @@ describe('AgentHub startup', () => {
 
   it('rejects invalid ports before installing or spawning', async () => {
     const program = new Command().exitOverride();
-    registerStartCommand(program);
-    await program.parseAsync(['start', 'agenthub', '--port', '0'], { from: 'user' });
+    registerAgentHubCommand(program);
+    await program.parseAsync(['agenthub', 'start', '--port', '0'], { from: 'user' });
     expect(ensureAgentHubInstalled).not.toHaveBeenCalled();
     expect(spawn).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);

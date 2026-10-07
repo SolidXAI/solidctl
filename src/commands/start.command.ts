@@ -6,7 +6,6 @@ import path from 'path';
 import readline from 'readline';
 import { validateProjectRoot, validateProjectScript } from '../helper';
 import { AgentCommandExit } from './agent-helper';
-import { registerAgentHubCommand } from './agenthub.command';
 import { MCP_DEFAULT_OPTIONS, resolveMcpLaunchConfig, spawnMcpServer, type McpLaunchConfig } from './mcp-launch';
 import { type DevPortMap, validateDevPortAssignments } from '../utils/dev-ports';
 
@@ -789,11 +788,10 @@ export function registerStartCommand(program: Command) {
     true,
   );
 
-  const start = registerSupervisorCommand(
+  registerSupervisorCommand(
     'start',
     'Start solid-api, solid-ui, and MCP standard processes in a single supervisor',
     START_SERVICE_SCRIPTS,
     true,
   );
-  registerAgentHubCommand(start);
 }

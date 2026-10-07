@@ -163,7 +163,7 @@ export function ensureAgentHubInstalled(options: { local?: boolean; upgrade?: bo
   if (!installed) {
     throw new Error(sourceDir
       ? `Failed to install local ${RUNTIME_PACKAGE} from ${sourceDir}.`
-      : `Failed to install ${RUNTIME_PACKAGE} from PyPI. Until it is published, use solidctl start agenthub --local with ${SOURCE_ENV} set.`);
+      : `Failed to install ${RUNTIME_PACKAGE} from PyPI. Until it is published, use solidctl agenthub start --local with ${SOURCE_ENV} set.`);
   }
   if (!fs.existsSync(command)) {
     throw new Error(`Package installed but agenthub-runtime binary not found at ${command}.`);
