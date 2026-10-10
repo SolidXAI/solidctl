@@ -11,7 +11,23 @@ export type AgentHubOptions = {
   port: string;
   host?: string;
   local?: boolean;
+  env?: string[];
 };
+
+function parseEnvAssignments(assignments: string[] = []): Record<string, string> {
+  return assignments.reduce<Record<string, string>>((env, assignment) => {
+    const separator = assignment.indexOf('=');
+    const key = separator === -1 ? '' : assignment.slice(0, separator);
+    const value = separator === -1 ? '' : assignment.slice(separator + 1);
+
+    if (separator === -1 || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      throw new Error(`Invalid --env assignment "${assignment}". Expected KEY=VALUE.`);
+    }
+
+    env[key] = value;
+    return env;
+  }, {});
+}
 
 export function buildAgentHubEnv(projectRoot: string, host?: string): Record<string, string> {
   loadDotenv({ path: path.join(projectRoot, '.env'), quiet: true });
@@ -88,6 +104,7 @@ export function registerAgentHubCommand(program: Command) {
     .option('-p, --port <port>', 'Manager port', '9001')
     .option('-H, --host <host>', 'Manager bind host (default: AGENTHUB_MANAGER_BIND_HOST or 127.0.0.1)')
     .option('--local', 'Install from SOLIDX_AGENTHUB_RUNTIME_PATH in editable mode')
+    .option('--env <KEY=VALUE>', 'Pass an environment variable to AgentHub (repeatable)', (value, previous: string[] = []) => [...previous, value], [])
     .action(async (options: AgentHubOptions) => {
       try {
         if (!/^\d+$/.test(options.port) || +options.port < 1 || +options.port > 65535) {
@@ -97,6 +114,7 @@ export function registerAgentHubCommand(program: Command) {
         validateProjectRoot();
         const projectRoot = process.cwd();
         const env = buildAgentHubEnv(projectRoot, options.host);
+        Object.assign(env, parseEnvAssignments(options.env));
         const command = ensureAgentHubInstalled(options);
         console.log(`solidx-agenthub-runtime v${getAgentHubVersion(command)}`);
         console.log(`Starting AgentHub manager on ${env.AGENTHUB_MANAGER_BIND_HOST}:${options.port}`);

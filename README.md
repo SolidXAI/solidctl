@@ -265,7 +265,12 @@ solidctl agenthub start
 
 # Change the manager bind address/port
 solidctl agenthub start --local --host 127.0.0.1 --port 9002
+
+# Pass variables directly to the AgentHub manager and its child processes
+solidctl agenthub start --env AGENTHUB_WORKERS=2 --env FEATURE_FLAG=true
 ```
+
+`--env` is repeatable and accepts `KEY=VALUE`. Command-line values override values loaded from the environment or `.env` files. The manager and processes it launches inherit these variables.
 
 Python 3.11+ is required. Published installs use a separate `~/.solidx/agenthub-venv`; prerelease versions of solidctl allow prerelease packages with `--pre`. Until the runtime package is published, use `--local`.
 
