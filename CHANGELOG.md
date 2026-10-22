@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.51-beta.4] - 2026-10-22
+
+### Added
+
+- add support for passing environment variables to AgentHub command
+
 ## [0.1.51-beta.3] - 2026-10-07
 
 ### Added
