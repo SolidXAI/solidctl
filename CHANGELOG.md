@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.51-beta.5] - 2026-10-23
+
+### Added
+
+- generate APP_ENCRYPTION_KEY in create-app and setup-app
+
+### Changed
+
+- rename SOLIDX_AGENTHUB_RUNTIME_PATH to AGENT_HUB_RUNTIME_PATH for consistency (#78)
+
 ## [0.1.51-beta.4] - 2026-10-22
 
 ### Added
