@@ -341,6 +341,9 @@ export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string
       IAM_JWT_TOKEN_ISSUER: answers.projectName,
       IAM_JWT_SECRET: generateJwtSecret(),
     },
+    Encryption: {
+      APP_ENCRYPTION_KEY: generateAppEncryptionKey(),
+    },
   };
 }
 
@@ -390,6 +393,14 @@ export function generateEnvFileFromConfig(
 
 function generateJwtSecret(): string {
   return crypto.randomBytes(64).toString('hex');
+}
+
+/**
+ * The key linked secrets and stored Git tokens are encrypted with. Core stretches
+ * it with scrypt, so any unguessable string works: 32 random bytes, hex (64 chars).
+ */
+export function generateAppEncryptionKey(): string {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 export function prettyOutput(

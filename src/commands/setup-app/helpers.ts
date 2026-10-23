@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { kebabCase, startCase } from 'lodash';
 import path from 'path';
+import { generateAppEncryptionKey } from '../create-app/helpers';
 import { SetupAnswers } from '../create-app/setup-questions';
 import { SETUP_DB_DEFAULTS, SetupProjectAnswers } from './setup-questions';
 
@@ -89,6 +90,7 @@ export function isSecretKey(key: string): boolean {
 export const GENERATED_SECRET_KEYS = new Set([
   'IAM_JWT_SECRET',
   'NEXTAUTH_SECRET',
+  'APP_ENCRYPTION_KEY',
 ]);
 
 export function isGeneratedSecretKey(key: string): boolean {
@@ -321,6 +323,22 @@ export function generateJwtSecret(): string {
 }
 
 /**
+ * Overrides that give the backend .env an APP_ENCRYPTION_KEY when its .env.example does
+ * not list one at all. A key the example lists is left to buildEnvFromExample: a filled-in
+ * value is kept, a blank one is generated.
+ *
+ * Only the backend asks for this; buildEnvFromExample also builds solid-ui/.env, which
+ * must not get a secret.
+ */
+export function encryptionKeyOverrides(
+  parsed: Record<string, string>,
+): Record<string, string> {
+  return 'APP_ENCRYPTION_KEY' in parsed
+    ? {}
+    : { APP_ENCRYPTION_KEY: generateAppEncryptionKey() };
+}
+
+/**
  * Apply overrides on top of a parsed .env.example's content while preserving
  * everything else — comments, grouping, and any project-specific keys
  * (RabbitMQ, OAuth, SMTP, ...) the template doesn't know about. Any blank
@@ -348,7 +366,12 @@ export function buildEnvFromExample(
 
   for (const [key, value] of Object.entries(parsed)) {
     if (isGeneratedSecretKey(key) && value === '' && !(key in overrides)) {
-      setInline(key, generateJwtSecret());
+      setInline(
+        key,
+        key === 'APP_ENCRYPTION_KEY'
+          ? generateAppEncryptionKey()
+          : generateJwtSecret(),
+      );
     }
   }
 

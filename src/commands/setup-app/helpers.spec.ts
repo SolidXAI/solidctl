@@ -3,6 +3,7 @@ import {
   buildEnvFromExample,
   DB_ENV_KEYS,
   defaultDbPortForClient,
+  encryptionKeyOverrides,
   fromDbTypeEnvValue,
   inferProjectName,
   inferUiPort,
@@ -193,6 +194,13 @@ describe('planEnvFromExample', () => {
     expect(plan.promptDbFields).toContain('client');
   });
 
+  it('does not ask for a blank APP_ENCRYPTION_KEY, since setup generates it', () => {
+    const plan = planEnvFromExample(
+      ['APP_ENCRYPTION_KEY=', 'COMMON_SMTP_EMAIL_PASSWORD='].join('\n'),
+    );
+    expect(plan.otherBlankKeys).toEqual(['COMMON_SMTP_EMAIL_PASSWORD']);
+  });
+
   it('reports non-DB blank keys separately, excluding IAM_JWT_SECRET', () => {
     const example = [
       'DEFAULT_DATABASE_HOST=localhost',
@@ -314,6 +322,16 @@ describe('buildEnvFromExample', () => {
     expect(match?.[1]).toMatch(/^[0-9a-f]{128}$/);
   });
 
+  it('generates a 64-character hex APP_ENCRYPTION_KEY when the example leaves it blank', () => {
+    const result = buildEnvFromExample('APP_ENCRYPTION_KEY=', {});
+    expect(result).toMatch(/^APP_ENCRYPTION_KEY=[0-9a-f]{64}$/m);
+  });
+
+  it('keeps an APP_ENCRYPTION_KEY the example already fills in', () => {
+    const result = buildEnvFromExample('APP_ENCRYPTION_KEY=already-set', {});
+    expect(result).toBe('APP_ENCRYPTION_KEY=already-set');
+  });
+
   // An invented SMTP/OAuth credential would look configured but fail to
   // authenticate, and would defeat the "fill these in manually" warning.
   it('leaves blank external credentials blank rather than inventing one', () => {
@@ -372,5 +390,21 @@ describe('toCreateAppAnswers', () => {
 describe('properAppNameFor', () => {
   it('title-cases a kebab-case project name', () => {
     expect(properAppNameFor('my-solid-app')).toBe('My Solid App');
+  });
+});
+
+describe('encryptionKeyOverrides', () => {
+  it('gives a random 64-character hex key when the example does not list one', () => {
+    const first = encryptionKeyOverrides({ PORT: '3000' });
+    const second = encryptionKeyOverrides({ PORT: '3000' });
+    expect(first.APP_ENCRYPTION_KEY).toMatch(/^[0-9a-f]{64}$/);
+    expect(second.APP_ENCRYPTION_KEY).not.toBe(first.APP_ENCRYPTION_KEY);
+  });
+
+  it('leaves a listed key alone, whether it is filled in or blank', () => {
+    expect(
+      encryptionKeyOverrides({ APP_ENCRYPTION_KEY: 'already-set' }),
+    ).toEqual({});
+    expect(encryptionKeyOverrides({ APP_ENCRYPTION_KEY: '' })).toEqual({});
   });
 });

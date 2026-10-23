@@ -29,6 +29,7 @@ import {
   defaultDbPortForClient,
   DB_ENV_KEYS,
   DbField,
+  encryptionKeyOverrides,
   inferProjectName,
   inferUiPort,
   MinimalPackageJson,
@@ -359,6 +360,9 @@ async function runSetup(options: SetupOptions) {
       // synchronize is forced on here regardless of the example's value.
       // It's restored to that value once seeding succeeds.
       DEFAULT_DATABASE_SYNCHRONIZE: 'true',
+      // Linked secrets and stored Git tokens are encrypted with this; an
+      // .env.example that does not list it still gets one.
+      ...encryptionKeyOverrides(envPlan.parsed),
     };
 
     const originalSynchronize = envPlan.parsed.DEFAULT_DATABASE_SYNCHRONIZE;
