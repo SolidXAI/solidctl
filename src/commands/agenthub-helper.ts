@@ -10,7 +10,7 @@ import { AgentCommandExit, ensureVenv, findPython, findUv, getSolidctlAgentTrack
 import { isInteractiveSession } from '../utils/interactive';
 
 const RUNTIME_PACKAGE = 'solidx-agenthub-runtime';
-const SOURCE_ENV = 'SOLIDX_AGENTHUB_RUNTIME_PATH';
+const SOURCE_ENV = 'AGENT_HUB_RUNTIME_PATH';
 const MANAGED_VENV = path.join(os.homedir(), '.solidx', 'agenthub-venv');
 const PYPI_URL = `https://pypi.org/pypi/${RUNTIME_PACKAGE}/json`;
 

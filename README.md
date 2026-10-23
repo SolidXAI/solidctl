@@ -257,7 +257,7 @@ Starts the AgentHub runtime manager from your SolidX project root (default: `127
 
 ```bash
 # Local checkout; creates/reuses its .venv and installs editable source
-export SOLIDX_AGENTHUB_RUNTIME_PATH=/path/to/agent-hub-runtime
+export AGENT_HUB_RUNTIME_PATH=/path/to/agent-hub-runtime
 solidctl agenthub start --local
 
 # After solidx-agenthub-runtime is published to PyPI
@@ -267,7 +267,7 @@ solidctl agenthub start
 solidctl agenthub start --local --host 127.0.0.1 --port 9002
 
 # Pass variables directly to the AgentHub manager and its child processes
-solidctl agenthub start --env AGENTHUB_WORKERS=2 --env FEATURE_FLAG=true
+solidctl agenthub start --env AGENT_HUB_WORKERS=2 --env FEATURE_FLAG=true
 ```
 
 `--env` is repeatable and accepts `KEY=VALUE`. Command-line values override values loaded from the environment or `.env` files. The manager and processes it launches inherit these variables.
@@ -276,7 +276,7 @@ Python 3.11+ is required. Published installs use a separate `~/.solidx/agenthub-
 
 Like `solidctl agent start`, published mode checks PyPI for updates on solidctl's stable/beta track and asks before upgrading in an interactive terminal (default: no). Non-interactive runs print the manual upgrade command. A successful upgrade exits so you can rerun the command; `--local` skips the update check.
 
-Settings load from the OS environment, project-root `.env`, then `solid-api/.env` (earlier values win). `DATABASE_URL` can be built from `DEFAULT_DATABASE_*`; `SOLIDX_API_BASE_URL` is preferred for SolidX API calls, with `BASE_URL` as a compatibility fallback. Pass `APP_ENCRYPTION_KEY` for linked secrets and `AGENTHUB_MANAGER_INTERNAL_TOKEN` for chat/MCP, along with any other `AGENTHUB_*` settings. Ctrl+C stops the manager and its agent processes.
+Settings load from the OS environment, project-root `.env`, then `solid-api/.env` (earlier values win). `DATABASE_URL` can be built from `DEFAULT_DATABASE_*`; `SOLIDX_API_BASE_URL` is preferred for SolidX API calls, with `BASE_URL` as a compatibility fallback. Pass `APP_ENCRYPTION_KEY` for linked secrets and `AGENT_HUB_MANAGER_INTERNAL_TOKEN` for chat/MCP, along with any other `AGENT_HUB_*` settings. Ctrl+C stops the manager and its agent processes.
 
 ---
 

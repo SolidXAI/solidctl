@@ -21,7 +21,7 @@ describe('AgentHub startup', () => {
     process.exitCode = 0;
     process.env = { ...originalEnv };
     for (const key of Object.keys(process.env)) {
-      if (/^(DATABASE_URL|BASE_URL|SOLIDX_API_BASE_URL|APP_ENCRYPTION_KEY|DEFAULT_DATABASE_|AGENTHUB_)/.test(key)) {
+      if (/^(DATABASE_URL|BASE_URL|SOLIDX_API_BASE_URL|APP_ENCRYPTION_KEY|DEFAULT_DATABASE_|AGENT_HUB_)/.test(key)) {
         delete process.env[key];
       }
     }
@@ -48,25 +48,25 @@ describe('AgentHub startup', () => {
       'DEFAULT_DATABASE_USER=user', 'DEFAULT_DATABASE_PASSWORD=p@ss', 'DEFAULT_DATABASE_NAME=app',
       'BASE_URL=http://localhost:3000', 'APP_ENCRYPTION_KEY=test-key',
     ].join('\n'));
-    fs.writeFileSync(path.join(project, '.env'), 'AGENTHUB_MANAGER_INTERNAL_TOKEN=test-token\nAGENTHUB_PORT_RANGE=9200-9299\n');
+    fs.writeFileSync(path.join(project, '.env'), 'AGENT_HUB_MANAGER_INTERNAL_TOKEN=test-token\nAGENT_HUB_PORT_RANGE=9200-9299\n');
     const env = buildAgentHubEnv(project);
     expect(env).toMatchObject({
       DATABASE_URL: 'postgresql://user:p%40ss@localhost:5432/app',
       SOLIDX_API_BASE_URL: 'http://localhost:3000', APP_ENCRYPTION_KEY: 'test-key',
-      AGENTHUB_MANAGER_INTERNAL_TOKEN: 'test-token', AGENTHUB_PORT_RANGE: '9200-9299',
-      AGENTHUB_MANAGER_BIND_HOST: '127.0.0.1',
+      AGENT_HUB_MANAGER_INTERNAL_TOKEN: 'test-token', AGENT_HUB_PORT_RANGE: '9200-9299',
+      AGENT_HUB_MANAGER_BIND_HOST: '127.0.0.1',
     });
   });
 
   it('keeps OS settings above root .env above solid-api/.env, with CLI host overriding', () => {
     process.env.DATABASE_URL = 'postgresql://os:pw@localhost/app';
-    process.env.AGENTHUB_MANAGER_BIND_HOST = '127.0.0.2';
+    process.env.AGENT_HUB_MANAGER_BIND_HOST = '127.0.0.2';
     fs.writeFileSync(path.join(project, '.env'), 'DATABASE_URL=postgresql://root:pw@localhost/app\nSOLIDX_API_BASE_URL=http://root:3000\n');
     fs.writeFileSync(path.join(project, 'solid-api', '.env'), 'SOLIDX_API_BASE_URL=http://api:3000\n');
     const env = buildAgentHubEnv(project, '0.0.0.0');
     expect(env.DATABASE_URL).toBe(process.env.DATABASE_URL);
     expect(env.SOLIDX_API_BASE_URL).toBe('http://root:3000');
-    expect(env.AGENTHUB_MANAGER_BIND_HOST).toBe('0.0.0.0');
+    expect(env.AGENT_HUB_MANAGER_BIND_HOST).toBe('0.0.0.0');
   });
 
   it('reports missing runtime configuration before installation', () => {

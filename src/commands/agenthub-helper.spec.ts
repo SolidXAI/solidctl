@@ -30,7 +30,7 @@ describe('AgentHub runtime installation', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     process.env = { ...originalEnv };
-    delete process.env.SOLIDX_AGENTHUB_RUNTIME_PATH;
+    delete process.env.AGENT_HUB_RUNTIME_PATH;
     jest.mocked(findPython).mockReturnValue('/usr/bin/python3');
     jest.mocked(findUv).mockReturnValue('uv');
     jest.mocked(ensureVenv).mockReturnValue(true);
@@ -45,26 +45,26 @@ describe('AgentHub runtime installation', () => {
   });
 
   it('requires an explicit local source without trying a published install', () => {
-    expect(() => ensureAgentHubInstalled({ local: true })).toThrow('SOLIDX_AGENTHUB_RUNTIME_PATH');
+    expect(() => ensureAgentHubInstalled({ local: true })).toThrow('AGENT_HUB_RUNTIME_PATH');
     expect(mockSpawn).not.toHaveBeenCalled();
   });
 
   it('rejects invalid local source before creating a venv', () => {
-    process.env.SOLIDX_AGENTHUB_RUNTIME_PATH = source;
+    process.env.AGENT_HUB_RUNTIME_PATH = source;
     mockExists.mockReturnValue(false);
     expect(() => ensureAgentHubInstalled({ local: true })).toThrow('expected pyproject.toml');
     expect(ensureVenv).not.toHaveBeenCalled();
   });
 
   it('reuses the local checkout binary without installing from PyPI', () => {
-    process.env.SOLIDX_AGENTHUB_RUNTIME_PATH = source;
+    process.env.AGENT_HUB_RUNTIME_PATH = source;
     mockExists.mockReturnValue(true);
     expect(ensureAgentHubInstalled({ local: true })).toBe(path.join(source, '.venv', binDir, binaryName));
     expect(mockSpawn).not.toHaveBeenCalled();
   });
 
   it('installs editable runtime source without the agent-only full extra', () => {
-    process.env.SOLIDX_AGENTHUB_RUNTIME_PATH = source;
+    process.env.AGENT_HUB_RUNTIME_PATH = source;
     let installed = false;
     mockExists.mockImplementation((file) => String(file).endsWith('pyproject.toml') ||
       (installed && String(file).endsWith(binaryName)));
