@@ -33,7 +33,7 @@ export function buildAgentHubEnv(projectRoot: string, host?: string): Record<str
   loadDotenv({ path: path.join(projectRoot, '.env'), quiet: true });
   const env = buildBridgedEnv(projectRoot);
   env.SOLIDX_API_BASE_URL ||= env.BASE_URL;
-  env.AGENTHUB_MANAGER_BIND_HOST = host || env.AGENTHUB_MANAGER_BIND_HOST || '127.0.0.1';
+  env.AGENT_HUB_MANAGER_BIND_HOST = host || env.AGENT_HUB_MANAGER_BIND_HOST || '127.0.0.1';
   const missing = ['DATABASE_URL', 'SOLIDX_API_BASE_URL'].filter((key) => !env[key]);
   if (missing.length) {
     throw new Error(`AgentHub requires ${missing.join(', ')}. Set them in .env, solid-api/.env, or your environment (BASE_URL and DEFAULT_DATABASE_* are also supported).`);
@@ -102,8 +102,8 @@ export function registerAgentHubCommand(program: Command) {
   agenthub.command('start')
     .description('Start the AgentHub runtime manager')
     .option('-p, --port <port>', 'Manager port', '9001')
-    .option('-H, --host <host>', 'Manager bind host (default: AGENTHUB_MANAGER_BIND_HOST or 127.0.0.1)')
-    .option('--local', 'Install from SOLIDX_AGENTHUB_RUNTIME_PATH in editable mode')
+    .option('-H, --host <host>', 'Manager bind host (default: AGENT_HUB_MANAGER_BIND_HOST or 127.0.0.1)')
+    .option('--local', 'Install from AGENT_HUB_RUNTIME_PATH in editable mode')
     .option('--env <KEY=VALUE>', 'Pass an environment variable to AgentHub (repeatable)', (value, previous: string[] = []) => [...previous, value], [])
     .action(async (options: AgentHubOptions) => {
       try {
@@ -117,7 +117,7 @@ export function registerAgentHubCommand(program: Command) {
         Object.assign(env, parseEnvAssignments(options.env));
         const command = ensureAgentHubInstalled(options);
         console.log(`solidx-agenthub-runtime v${getAgentHubVersion(command)}`);
-        console.log(`Starting AgentHub manager on ${env.AGENTHUB_MANAGER_BIND_HOST}:${options.port}`);
+        console.log(`Starting AgentHub manager on ${env.AGENT_HUB_MANAGER_BIND_HOST}:${options.port}`);
         process.exitCode = await runAgentHubManager(command, projectRoot, env, options.port);
       } catch (error) {
         if (error instanceof AgentCommandExit) {
