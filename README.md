@@ -280,6 +280,27 @@ Settings load from the OS environment, project-root `.env`, then `solid-api/.env
 
 ---
 
+### `agenthub searxng`
+
+Manages the local SearXNG container that backs the AgentHub `web_search` tool. Docker is required. The commands delegate to `agenthub-runtime searxng`, so container name, image, port, and settings stay defined in one place.
+
+```bash
+solidctl agenthub searxng up --local       # create/start agenthub-searxng and wait for /healthz (--wait 0 to skip)
+solidctl agenthub searxng status --local   # state, image, URL, health; exits non-zero when not healthy
+solidctl agenthub searxng logs --local --tail 200
+solidctl agenthub searxng down --local     # remove the container; ~/.agenthub/searxng/settings.yml is kept
+
+# Use a different host port (match it when starting the manager)
+solidctl agenthub searxng up --local --env AGENT_HUB_SEARXNG_PORT=8899
+
+# Start SearXNG automatically with the manager instead
+solidctl agenthub start --local --env AGENT_HUB_SEARXNG_AUTOSTART=1
+```
+
+Every subcommand accepts `--local` and repeatable `--env KEY=VALUE`, like `agenthub start`. SearXNG is machine-wide, so these commands do not require a project root, but they read `.env` and `solid-api/.env` from the current directory when present so `AGENT_HUB_SEARXNG_*` settings match the manager. They skip the PyPI update check. If the installed runtime predates the SearXNG commands, solidctl tells you to upgrade or use `--local`.
+
+---
+
 ## Project structure
 
 A project created by `solidctl create-app` follows this layout:

@@ -94,6 +94,72 @@ export function runAgentHubManager(command: string, projectRoot: string, env: Re
   });
 }
 
+export type AgentHubSearxngOptions = {
+  local?: boolean;
+  env?: string[];
+};
+
+/** Load project .env files when present; SearXNG is machine-wide, so a project root is optional. */
+export function buildSearxngEnv(projectRoot: string, assignments: string[] = []): Record<string, string> {
+  loadDotenv({ path: path.join(projectRoot, '.env'), quiet: true });
+  loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env'), quiet: true });
+  return { ...(process.env as Record<string, string>), ...parseEnvAssignments(assignments) };
+}
+
+export function runAgentHubSearxng(command: string, args: string[], env: Record<string, string>): number {
+  // Published runtimes older than the SearXNG commands reject `searxng` as an unknown command.
+  const probe = spawnSync(command, ['searxng', '--help'], { env, stdio: 'pipe', timeout: 15_000 });
+  if (probe.status !== 0) {
+    throw new Error(`solidx-agenthub-runtime v${getAgentHubVersion(command)} does not include the searxng commands. ` +
+      'Upgrade the runtime, or use --local with AGENT_HUB_RUNTIME_PATH set.');
+  }
+  const result = spawnSync(command, ['searxng', ...args], { env, stdio: 'inherit' });
+  if (result.error) throw new Error(`Failed to run agenthub-runtime searxng: ${result.error.message}`);
+  return result.status ?? 1;
+}
+
+function parseNonNegativeInteger(value: string, flag: string): string {
+  if (!/^\d+$/.test(value)) throw new Error(`${flag} must be a non-negative integer.`);
+  return value;
+}
+
+function registerSearxngCommands(agenthub: Command) {
+  const searxng = agenthub
+    .command('searxng')
+    .description('Manage the local SearXNG container used by the AgentHub web_search tool (requires Docker)');
+
+  const subcommand = (name: string, description: string) => searxng.command(name)
+    .description(description)
+    .option('--local', 'Use the runtime from AGENT_HUB_RUNTIME_PATH in editable mode')
+    .option('--env <KEY=VALUE>', 'Pass an environment variable to the runtime, e.g. AGENT_HUB_SEARXNG_PORT=8899 (repeatable)',
+      (value, previous: string[] = []) => [...previous, value], []);
+
+  const run = (options: AgentHubSearxngOptions, buildArgs: () => string[]) => {
+    try {
+      const args = buildArgs();
+      const env = buildSearxngEnv(process.cwd(), options.env);
+      const command = ensureAgentHubInstalled(options);
+      process.exitCode = runAgentHubSearxng(command, args, env);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
+  };
+
+  subcommand('up', 'Create or start the agenthub-searxng container and wait until it is healthy')
+    .option('--wait <seconds>', 'Seconds to wait for the health check (0 to skip)', '60')
+    .action((options: AgentHubSearxngOptions & { wait: string }) =>
+      run(options, () => ['up', '--wait', parseNonNegativeInteger(options.wait, '--wait')]));
+  subcommand('down', 'Remove the agenthub-searxng container (settings are kept)')
+    .action((options: AgentHubSearxngOptions) => run(options, () => ['down']));
+  subcommand('status', 'Show container state and health; exits non-zero when not healthy')
+    .action((options: AgentHubSearxngOptions) => run(options, () => ['status']));
+  subcommand('logs', 'Print recent container logs')
+    .option('--tail <lines>', 'Number of lines', '100')
+    .action((options: AgentHubSearxngOptions & { tail: string }) =>
+      run(options, () => ['logs', '--tail', parseNonNegativeInteger(options.tail, '--tail')]));
+}
+
 export function registerAgentHubCommand(program: Command) {
   const agenthub = program
     .command('agenthub')
@@ -128,4 +194,6 @@ export function registerAgentHubCommand(program: Command) {
         process.exitCode = 1;
       }
     });
+
+  registerSearxngCommands(agenthub);
 }

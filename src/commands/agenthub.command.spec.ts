@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { Command } from 'commander';
 import fs from 'fs';
 import os from 'os';
@@ -137,4 +137,84 @@ describe('AgentHub startup', () => {
       jest.useRealTimers();
     });
   }
+});
+
+describe('AgentHub SearXNG commands', () => {
+  const originalEnv = process.env;
+  const originalCwd = process.cwd();
+  let project: string;
+  const runtime = '/local/.venv/bin/agenthub-runtime';
+  const run = async (args: string[]) => {
+    const program = new Command().enablePositionalOptions().exitOverride();
+    registerAgentHubCommand(program);
+    await program.parseAsync(['agenthub', 'searxng', ...args], { from: 'user' });
+  };
+  beforeEach(() => {
+    jest.resetAllMocks();
+    process.exitCode = 0;
+    process.env = { ...originalEnv };
+    for (const key of Object.keys(process.env)) {
+      if (/^(DATABASE_URL|BASE_URL|SOLIDX_API_BASE_URL|DEFAULT_DATABASE_|AGENT_HUB_)/.test(key)) delete process.env[key];
+    }
+    project = fs.mkdtempSync(path.join(os.tmpdir(), 'solidctl-searxng-'));
+    process.chdir(project);
+    jest.mocked(ensureAgentHubInstalled).mockReturnValue(runtime);
+    jest.mocked(getAgentHubVersion).mockReturnValue('0.1.0');
+    jest.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    process.chdir(originalCwd);
+    process.exitCode = 0;
+    process.env = originalEnv;
+    fs.rmSync(project, { recursive: true, force: true });
+    jest.restoreAllMocks();
+  });
+
+  it.each([
+    { args: ['up'], forwarded: ['up', '--wait', '60'] },
+    { args: ['up', '--wait', '0'], forwarded: ['up', '--wait', '0'] },
+    { args: ['down'], forwarded: ['down'] },
+    { args: ['status'], forwarded: ['status'] },
+    { args: ['logs', '--tail', '20'], forwarded: ['logs', '--tail', '20'] },
+  ])('delegates $args to agenthub-runtime searxng without a project root or DB settings', async ({ args, forwarded }) => {
+    await run([...args, '--local']);
+    expect(ensureAgentHubInstalled).toHaveBeenCalledWith(expect.objectContaining({ local: true }));
+    expect(checkAgentHubUpdate).not.toHaveBeenCalled();
+    expect(spawnSync).toHaveBeenLastCalledWith(runtime, ['searxng', ...forwarded], expect.objectContaining({ stdio: 'inherit' }));
+    expect(process.exitCode).toBe(0);
+  });
+
+  it('passes project .env settings and --env overrides to the runtime', async () => {
+    fs.mkdirSync(path.join(project, 'solid-api'));
+    fs.writeFileSync(path.join(project, '.env'), 'AGENT_HUB_SEARXNG_PORT=8899\n');
+    fs.writeFileSync(path.join(project, 'solid-api', '.env'), 'AGENT_HUB_SEARXNG_PORT=7777\nAGENT_HUB_SEARXNG_DIR=/tmp/sx\n');
+    await run(['up', '--env', 'AGENT_HUB_SEARXNG_IMAGE=searxng/searxng:test']);
+    expect(spawnSync).toHaveBeenLastCalledWith(runtime, ['searxng', 'up', '--wait', '60'], expect.objectContaining({
+      env: expect.objectContaining({
+        AGENT_HUB_SEARXNG_PORT: '8899', AGENT_HUB_SEARXNG_DIR: '/tmp/sx', AGENT_HUB_SEARXNG_IMAGE: 'searxng/searxng:test',
+      }),
+    }));
+  });
+
+  it('propagates the runtime exit code', async () => {
+    jest.mocked(spawnSync).mockReturnValueOnce({ status: 0 } as any).mockReturnValueOnce({ status: 1 } as any);
+    await run(['status']);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('explains when the installed runtime has no searxng commands', async () => {
+    jest.mocked(spawnSync).mockReturnValueOnce({ status: 2 } as any);
+    await run(['up']);
+    expect(spawnSync).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('v0.1.0 does not include the searxng commands'));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('rejects invalid numeric options before installing', async () => {
+    await run(['logs', '--tail', 'abc']);
+    expect(ensureAgentHubInstalled).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith('--tail must be a non-negative integer.');
+    expect(process.exitCode).toBe(1);
+  });
 });
