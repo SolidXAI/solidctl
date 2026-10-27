@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.51-beta.6] - 2026-10-27
+
+### Added
+
+- added searxng management sub-commands for agenthub
+
 ## [0.1.51-beta.5] - 2026-10-23
 
 ### Added
