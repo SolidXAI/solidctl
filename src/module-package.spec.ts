@@ -278,6 +278,17 @@ describe('module packages', () => {
       expect(source.apps).toEqual([{ name: 'developers app' }]);
     });
 
+    it('refuses to treat the module definition as user data', async () => {
+      const config = await createModuleWithUserData('testing-hub');
+      const document = JSON.parse(await fs.readFile(config.metadataPath, 'utf-8'));
+      document.modulePackage.userData.metadataKeys = ['apps', 'moduleMetadata'];
+      await fs.writeFile(config.metadataPath, JSON.stringify(document));
+
+      await expect(
+        exportModulePackage({ projectRoot: root, config, version: '1.0.0' }),
+      ).rejects.toThrow('cannot list moduleMetadata');
+    });
+
     it('keeps schema 1.0 for a module that declares nothing', async () => {
       await createModule(root, 'plain-module');
       const config = resolveSolidModuleConfig(root, {

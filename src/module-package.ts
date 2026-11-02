@@ -115,6 +115,9 @@ function stringList(value: unknown): string[] {
     : [];
 }
 
+/** The module's own definition always comes from the package, so it can never be user data. */
+const RESERVED_METADATA_KEYS = ['moduleMetadata', 'modulePackage'];
+
 export function normalizeUserData(raw: unknown): ModulePackageUserData {
   const source = (raw && typeof raw === 'object' ? raw : {}) as Record<
     string,
@@ -132,7 +135,9 @@ export function normalizeUserData(raw: unknown): ModulePackageUserData {
   return {
     solidApiPaths: safePaths(source.solidApiPaths),
     solidUiPaths: safePaths(source.solidUiPaths),
-    metadataKeys: stringList(source.metadataKeys),
+    metadataKeys: stringList(source.metadataKeys).filter(
+      (key) => !RESERVED_METADATA_KEYS.includes(key),
+    ),
   };
 }
 
@@ -476,6 +481,15 @@ export async function exportModulePackage(
   const modulePackageSection = (
     metadata as { modulePackage?: Record<string, unknown> }
   ).modulePackage;
+  const reservedKeys = stringList(
+    (modulePackageSection?.userData as { metadataKeys?: unknown } | undefined)
+      ?.metadataKeys,
+  ).filter((key) => RESERVED_METADATA_KEYS.includes(key));
+  if (reservedKeys.length > 0) {
+    throw new Error(
+      `modulePackage.userData.metadataKeys cannot list ${reservedKeys.join(', ')}: the module's own definition always comes from the package.`,
+    );
+  }
   const userData = normalizeUserData(modulePackageSection?.userData);
   const dependencies = normalizeDependencies(
     modulePackageSection?.packageDependencies,
