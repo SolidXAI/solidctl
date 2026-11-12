@@ -313,9 +313,8 @@ export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string
     'IAM Registration': {
       IAM_PASSWORD_LESS_REGISTRATION: 'false',
       IAM_PASSWORD_LESS_REGISTRATION_VALIDATE_WHAT: 'transactional',
-      IAM_ALLOW_PUBLIC_REGISTRATION: 'true',
-      IAM_ACTIVATE_USER_ON_REGISTRATION: 'true',
-      IAM_DEFAULT_ROLE: 'Admin',
+      IAM_ALLOW_PUBLIC_REGISTRATION: 'false',
+      IAM_ACTIVATE_USER_ON_REGISTRATION: 'true'
     },
     'IAM JWT': {
       IAM_JWT_TOKEN_AUDIENCE: `http://localhost:${answers.solidApiPort}`,
