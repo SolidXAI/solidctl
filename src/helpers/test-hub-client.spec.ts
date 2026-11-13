@@ -113,10 +113,11 @@ describe('TestHubClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('stores the value, activates the secret and links it to the application', async () => {
+  it('stores the value and activates the secret, then links it when the application does not have it yet', async () => {
     fetchMock
       .mockResolvedValueOnce(json({ data: { records: [{ id: 9, key: 'TEST_DATA_API_KEY' }] } }))
       .mockResolvedValueOnce(json({ data: { id: 9 } }))
+      .mockResolvedValueOnce(json({ data: { id: 3, secrets: [] } }))
       .mockResolvedValueOnce(json({ data: { id: 3 } }));
 
     await client().setTestDataSecret(3, 'sldx_test');
@@ -126,9 +127,22 @@ describe('TestHubClient', () => {
     expect(patchSecret.method).toBe('PATCH');
     expect(JSON.parse(patchSecret.body)).toEqual({ value: 'sldx_test', status: 'active' });
 
-    const [linkUrl, link] = fetchMock.mock.calls[2];
+    expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:8080/api/application/3?populate[0]=secrets');
+    const [linkUrl, link] = fetchMock.mock.calls[3];
     expect(linkUrl).toBe('http://localhost:8080/api/application/3');
     expect(JSON.parse(link.body)).toEqual({ secretsIds: [9], secretsCommand: 'link' });
+  });
+
+  it('does not link again when the seed already linked the secret, which would fail with a duplicate key', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ data: { records: [{ id: 9, key: 'TEST_DATA_API_KEY' }] } }))
+      .mockResolvedValueOnce(json({ data: { id: 9 } }))
+      .mockResolvedValueOnce(json({ data: { id: 3, secrets: [{ id: 9 }] } }));
+
+    await client().setTestDataSecret(3, 'sldx_test');
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.some(([, init]) => init.method === 'PATCH' && JSON.parse(init.body).secretsCommand)).toBe(false);
   });
 
   it('starts a run and returns its id', async () => {

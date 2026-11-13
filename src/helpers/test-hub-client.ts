@@ -119,8 +119,8 @@ export class TestHubClient {
   }
 
   /**
-   * Stores the value in the test-data secret and links the secret to the application. The seed creates the secret row
-   * (inactive, empty) from the application's metadata, so it must already exist. Fails if it does not.
+   * Stores the value in the test-data secret and makes sure the secret is linked to the application. The seed creates the
+   * secret row (inactive, empty) and links it, from the application's metadata, so it must already exist. Fails if it does not.
    */
   async setTestDataSecret(applicationId: number, value: string): Promise<void> {
     const json = await this.request('GET', `/api/secret?filters[key][$eq]=${encodeURIComponent(TEST_DATA_SECRET_KEY)}`);
@@ -130,7 +130,14 @@ export class TestHubClient {
     }
     const secretId = Number(records[0].id);
     await this.request('PATCH', `/api/secret/${secretId}`, { value, status: 'active' });
-    await this.request('PATCH', `/api/application/${applicationId}`, { secretsIds: [secretId], secretsCommand: 'link' });
+
+    // `seed` links the secret from the application's metadata, and the link command adds a row without checking for an
+    // existing one (a second link fails with a duplicate key), so link only when it is not linked yet.
+    const application = unwrap(await this.request('GET', `/api/application/${applicationId}?populate[0]=secrets`));
+    const alreadyLinked = (application?.secrets ?? []).some((secret: { id: number }) => Number(secret.id) === secretId);
+    if (!alreadyLinked) {
+      await this.request('PATCH', `/api/application/${applicationId}`, { secretsIds: [secretId], secretsCommand: 'link' });
+    }
   }
 
   /** Starts a run of the application with the given tags. Returns the Test Hub run id. */
