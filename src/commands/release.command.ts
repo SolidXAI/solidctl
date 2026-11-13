@@ -7,6 +7,12 @@ import os from 'os';
 import path from 'path';
 import { generateAndCommitChangelog } from './release-changelog';
 import {
+  readAdminApiKeyForProject,
+  resolveTestHubApplicationName,
+  TestHubClient,
+  TEST_DATA_SECRET_KEY,
+} from '../helpers/test-hub-client';
+import {
   assertCleanWorkingTree,
   assertRefIsReleasable,
   assertReleaseTreeMatchesRef,
@@ -515,65 +521,6 @@ function runReleaseValidationCommand(
   }
 }
 
-interface ReleaseValidationTestResult {
-  commandSucceeded: boolean;
-  passedSummaryDetected: boolean;
-  failedSummaryDetected: boolean;
-  output: string;
-}
-
-function runReleaseValidationTestCommand(
-  command: string,
-  dryRun: boolean,
-  cwd: string,
-): Promise<ReleaseValidationTestResult> {
-  console.log(`▶ ${command}`);
-
-  if (dryRun) {
-    console.log(`[dry-run] (${cwd}) ${command}`);
-    return Promise.resolve({
-      commandSucceeded: true,
-      passedSummaryDetected: true,
-      failedSummaryDetected: false,
-      output: '',
-    });
-  }
-
-  return new Promise((resolve) => {
-    const env = {
-      ...process.env,
-      ...(process.stdout.isTTY ? { SOLIDCTL_TEST_PROGRESS: '1' } : {}),
-    };
-
-    const child = spawn(command, {
-      cwd,
-      env,
-      shell: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let output = '';
-
-    const handleChunk = (chunk: Buffer, writer: NodeJS.WriteStream) => {
-      const text = chunk.toString();
-      output += text;
-      writer.write(text);
-    };
-
-    child.stdout?.on('data', (chunk: Buffer) => handleChunk(chunk, process.stdout));
-    child.stderr?.on('data', (chunk: Buffer) => handleChunk(chunk, process.stderr));
-
-    child.once('close', (code) => {
-      resolve({
-        commandSucceeded: code === 0,
-        passedSummaryDetected: /Result:\s*Test run PASSED/.test(output),
-        failedSummaryDetected: /Result:\s*Test run FAILED/.test(output),
-        output,
-      });
-    });
-  });
-}
-
 function getReleaseValidationLogPath(cwd: string): string {
   const logsDir = path.join(cwd, 'logs', 'solidctl', 'release-validation');
   fs.mkdirSync(logsDir, { recursive: true });
@@ -850,7 +797,7 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
   console.log(`Validation targets: api=${validationTargets.apiBaseUrl} ui=${validationTargets.uiBaseUrl}`);
   const unregisterSignalHandlers = registerReleaseValidationSignalHandlers();
 
-  const commands: Array<{ command: string; failureMessage: string }> = [
+  const commands: Array<{ command: string; failureMessage: string; required?: boolean }> = [
     {
       command: 'solidctl local-upgrade',
       failureMessage: 'Warning: local-upgrade failed.',
@@ -861,40 +808,35 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     },
     {
       command: 'solidctl test data --setup',
-      failureMessage: 'Warning: release test data setup failed.',
+      failureMessage: 'Release test data setup failed.',
+      required: true,
     },
     {
       command: 'solidctl seed',
-      failureMessage: 'Warning: release seed failed.',
-    },
-    {
-      command: 'solidctl test data --load',
-      failureMessage: 'Warning: release test data load failed.',
+      failureMessage: 'Release seed failed.',
+      required: true,
     },
   ];
 
-  const testCommands: Array<{ command: string; summaryLabel: string }> = [];
+  const testHubRuns: Array<{ includeTags: string; label: string }> = [];
 
   if (project.type === 'solid-core-module') {
-    testCommands.push({
-      command: `solidctl test run --module library-management --include-tags api-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
-      summaryLabel: 'solid-core-module API release tests',
-    });
+    testHubRuns.push({ includeTags: 'api-all-flows', label: 'solid-core-module API release tests' });
   } else if (project.type === 'solid-core-ui') {
-    testCommands.push({
-      command: `solidctl test run --module library-management --include-tags ui-all-flows --api-base-url ${validationTargets.apiBaseUrl} --ui-base-url ${validationTargets.uiBaseUrl} --headless false`,
-      summaryLabel: 'solid-core-ui UI release tests',
-    });
+    testHubRuns.push({ includeTags: 'ui-all-flows', label: 'solid-core-ui UI release tests' });
   }
 
   let consumingProjectProcess: RunningConsumingProject | null = null;
 
   try {
     for (const item of commands) {
-      runReleaseValidationCommand(item.command, dryRun, consumingProjectRoot, item.failureMessage);
+      const succeeded = runReleaseValidationCommand(item.command, dryRun, consumingProjectRoot, item.failureMessage);
+      if (!succeeded && item.required) {
+        throw new Error(`${item.failureMessage} Release has been stopped.`);
+      }
     }
 
-    if (testCommands.length > 0) {
+    if (testHubRuns.length > 0) {
       if (!dryRun) {
         ensureReleaseValidationPortsAreFree(validationTargets);
       }
@@ -906,20 +848,8 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
         await waitForReleaseValidationServices(consumingProjectProcess, validationTargets);
       }
 
-      for (const item of testCommands) {
-        const testResult = await runReleaseValidationTestCommand(item.command, dryRun, consumingProjectRoot);
-
-        if (!testResult.commandSucceeded) {
-          throw new Error(
-            `${item.summaryLabel} exited unsuccessfully. Release has been stopped.`,
-          );
-        }
-
-        if (testResult.failedSummaryDetected || !testResult.passedSummaryDetected) {
-          throw new Error(
-            `${item.summaryLabel} did not report "Result: Test run PASSED". Release has been stopped.`,
-          );
-        }
+      for (const item of testHubRuns) {
+        await runTestHubReleaseValidation(consumingProjectRoot, validationTargets, item, dryRun);
       }
     }
   } finally {
@@ -933,6 +863,82 @@ async function runLocalReleaseValidation(project: ResolvedReleaseProject, dryRun
     await runReleaseValidationTeardown(consumingProjectRoot, dryRun);
     unregisterSignalHandlers();
   }
+}
+
+const RELEASE_TEST_HUB_APP_FALLBACK_NAME = 'SolidX Library Management';
+// How long to wait for the Test Hub run before cancelling it. Default 30 minutes; override with
+// SOLIDX_RELEASE_TEST_TIMEOUT_MIN. Anything that is not a positive number falls back to the default.
+const RELEASE_TEST_DEFAULT_TIMEOUT_MIN = 30;
+const releaseTestTimeoutMinutes = (): number => {
+  const configured = Number(process.env.SOLIDX_RELEASE_TEST_TIMEOUT_MIN);
+  return Number.isFinite(configured) && configured > 0 ? configured : RELEASE_TEST_DEFAULT_TIMEOUT_MIN;
+};
+const RELEASE_TEST_POLL_MS = 10_000;
+const RELEASE_TEST_FINAL_STATUSES = ['succeeded', 'failed', 'canceled', 'interrupted'];
+
+/**
+ * Runs the consuming project's Test Hub application for a release and waits for it. Before the run, the test-data
+ * secret is set from the admin key and linked to the application, so the seed data loads. The release passes only
+ * when the run succeeds with no failed scenarios.
+ */
+async function runTestHubReleaseValidation(
+  consumingProjectRoot: string,
+  validationTargets: ReleaseValidationTargets,
+  item: { includeTags: string; label: string },
+  dryRun: boolean,
+): Promise<void> {
+  // The application to run is the one in the consuming project's Test Hub metadata. SOLIDX_RELEASE_TEST_HUB_APP overrides it.
+  const appName = resolveTestHubApplicationName(
+    consumingProjectRoot,
+    process.env.SOLIDX_RELEASE_TEST_HUB_APP,
+    RELEASE_TEST_HUB_APP_FALLBACK_NAME,
+  );
+  console.log(`▶ Test Hub run of "${appName}" with tags ${item.includeTags}`);
+  if (dryRun) {
+    console.log(`[dry-run] ${item.label}`);
+    return;
+  }
+
+  const apiKey = readAdminApiKeyForProject(consumingProjectRoot);
+  const client = new TestHubClient({ baseUrl: validationTargets.apiBaseUrl, apiKey });
+  const app = await client.findApplicationByName(appName);
+  console.log(`Setting ${TEST_DATA_SECRET_KEY} for "${app.name}"`);
+  await client.setTestDataSecret(app.id, apiKey);
+
+  const testRunId = await client.startRun(app.id, [item.includeTags]);
+  console.log(`Test Hub run #${testRunId} started. Waiting for it to finish...`);
+
+  const timeoutMinutes = releaseTestTimeoutMinutes();
+  const deadline = Date.now() + timeoutMinutes * 60 * 1000;
+  let run = await client.getRunWithRetry(testRunId);
+  let lastLine = '';
+  const progress = () => `  ${run.status}: ${run.passed ?? 0} passed, ${run.failed ?? 0} failed of ${run.total ?? '?'}`;
+  while (!RELEASE_TEST_FINAL_STATUSES.includes(run.status)) {
+    if (Date.now() > deadline) {
+      await client.cancelRun(testRunId).catch(() => undefined);
+      throw new Error(`${item.label} timed out after ${timeoutMinutes} min. Release has been stopped.`);
+    }
+    if (progress() !== lastLine) {
+      lastLine = progress();
+      console.log(lastLine);
+    }
+    await sleep(RELEASE_TEST_POLL_MS);
+    run = await client.getRunWithRetry(testRunId);
+  }
+  console.log(progress());
+
+  if (run.status !== 'succeeded' || Number(run.failed ?? 0) > 0) {
+    if (run.error) {
+      console.error(`  Reason: ${run.error.slice(0, 600)}`);
+    }
+    const failed = await client.listFailedScenarios(testRunId).catch(() => []);
+    for (const scenario of failed) {
+      console.error(`  FAILED ${scenario.scenarioId ?? '?'}: ${String(scenario.error ?? '').slice(0, 400)}`);
+    }
+    const reason = run.status === 'succeeded' ? `${run.failed} scenario(s) failed` : `ended ${run.status}`;
+    throw new Error(`${item.label} ${reason}. Test Hub run #${testRunId}. Release has been stopped.`);
+  }
+  console.log(`✔ ${item.label} passed (Test Hub run #${testRunId}).`);
 }
 
 function getReleaseOptions(options: PublishOptions) {
