@@ -6,6 +6,7 @@ import net from 'net';
 import os from 'os';
 import path from 'path';
 import { generateAndCommitChangelog } from './release-changelog';
+import { TestRunProgress } from '../helpers/test-run-progress';
 import {
   readAdminApiKeyForProject,
   resolveTestHubApplicationName,
@@ -873,7 +874,8 @@ const releaseTestTimeoutMinutes = (): number => {
   const configured = Number(process.env.SOLIDX_RELEASE_TEST_TIMEOUT_MIN);
   return Number.isFinite(configured) && configured > 0 ? configured : RELEASE_TEST_DEFAULT_TIMEOUT_MIN;
 };
-const RELEASE_TEST_POLL_MS = 10_000;
+// Short enough for the progress line to move, and one small GET per poll.
+const RELEASE_TEST_POLL_MS = 2_000;
 const RELEASE_TEST_FINAL_STATUSES = ['succeeded', 'failed', 'canceled', 'interrupted'];
 
 /**
@@ -910,22 +912,24 @@ async function runTestHubReleaseValidation(
 
   const timeoutMinutes = releaseTestTimeoutMinutes();
   const deadline = Date.now() + timeoutMinutes * 60 * 1000;
+  const progress = new TestRunProgress();
   let run = await client.getRunWithRetry(testRunId);
-  let lastLine = '';
-  const progress = () => `  ${run.status}: ${run.passed ?? 0} passed, ${run.failed ?? 0} failed of ${run.total ?? '?'}`;
-  while (!RELEASE_TEST_FINAL_STATUSES.includes(run.status)) {
-    if (Date.now() > deadline) {
-      await client.cancelRun(testRunId).catch(() => undefined);
-      throw new Error(`${item.label} timed out after ${timeoutMinutes} min. Release has been stopped.`);
+  try {
+    while (!RELEASE_TEST_FINAL_STATUSES.includes(run.status)) {
+      if (Date.now() > deadline) {
+        progress.clear();
+        await client.cancelRun(testRunId).catch(() => undefined);
+        throw new Error(`${item.label} timed out after ${timeoutMinutes} min. Release has been stopped.`);
+      }
+      progress.update(run);
+      await sleep(RELEASE_TEST_POLL_MS);
+      run = await client.getRunWithRetry(testRunId);
     }
-    if (progress() !== lastLine) {
-      lastLine = progress();
-      console.log(lastLine);
-    }
-    await sleep(RELEASE_TEST_POLL_MS);
-    run = await client.getRunWithRetry(testRunId);
+  } finally {
+    // An error mid-wait must not leave the in-place line in front of the error message.
+    progress.clear();
   }
-  console.log(progress());
+  progress.finish(run);
 
   if (run.status !== 'succeeded' || Number(run.failed ?? 0) > 0) {
     if (run.error) {
