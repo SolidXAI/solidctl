@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.51-beta.7] - 2026-11-16
+
+### Other
+
+- Lm migration (#83)
+- (#81)
+- Mobile testing agentic authoring (#82)
+- Mobile testing agentic authoring (#79)
+
 ## [0.1.51-beta.6] - 2026-10-27
 
 ### Added
