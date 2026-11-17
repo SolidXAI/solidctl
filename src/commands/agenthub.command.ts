@@ -1,7 +1,8 @@
 import { spawn, spawnSync } from 'child_process';
+import fs from 'fs';
 import { Command } from 'commander';
 import path from 'path';
-import { config as loadDotenv } from 'dotenv';
+import { config as loadDotenv, parse as parseDotenv } from 'dotenv';
 import { validateProjectRoot } from '../helper';
 import { AgentCommandExit } from './agent-helper';
 import { checkAgentHubUpdate, ensureAgentHubInstalled, getAgentHubVersion } from './agenthub-helper';
@@ -12,6 +13,7 @@ export type AgentHubOptions = {
   host?: string;
   local?: boolean;
   env?: string[];
+  logLevel?: string;
 };
 
 function parseEnvAssignments(assignments: string[] = []): Record<string, string> {
@@ -41,9 +43,12 @@ export function buildAgentHubEnv(projectRoot: string, host?: string): Record<str
   return env;
 }
 
-export function runAgentHubManager(command: string, projectRoot: string, env: Record<string, string>, port: string): Promise<number> {
+export function runAgentHubManager(command: string, projectRoot: string, env: Record<string, string>, port: string,
+                                  logLevel?: string): Promise<number> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, ['manager', '--port', port], {
+    const args = ['manager', '--port', port];
+    if (logLevel) args.push('--log-level', logLevel);
+    const child = spawn(command, args, {
       cwd: projectRoot,
       env,
       stdio: 'inherit',
@@ -170,21 +175,35 @@ export function registerAgentHubCommand(program: Command) {
     .option('-p, --port <port>', 'Manager port', '9001')
     .option('-H, --host <host>', 'Manager bind host (default: AGENT_HUB_MANAGER_BIND_HOST or 127.0.0.1)')
     .option('--local', 'Install from AGENT_HUB_RUNTIME_PATH in editable mode')
+    .option('-l, --log-level <level>', 'Logging verbosity: CRITICAL, ERROR, WARNING, INFO, or DEBUG (default: .env or INFO)')
     .option('--env <KEY=VALUE>', 'Pass an environment variable to AgentHub (repeatable)', (value, previous: string[] = []) => [...previous, value], [])
     .action(async (options: AgentHubOptions) => {
       try {
         if (!/^\d+$/.test(options.port) || +options.port < 1 || +options.port > 65535) {
           throw new Error('--port must be an integer between 1 and 65535.');
         }
+        const logLevel = options.logLevel?.toUpperCase();
+        if (logLevel && !['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'].includes(logLevel)) {
+          throw new Error('--log-level must be one of CRITICAL, ERROR, WARNING, INFO, or DEBUG.');
+        }
         await checkAgentHubUpdate({ isLocal: Boolean(options.local) });
         validateProjectRoot();
         const projectRoot = process.cwd();
+        // In local checkout mode, also honor the runtime checkout's .env for its own
+        // logging setting. Existing shell values and the explicit CLI option still win.
+        const runtimePath = process.env.AGENT_HUB_RUNTIME_PATH;
+        const runtimeEnvPath = runtimePath ? path.join(path.resolve(runtimePath), '.env') : undefined;
+        if (runtimeEnvPath && fs.existsSync(runtimeEnvPath) && !process.env.AGENT_HUB_LOG_LEVEL) {
+          const runtimeEnv = parseDotenv(fs.readFileSync(runtimeEnvPath));
+          if (runtimeEnv.AGENT_HUB_LOG_LEVEL) process.env.AGENT_HUB_LOG_LEVEL = runtimeEnv.AGENT_HUB_LOG_LEVEL;
+        }
         const env = buildAgentHubEnv(projectRoot, options.host);
         Object.assign(env, parseEnvAssignments(options.env));
+        if (logLevel) env.AGENT_HUB_LOG_LEVEL = logLevel;
         const command = ensureAgentHubInstalled(options);
         console.log(`solidx-agenthub-runtime v${getAgentHubVersion(command)}`);
-        console.log(`Starting AgentHub manager on ${env.AGENT_HUB_MANAGER_BIND_HOST}:${options.port}`);
-        process.exitCode = await runAgentHubManager(command, projectRoot, env, options.port);
+        console.log(`Starting AgentHub manager on ${env.AGENT_HUB_MANAGER_BIND_HOST}:${options.port} (log level ${env.AGENT_HUB_LOG_LEVEL || 'INFO'})`);
+        process.exitCode = await runAgentHubManager(command, projectRoot, env, options.port, logLevel);
       } catch (error) {
         if (error instanceof AgentCommandExit) {
           process.exitCode = error.exitCode;
