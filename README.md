@@ -82,6 +82,36 @@ solidctl create-app [options]
 
 ---
 
+### `setup-app`
+
+Sets up an **already-bootstrapped** SolidX project you've just cloned — the counterpart to `create-app` for a project that already exists. Infers what it can from the repo (project name, UI port), prompts only for the database connection, then installs, configures, builds, seeds, and starts the project.
+
+```bash
+solidctl setup-app [options]
+```
+
+| Flag | Description |
+|---|---|
+| `--no-start` | Skip starting the dev servers after setup |
+| `--no-interactive` | Skip all prompts and use defaults (or provided flags) |
+| `--verbose` | Show detailed logs during installation |
+| `--skip-install` | Skip `npm install` for `solid-api` and `solid-ui` |
+| `--skip-build` | Skip the build step |
+| `--skip-seed` | Skip the seed step |
+| `--force-env` | Regenerate `.env` files even if they already exist |
+| `--db-client <client>` | `PostgreSQL`, `MySQL`, or `MSSQL` |
+| `--db-host <host>` | Database host |
+| `--db-port <port>` | Database port |
+| `--db-name <name>` | Database name |
+| `--db-username <username>` | Database username |
+| `--db-password <password>` | Database password |
+
+If `solid-api/.env` already exists, it's left untouched (pass `--force-env` to regenerate). If a `solid-api/.env.example` exists, its non-secret values are carried over and only the gaps (and the database password) are prompted for. Otherwise, only the database connection is prompted for — other project-specific settings (RabbitMQ, OAuth, SMTP, Redis, etc., if the project uses them) aren't known ahead of time and need to be added manually afterward.
+
+> Requires both `solid-api/package.json` and `solid-ui/package.json` to define a `solidx:dev` script. If either is missing (a project that predates that script), setup fails fast and tells you the exact line to add.
+
+---
+
 ### `build`
 
 Builds the NestJS API and sets up the local `solid` CLI shim so subsequent `solidctl` commands that proxy into the API (like `seed`, `generate`, and `test`) work correctly. Run this after project creation and after any changes to `solid-api`.
@@ -108,6 +138,7 @@ solidctl seed
 ```
 
 Proxies to the `solid seed` command inside `solid-api/`. Any additional arguments are passed through.
+Use `solidctl seed --verbose` to show detailed Nest/Winston logs during seeding.
 
 ---
 
@@ -217,6 +248,56 @@ Keyboard shortcuts in interactive terminals with `--controls`:
 - `q` stop both and quit
 
 This command validates that both `solid-api/package.json` and `solid-ui/package.json` define a `solidx:dev` script before starting either process.
+
+---
+
+### `agenthub start`
+
+Starts the AgentHub runtime manager from your SolidX project root (default: `127.0.0.1:9001`).
+
+```bash
+# Local checkout; creates/reuses its .venv and installs editable source
+export AGENT_HUB_RUNTIME_PATH=/path/to/agent-hub-runtime
+solidctl agenthub start --local
+
+# After solidx-agenthub-runtime is published to PyPI
+solidctl agenthub start
+
+# Change the manager bind address/port
+solidctl agenthub start --local --host 127.0.0.1 --port 9002
+
+# Pass variables directly to the AgentHub manager and its child processes
+solidctl agenthub start --env AGENT_HUB_WORKERS=2 --env FEATURE_FLAG=true
+```
+
+`--env` is repeatable and accepts `KEY=VALUE`. Command-line values override values loaded from the environment or `.env` files. The manager and processes it launches inherit these variables.
+
+Python 3.11+ is required. Published installs use a separate `~/.solidx/agenthub-venv`; prerelease versions of solidctl allow prerelease packages with `--pre`. Until the runtime package is published, use `--local`.
+
+Like `solidctl agent start`, published mode checks PyPI for updates on solidctl's stable/beta track and asks before upgrading in an interactive terminal (default: no). Non-interactive runs print the manual upgrade command. A successful upgrade exits so you can rerun the command; `--local` skips the update check.
+
+Settings load from the OS environment, project-root `.env`, then `solid-api/.env` (earlier values win). `DATABASE_URL` can be built from `DEFAULT_DATABASE_*`; `SOLIDX_API_BASE_URL` is preferred for SolidX API calls, with `BASE_URL` as a compatibility fallback. Pass `APP_ENCRYPTION_KEY` for linked secrets and `AGENT_HUB_MANAGER_INTERNAL_TOKEN` for chat/MCP, along with any other `AGENT_HUB_*` settings. Ctrl+C stops the manager and its agent processes.
+
+---
+
+### `agenthub searxng`
+
+Manages the local SearXNG container that backs the AgentHub `web_search` tool. Docker is required. The commands delegate to `agenthub-runtime searxng`, so container name, image, port, and settings stay defined in one place.
+
+```bash
+solidctl agenthub searxng up --local       # create/start agenthub-searxng and wait for /healthz (--wait 0 to skip)
+solidctl agenthub searxng status --local   # state, image, URL, health; exits non-zero when not healthy
+solidctl agenthub searxng logs --local --tail 200
+solidctl agenthub searxng down --local     # remove the container; ~/.agenthub/searxng/settings.yml is kept
+
+# Use a different host port (match it when starting the manager)
+solidctl agenthub searxng up --local --env AGENT_HUB_SEARXNG_PORT=8899
+
+# Start SearXNG automatically with the manager instead
+solidctl agenthub start --local --env AGENT_HUB_SEARXNG_AUTOSTART=1
+```
+
+Every subcommand accepts `--local` and repeatable `--env KEY=VALUE`, like `agenthub start`. SearXNG is machine-wide, so these commands do not require a project root, but they read `.env` and `solid-api/.env` from the current directory when present so `AGENT_HUB_SEARXNG_*` settings match the manager. They skip the PyPI update check. If the installed runtime predates the SearXNG commands, solidctl tells you to upgrade or use `--local`.
 
 ---
 

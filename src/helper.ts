@@ -28,8 +28,15 @@ export function validateProjectScript(projectName: 'solid-api' | 'solid-ui', scr
   };
 
   if (!packageJson.scripts?.[scriptName]) {
+    const templateScript = scriptName === 'solidx:dev'
+      ? (projectName === 'solid-api' ? 'NODE_OPTIONS=--no-deprecation nodemon' : 'npm run dev')
+      : null;
+    const fixHint = templateScript
+      ? `Add "${scriptName}": "${templateScript}" to the "scripts" section of ${projectName}/package.json.`
+      : `Add a "${scriptName}" script to the "scripts" section of ${projectName}/package.json.`;
+
     console.error(
-      `Ensure ${projectName}/package.json defines the "${scriptName}" script before running this command.`,
+      `Ensure ${projectName}/package.json defines the "${scriptName}" script before running this command.\n${fixHint}`,
     );
     process.exit(1);
   }

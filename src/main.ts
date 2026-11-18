@@ -17,9 +17,11 @@ import { registerLegacyMigrateCommand } from './commands/legacy-migrate.command'
 import { registerGenerateCommand } from './commands/generate.command';
 import { registerMcpCommand } from './commands/mcp.command';
 import { registerAgentCommand } from './commands/agent.command';
+import { registerAgentHubCommand } from './commands/agenthub.command';
 import { registerMigrationCommand } from './commands/migration.command';
 import { registerStartCommand } from './commands/start.command';
 import { registerModuleCommand } from './commands/module.command';
+import { registerSetupAppCommand } from './commands/setup-app/setup-app.command';
 
 function getCliVersion(): string {
   const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
@@ -51,7 +53,12 @@ async function bootstrap() {
   program
     .name('solidctl')
     .description('Solidctl tool')
-    .version(getCliVersion());
+    .version(getCliVersion())
+    .addHelpText(
+      'after',
+      '\nGlobal options:\n' +
+        '  -v, --verbose  Show detailed logs for commands that invoke the Solid CLI\n',
+    );
 
   registerUpgradeCommand(program);
   registerBuildCommand(program);
@@ -66,8 +73,10 @@ async function bootstrap() {
   registerMigrationCommand(program);
   registerMcpCommand(program);
   registerAgentCommand(program);
+  registerAgentHubCommand(program);
   registerStartCommand(program);
   registerModuleCommand(program);
+  registerSetupAppCommand(program);
 
   program.hook('preAction', async () => {
     await checkForUpdates();

@@ -30,6 +30,7 @@ import {
   SOURCE_TEMPLATE_FOLDER_UI,
   TARGET_FOLDER_API,
   TARGET_FOLDER_UI,
+  updateAgentsFile,
   updatePackageName,
   updatePortInPackageJson,
   updateSolidxPackageVersions,
@@ -256,6 +257,7 @@ export function registerCreateAppCommand(program: Command) {
           `@${projectName}/${TARGET_FOLDER_API}`,
         );
         updatePortInPackageJson(targetPath, TARGET_FOLDER_UI, answers.solidUiPort);
+        updateAgentsFile(targetPath, projectName);
         spinner.succeed('Step 3: Package configuration updated');
 
         // Step 4: Generate .env files

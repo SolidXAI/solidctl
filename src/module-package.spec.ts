@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -192,5 +193,122 @@ describe('module packages', () => {
         version: '1.0.0',
       }),
     ).rejects.toThrow('does not exist or is not a directory');
+  });
+
+  describe('user data and dependencies', () => {
+    const unzip = (archive: string, entry: string) =>
+      execFileSync('unzip', ['-p', archive, entry], { encoding: 'utf-8' });
+
+    async function createModuleWithUserData(moduleName: string) {
+      await createModule(root, moduleName);
+      const api = path.join(root, 'solid-api', 'src', moduleName);
+      await fs.writeFile(
+        path.join(api, 'metadata', `${moduleName}-metadata.json`),
+        JSON.stringify({
+          moduleMetadata: { name: moduleName, displayName: moduleName },
+          apps: [{ name: 'developers app' }],
+          modulePackage: {
+            userData: {
+              solidApiPaths: ['metadata/test-scenarios'],
+              metadataKeys: ['apps'],
+            },
+            packageDependencies: {
+              solidApi: { webdriverio: '^10.0.1' },
+              prerequisites: [{ name: 'Java', check: 'java -version' }],
+            },
+          },
+        }),
+      );
+      await fs.mkdir(path.join(api, 'metadata', 'test-scenarios'), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(api, 'metadata', 'test-scenarios', 'mine.json'),
+        '{}',
+      );
+      await fs.writeFile(path.join(api, '.sldx-installed.json'), '{}');
+      return resolveSolidModuleConfig(root, {
+        type: 'solidx-module',
+        moduleName,
+      });
+    }
+
+    it('leaves user data and the install record out and records what to protect', async () => {
+      const config = await createModuleWithUserData('testing-hub');
+
+      const result = await exportModulePackage({
+        projectRoot: root,
+        config,
+        version: '1.0.0',
+      });
+
+      const manifest = await validateModulePackage(result.filePath, {
+        expectedModuleName: 'testing-hub',
+        expectedVersion: '1.0.0',
+      });
+      expect(manifest.schemaVersion).toBe('1.1');
+      expect(manifest.userData).toEqual({
+        solidApiPaths: ['metadata/test-scenarios'],
+        solidUiPaths: [],
+        metadataKeys: ['apps'],
+      });
+      expect(manifest.dependencies?.solidApi).toEqual({
+        webdriverio: '^10.0.1',
+      });
+      const paths = Object.keys(manifest.checksums);
+      expect(paths.some((entry) => entry.includes('test-scenarios'))).toBe(
+        false,
+      );
+      expect(paths.some((entry) => entry.endsWith('.sldx-installed.json'))).toBe(
+        false,
+      );
+
+      const packaged = JSON.parse(
+        unzip(
+          result.filePath,
+          'solid-api/src/testing-hub/metadata/testing-hub-metadata.json',
+        ),
+      );
+      expect(packaged.apps).toEqual([]);
+      expect(packaged.modulePackage.userData.metadataKeys).toEqual(['apps']);
+      // The developer's own file is untouched.
+      const source = JSON.parse(
+        await fs.readFile(config.metadataPath, 'utf-8'),
+      );
+      expect(source.apps).toEqual([{ name: 'developers app' }]);
+    });
+
+    it('refuses to treat the module definition as user data', async () => {
+      const config = await createModuleWithUserData('testing-hub');
+      const document = JSON.parse(await fs.readFile(config.metadataPath, 'utf-8'));
+      document.modulePackage.userData.metadataKeys = ['apps', 'moduleMetadata'];
+      await fs.writeFile(config.metadataPath, JSON.stringify(document));
+
+      await expect(
+        exportModulePackage({ projectRoot: root, config, version: '1.0.0' }),
+      ).rejects.toThrow('cannot list moduleMetadata');
+    });
+
+    it('keeps schema 1.0 for a module that declares nothing', async () => {
+      await createModule(root, 'plain-module');
+      const config = resolveSolidModuleConfig(root, {
+        type: 'solidx-module',
+        moduleName: 'plain-module',
+      });
+
+      const result = await exportModulePackage({
+        projectRoot: root,
+        config,
+        version: '1.0.0',
+      });
+
+      const manifest = await validateModulePackage(result.filePath, {
+        expectedModuleName: 'plain-module',
+        expectedVersion: '1.0.0',
+      });
+      expect(manifest.schemaVersion).toBe('1.0');
+      expect(manifest.userData).toBeUndefined();
+      expect(manifest.dependencies).toBeUndefined();
+    });
   });
 });

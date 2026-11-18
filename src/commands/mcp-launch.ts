@@ -79,6 +79,9 @@ export function buildBridgedEnv(
     SOLIDX_PROJECT_ROOT: projectRoot,
     ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
     ...(process.env.BASE_URL ? { BASE_URL: process.env.BASE_URL } : {}),
+    ...((process.env.SOLIDX_API_BASE_URL || process.env.BASE_URL)
+      ? { SOLIDX_API_BASE_URL: process.env.SOLIDX_API_BASE_URL || process.env.BASE_URL }
+      : {}),
     ...(process.env.FRONTEND_BASE_URL
       ? { FRONTEND_BASE_URL: process.env.FRONTEND_BASE_URL }
       : {}),
@@ -95,6 +98,7 @@ export function printBridgeSummary(env: Record<string, string>): void {
   const bridgedKeys = [
     'DATABASE_URL',
     'SOLIDX_PROJECT_ROOT',
+    'SOLIDX_API_BASE_URL',
     'BASE_URL',
     'FRONTEND_BASE_URL',
     'APP_ENCRYPTION_KEY',

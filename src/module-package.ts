@@ -6,6 +6,11 @@ import yauzl from 'yauzl';
 import { ZipFile } from 'yazl';
 
 const SCHEMA_VERSION = '1.0';
+// A package that declares userData or dependencies is 1.1, so an older core (which replaces the whole
+// module folder on an update) refuses it instead of overwriting the user's data.
+const SCHEMA_VERSION_WITH_MODULE_PACKAGE = '1.1';
+const SUPPORTED_SCHEMA_VERSIONS = [SCHEMA_VERSION, SCHEMA_VERSION_WITH_MODULE_PACKAGE];
+const INSTALL_RECORD_FILE = '.sldx-installed.json';
 const PACKAGE_TYPE = 'solidx-module';
 const MAX_ARCHIVE_BYTES = 250 * 1024 * 1024;
 
@@ -36,6 +41,19 @@ export interface ResolvedSolidModuleConfig {
   reverseMerge?: boolean;
 }
 
+/** What an update must leave alone: paths relative to the module folder, and top-level metadata keys. */
+export interface ModulePackageUserData {
+  solidApiPaths: string[];
+  solidUiPaths: string[];
+  metadataKeys: string[];
+}
+
+export interface ModulePackageDependencies {
+  solidApi: Record<string, string>;
+  solidUi: Record<string, string>;
+  prerequisites: Array<Record<string, unknown>>;
+}
+
 export interface ModulePackageManifest {
   schemaVersion: string;
   packageType: string;
@@ -55,6 +73,8 @@ export interface ModulePackageManifest {
     apiModulePath: string;
     uiModulePath: string;
   };
+  userData?: ModulePackageUserData;
+  dependencies?: ModulePackageDependencies;
   postImport: {
     recommendedSteps: string[];
   };
@@ -80,6 +100,100 @@ export interface ExportModulePackageResult {
 interface ArchiveSourceFile {
   sourcePath: string;
   archivePath: string;
+  /** When set, this is archived instead of the file's own bytes. */
+  content?: Buffer;
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value
+        .filter(
+          (entry): entry is string =>
+            typeof entry === 'string' && entry.trim().length > 0,
+        )
+        .map((entry) => entry.trim())
+    : [];
+}
+
+/** The module's own definition always comes from the package, so it can never be user data. */
+const RESERVED_METADATA_KEYS = ['moduleMetadata', 'modulePackage'];
+
+export function normalizeUserData(raw: unknown): ModulePackageUserData {
+  const source = (raw && typeof raw === 'object' ? raw : {}) as Record<
+    string,
+    unknown
+  >;
+  const safePaths = (value: unknown) =>
+    stringList(value)
+      .map((entry) =>
+        entry.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, ''),
+      )
+      .filter(
+        (entry) =>
+          entry && !entry.startsWith('/') && !entry.split('/').includes('..'),
+      );
+  return {
+    solidApiPaths: safePaths(source.solidApiPaths),
+    solidUiPaths: safePaths(source.solidUiPaths),
+    metadataKeys: stringList(source.metadataKeys).filter(
+      (key) => !RESERVED_METADATA_KEYS.includes(key),
+    ),
+  };
+}
+
+export function normalizeDependencies(
+  raw: unknown,
+): ModulePackageDependencies | undefined {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+  const source = raw as Record<string, unknown>;
+  const ranges = (value: unknown): Record<string, string> =>
+    Object.fromEntries(
+      Object.entries(
+        value && typeof value === 'object' ? (value as object) : {},
+      ).filter(
+        (entry): entry is [string, string] =>
+          typeof entry[1] === 'string' && entry[0].trim().length > 0,
+      ),
+    );
+  const dependencies: ModulePackageDependencies = {
+    solidApi: ranges(source.solidApi),
+    solidUi: ranges(source.solidUi),
+    prerequisites: Array.isArray(source.prerequisites)
+      ? source.prerequisites.filter(
+          (entry): entry is Record<string, unknown> =>
+            !!entry && typeof entry === 'object',
+        )
+      : [],
+  };
+  const empty =
+    Object.keys(dependencies.solidApi).length +
+      Object.keys(dependencies.solidUi).length +
+      dependencies.prerequisites.length ===
+    0;
+  return empty ? undefined : dependencies;
+}
+
+function hasUserData(userData: ModulePackageUserData): boolean {
+  return (
+    userData.solidApiPaths.length +
+      userData.solidUiPaths.length +
+      userData.metadataKeys.length >
+    0
+  );
+}
+
+function isUnderUserDataPath(
+  archivePath: string,
+  archiveRoot: string,
+  paths: string[],
+): boolean {
+  return paths.some(
+    (entry) =>
+      archivePath === `${archiveRoot}/${entry}` ||
+      archivePath.startsWith(`${archiveRoot}/${entry}/`),
+  );
 }
 
 function readJson(filePath: string): unknown {
@@ -292,11 +406,16 @@ async function createArchive(
     archive.outputStream.pipe(output);
 
     for (const file of files) {
-      archive.addFile(file.sourcePath, file.archivePath, {
+      const options = {
         compressionLevel: 9,
         mtime: archiveMtime,
         mode: 0o100644,
-      });
+      };
+      if (file.content) {
+        archive.addBuffer(file.content, file.archivePath, options);
+      } else {
+        archive.addFile(file.sourcePath, file.archivePath, options);
+      }
     }
     archive.addBuffer(
       Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, 'utf-8'),
@@ -359,9 +478,40 @@ export async function exportModulePackage(
 
   const apiArchiveRoot = path.posix.join('solid-api', 'src', moduleName);
   const uiArchiveRoot = path.posix.join('solid-ui', 'src', moduleName);
+  const modulePackageSection = (
+    metadata as { modulePackage?: Record<string, unknown> }
+  ).modulePackage;
+  const reservedKeys = stringList(
+    (modulePackageSection?.userData as { metadataKeys?: unknown } | undefined)
+      ?.metadataKeys,
+  ).filter((key) => RESERVED_METADATA_KEYS.includes(key));
+  if (reservedKeys.length > 0) {
+    throw new Error(
+      `modulePackage.userData.metadataKeys cannot list ${reservedKeys.join(', ')}: the module's own definition always comes from the package.`,
+    );
+  }
+  const userData = normalizeUserData(modulePackageSection?.userData);
+  const dependencies = normalizeDependencies(
+    modulePackageSection?.packageDependencies,
+  );
   let files: ArchiveSourceFile[] = [];
   await collectSourceFiles(config.apiModulePath, apiArchiveRoot, files);
   await collectSourceFiles(config.uiModulePath, uiArchiveRoot, files);
+  // The package never carries the developer's own user data or this project's install record.
+  files = files.filter(
+    (file) =>
+      file.archivePath !== `${apiArchiveRoot}/${INSTALL_RECORD_FILE}` &&
+      !isUnderUserDataPath(
+        file.archivePath,
+        apiArchiveRoot,
+        userData.solidApiPaths,
+      ) &&
+      !isUnderUserDataPath(
+        file.archivePath,
+        uiArchiveRoot,
+        userData.solidUiPaths,
+      ),
+  );
 
   const metadataArchivePath = path.posix.join(
     apiArchiveRoot,
@@ -373,9 +523,26 @@ export async function exportModulePackage(
       path.resolve(file.sourcePath) !== path.resolve(config.metadataPath) &&
       file.archivePath !== metadataArchivePath,
   );
+  const packagedMetadata: Record<string, unknown> = {
+    ...(metadata as Record<string, unknown>),
+  };
+  for (const key of userData.metadataKeys) {
+    if (key in packagedMetadata) {
+      const value = packagedMetadata[key];
+      packagedMetadata[key] = Array.isArray(value)
+        ? []
+        : value && typeof value === 'object'
+          ? {}
+          : null;
+    }
+  }
   files.push({
     sourcePath: config.metadataPath,
     archivePath: metadataArchivePath,
+    // Rewritten only when something in it is user data; otherwise the file goes in as it is.
+    content: userData.metadataKeys.some((key) => key in packagedMetadata)
+      ? Buffer.from(`${JSON.stringify(packagedMetadata, null, 2)}\n`, 'utf-8')
+      : undefined,
   });
   const apiModulePath = path.posix.join(
     apiArchiveRoot,
@@ -401,11 +568,16 @@ export async function exportModulePackage(
 
   const checksums: Record<string, string> = {};
   for (const file of files) {
-    checksums[file.archivePath] = await sha256File(file.sourcePath);
+    checksums[file.archivePath] = file.content
+      ? createHash('sha256').update(file.content).digest('hex')
+      : await sha256File(file.sourcePath);
   }
 
   const manifest: ModulePackageManifest = {
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion:
+      hasUserData(userData) || dependencies
+        ? SCHEMA_VERSION_WITH_MODULE_PACKAGE
+        : SCHEMA_VERSION,
     packageType: PACKAGE_TYPE,
     exportedAt: options.exportedAt || new Date().toISOString(),
     generatedBy: {
@@ -423,6 +595,8 @@ export async function exportModulePackage(
       apiModulePath,
       uiModulePath,
     },
+    ...(hasUserData(userData) ? { userData } : {}),
+    ...(dependencies ? { dependencies } : {}),
     postImport: {
       recommendedSteps: ['restart', 'build', 'seed'],
     },
@@ -567,7 +741,7 @@ export async function validateModulePackage(
   }
 
   if (
-    manifest.schemaVersion !== SCHEMA_VERSION ||
+    !SUPPORTED_SCHEMA_VERSIONS.includes(manifest.schemaVersion) ||
     manifest.packageType !== PACKAGE_TYPE
   ) {
     throw new Error(

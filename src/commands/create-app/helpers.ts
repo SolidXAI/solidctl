@@ -172,6 +172,25 @@ function handleHiddenTemplateFiles(targetDir: string) {
   fs.removeSync(hiddenTemplatesPath);
 }
 
+const AGENTS_FILE = 'AGENTS.md';
+const AGENTS_PROJECT_NAME_PLACEHOLDER = '<consumingProjectName>';
+
+/**
+ * Fill the project name into the AGENTS.md copied from templates/ so it
+ * references the same `solidx-<project>-mcp` server that `solidctl mcp install` registers.
+ */
+export function updateAgentsFile(targetDir: string, projectName: string): void {
+  const agentsPath = path.join(targetDir, AGENTS_FILE);
+  if (!fs.existsSync(agentsPath)) {
+    return;
+  }
+  const content = fs.readFileSync(agentsPath, 'utf8');
+  fs.writeFileSync(
+    agentsPath,
+    content.split(AGENTS_PROJECT_NAME_PLACEHOLDER).join(projectName),
+  );
+}
+
 export function updatePackageName(
   targetPath: string,
   subProject: string,
@@ -313,14 +332,16 @@ export function getBackendEnvConfig(answers: SetupAnswers, properAppName: string
     'IAM Registration': {
       IAM_PASSWORD_LESS_REGISTRATION: 'false',
       IAM_PASSWORD_LESS_REGISTRATION_VALIDATE_WHAT: 'transactional',
-      IAM_ALLOW_PUBLIC_REGISTRATION: 'true',
-      IAM_ACTIVATE_USER_ON_REGISTRATION: 'true',
-      IAM_DEFAULT_ROLE: 'Admin',
+      IAM_ALLOW_PUBLIC_REGISTRATION: 'false',
+      IAM_ACTIVATE_USER_ON_REGISTRATION: 'true'
     },
     'IAM JWT': {
       IAM_JWT_TOKEN_AUDIENCE: `http://localhost:${answers.solidApiPort}`,
       IAM_JWT_TOKEN_ISSUER: answers.projectName,
       IAM_JWT_SECRET: generateJwtSecret(),
+    },
+    Encryption: {
+      APP_ENCRYPTION_KEY: generateAppEncryptionKey(),
     },
   };
 }
@@ -371,6 +392,14 @@ export function generateEnvFileFromConfig(
 
 function generateJwtSecret(): string {
   return crypto.randomBytes(64).toString('hex');
+}
+
+/**
+ * The key linked secrets and stored Git tokens are encrypted with. Core stretches
+ * it with scrypt, so any unguessable string works: 32 random bytes, hex (64 chars).
+ */
+export function generateAppEncryptionKey(): string {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 export function prettyOutput(
