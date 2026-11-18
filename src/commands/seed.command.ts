@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { spawnSync } from 'child_process';
 import { getSolidCommandEnv, validateProjectRoot } from '../helper';
+import { getCoreModeEnv } from '../core-mode';
 
 /**
  * Run `solid seed` inside the project's solid-api directory.
@@ -8,7 +9,7 @@ import { getSolidCommandEnv, validateProjectRoot } from '../helper';
  * Exported so other commands (e.g. `solidctl setup-app`) can seed in-process
  * instead of shelling out to `solidctl seed`.
  */
-export function runSeed(projectRoot: string, passthroughArgs: string[] = []) {
+export function runSeed(projectRoot: string, passthroughArgs: string[] = [], extraEnv: Record<string, string> = {}) {
   const solidApiDir = `${projectRoot}/solid-api`;
   const args = ['seed', ...passthroughArgs];
 
@@ -16,7 +17,7 @@ export function runSeed(projectRoot: string, passthroughArgs: string[] = []) {
   const result = spawnSync(solidCommand, args, {
     cwd: solidApiDir,
     stdio: 'inherit',
-    env: getSolidCommandEnv(),
+    env: { ...getSolidCommandEnv(), ...extraEnv },
     shell: process.platform === 'win32' ? true : false,
   });
 
@@ -41,7 +42,8 @@ export function registerSeedCommand(program: Command) {
     .addHelpText(
       'after',
       '\nOptions forwarded to the Solid CLI:\n' +
-        '  -v, --verbose  Show detailed Nest/Winston logs during seeding\n',
+        '  -v, --verbose  Show detailed Nest/Winston logs during seeding\n' +
+        '  --core         Seed solid-core metadata from $SOLID_CORE_MODULE_PATH (core developers)\n',
     )
     .action((_options, command) => {
       validateProjectRoot();
@@ -50,6 +52,9 @@ export function registerSeedCommand(program: Command) {
       const seedIndex = rawArgs.lastIndexOf('seed');
       const passthroughArgs = seedIndex >= 0 ? rawArgs.slice(seedIndex + 1) : [];
 
-      runSeed(process.cwd(), passthroughArgs);
+      const coreMode = passthroughArgs.includes('--core');
+      const forwarded = passthroughArgs.filter((arg) => arg !== '--core');
+      const coreEnv = coreMode ? getCoreModeEnv(process.cwd()) : {};
+      runSeed(process.cwd(), forwarded, coreEnv);
     });
 }

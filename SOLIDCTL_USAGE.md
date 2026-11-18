@@ -163,6 +163,7 @@ Options:
 - `-s, --seeder` The seeder to run. Default: `ModuleMetadataSeederService`
 - `-c, --conf` A JSON string passed through to the `solid seed` command
 - `-v, --verbose` Show detailed Nest/Winston logs during seeding
+- `--core` Seed `solid-core` metadata from `$SOLID_CORE_MODULE_PATH`. Core developers only; see "Core mode (`--core`)" below.
 
 Examples:
 
@@ -176,6 +177,28 @@ solidctl seed --conf "{\"modulesToSeed\": [\"onboarding\"]}"
 ```
 
 ---
+
+### Core mode (`--core`)
+
+For core developers. `--core` makes `solid-core` models and metadata use the local core repo, and generates code with the local code-builder.
+
+Available on `seed`, `generate model` and `generate module`.
+
+Requirements (checked before anything runs):
+- `SOLID_CORE_MODULE_PATH` and `SOLID_CODE_BUILDER_PATH` set to valid checkouts (`package.json` names `@solidxai/core` and `@solidxai/code-builder`).
+- This project is the one the `solid` CLI points at. Run `solidctl build` here first.
+- The installed `@solidxai/core` supports `--core`. Run `solidctl local-upgrade --core && solidctl build` first.
+- The code-builder has been built (`npm run build` in its repo).
+
+Workflow for a `solid-core` model:
+
+```bash
+solidctl seed --core
+solidctl generate model -n <model> --core
+solidctl local-upgrade --core && solidctl build
+```
+
+Without `--core`, behaviour is unchanged.
 
 ### 6) start:dev
 
