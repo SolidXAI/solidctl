@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.52] - 2026-11-18
+
+### Other
+
+- Feat/core flag (#88)
+
 ## [0.1.52-beta.1] - 2026-11-18
 
 ### Other
