@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.51-beta.8] - 2026-11-18
+
+### Added
+
+- add --core to generate and seed for core repo development (#84)
+- add log level option to AgentHub manager commands
+
 ## [0.1.51-beta.7] - 2026-11-16
 
 ### Other
