@@ -185,10 +185,10 @@ For core developers. `--core` makes `solid-core` models and metadata use the loc
 Available on `seed`, `generate model` and `generate module`.
 
 Requirements (checked before anything runs):
-- `SOLID_CORE_MODULE_PATH` and `SOLID_CODE_BUILDER_PATH` set to valid checkouts (`package.json` names `@solidxai/core` and `@solidxai/code-builder`).
+- `SOLID_CORE_MODULE_PATH` set to a valid core checkout (`package.json` name `@solidxai/core`).
 - This project is the one the `solid` CLI points at. Run `solidctl build` here first.
 - The installed `@solidxai/core` supports `--core`. Run `solidctl local-upgrade --core && solidctl build` first.
-- The code-builder has been built (`npm run build` in its repo).
+- The code-builder installed in this project is current (`solidctl local-upgrade --code-builder`).
 
 Workflow for a `solid-core` model:
 

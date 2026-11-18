@@ -4,8 +4,10 @@ import path from 'path';
 
 /** Path, inside the consuming project's installed core, that proves the core supports --core. */
 export const CORE_MODE_HELPER_PATH = path.join('node_modules', '@solidxai', 'core', 'dist', 'helpers', 'solid-core-dev-paths.js');
+/** The code-builder copy that --core generates with: the one local-upgrade keeps current. */
+export const CODE_BUILDER_COLLECTION_PATH = path.join('node_modules', '@solidxai', 'code-builder', 'dist', 'collection.json');
 
-type CoreModeEnv = { SOLIDX_CORE_REPO_ROOT: string; SOLIDX_CODE_BUILDER_ROOT: string };
+type CoreModeEnv = { SOLIDX_CORE_REPO_ROOT: string };
 
 function fail(message: string): never {
   console.error(`❌ --core: ${message}`);
@@ -39,16 +41,12 @@ export function getShimProjectRoot(homeDir = os.homedir()): string | undefined {
 /** Validate everything --core needs and return the env to add. Exits the process on any problem. */
 export function getCoreModeEnv(projectRoot: string, homeDir = os.homedir()): CoreModeEnv {
   const core = process.env.SOLID_CORE_MODULE_PATH?.trim();
-  const builder = process.env.SOLID_CODE_BUILDER_PATH?.trim();
-  const missing = [!core && 'SOLID_CORE_MODULE_PATH', !builder && 'SOLID_CODE_BUILDER_PATH'].filter(Boolean);
-  if (missing.length) {
-    fail(`set ${missing.join(' and ')} to your local checkout(s).`);
+  if (!core) {
+    fail('set SOLID_CORE_MODULE_PATH to your local core checkout.');
   }
 
   const coreRoot = path.resolve(core!);
-  const builderRoot = path.resolve(builder!);
   assertPackage(coreRoot, 'SOLID_CORE_MODULE_PATH', '@solidxai/core');
-  assertPackage(builderRoot, 'SOLID_CODE_BUILDER_PATH', '@solidxai/code-builder');
 
   const shimRoot = getShimProjectRoot(homeDir);
   const real = (p: string) => {
@@ -66,5 +64,9 @@ export function getCoreModeEnv(projectRoot: string, homeDir = os.homedir()): Cor
     fail('the installed @solidxai/core does not support --core. Run `solidctl local-upgrade --core && solidctl build` first.');
   }
 
-  return { SOLIDX_CORE_REPO_ROOT: coreRoot, SOLIDX_CODE_BUILDER_ROOT: builderRoot };
+  if (!fs.existsSync(path.join(projectRoot, 'solid-api', CODE_BUILDER_COLLECTION_PATH))) {
+    fail('the installed @solidxai/code-builder is missing. Run `solidctl local-upgrade --code-builder` first.');
+  }
+
+  return { SOLIDX_CORE_REPO_ROOT: coreRoot };
 }
