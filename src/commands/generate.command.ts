@@ -15,7 +15,7 @@ export function registerGenerateCommand(program: Command) {
     .description('Generate code for a single model and its related models. Use this if you want to target a specific model, which may be slightly faster than generating the full module.')
     .requiredOption('-n, --name <modelName>', 'Model name (singularName) from the ss_model_metadata table')
     .option('-d, --dryRun', 'Dry run the command')
-    .option('--core', 'Generate solid-core code into $SOLID_CORE_MODULE_PATH using the local code-builder ($SOLID_CODE_BUILDER_PATH)')
+    .option('--core', 'Generate solid-core code into $SOLID_CORE_MODULE_PATH, using the code-builder installed in this project')
     .action((options) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
@@ -51,7 +51,7 @@ export function registerGenerateCommand(program: Command) {
     .description('Generate code for an entire module, including all models within it. This is the recommended way to generate code.')
     .requiredOption('-n, --name <moduleName>', 'Module name from the ss_module_metadata table')
     .option('-d, --dryRun', 'Dry run the command')
-    .option('--core', 'Generate solid-core code into $SOLID_CORE_MODULE_PATH using the local code-builder ($SOLID_CODE_BUILDER_PATH)')
+    .option('--core', 'Generate solid-core code into $SOLID_CORE_MODULE_PATH, using the code-builder installed in this project')
     .action((options) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
