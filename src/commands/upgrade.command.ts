@@ -1,5 +1,7 @@
 import { Command } from 'commander';
 import { execSync } from 'child_process';
+import fs from 'fs-extra';
+import path from 'path';
 import { validateProjectRoot } from '../helper';
 
 type UpgradeCommandStep = {
@@ -81,13 +83,18 @@ Examples:
         );
       }
 
+      const cleanTarget = (dir: 'solid-api' | 'solid-ui') => {
+        fs.removeSync(path.join(dir, 'package-lock.json'));
+        fs.removeSync(path.join(dir, 'node_modules', '@solidxai'));
+      };
+
       if (!options.dryRun) {
         if (doCore || doCodeBuilder) {
-          execSync('rm -f package-lock.json && rm -rf node_modules/@solidxai', { cwd: 'solid-api' });
+          cleanTarget('solid-api');
         }
 
         if (doUi) {
-          execSync('rm -f package-lock.json && rm -rf node_modules/@solidxai', { cwd: 'solid-ui' });
+          cleanTarget('solid-ui');
         }
       }
 
