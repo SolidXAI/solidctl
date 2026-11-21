@@ -1,6 +1,6 @@
 {
   "name": "@solidxai/solidctl",
-  "version": "0.1.52",
+  "version": "0.1.52-local-2",
   "description": "",
   "author": "",
   "private": false,
@@ -17,7 +17,7 @@
   },
   "scripts": {
     "build": "nest build",
-    "postbuild": "chmod +x dist/main.js",
+    "postbuild": "node -e \"require('fs').chmodSync('dist/main.js', 0o755)\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

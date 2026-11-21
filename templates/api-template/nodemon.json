@@ -11,6 +11,9 @@
         "dist",
         "node_modules"
     ],
+    "env":{
+        "NODE_OPTIONS":"--no-deprecation"
+    },
     "delay": 2000,
     "exec": "ts-node -r tsconfig-paths/register src/main.ts"
 }
