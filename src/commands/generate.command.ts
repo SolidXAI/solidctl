@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { spawnSync } from 'child_process';
 import { kebabCase } from 'lodash';
 import { getSolidCommandEnv, validateProjectRoot } from '../helper';
+import { getCoreModeEnv } from '../core-mode';
 import { generateSolidUiModule } from './generate-ui-module';
 
 export function registerGenerateCommand(program: Command) {
@@ -14,10 +15,12 @@ export function registerGenerateCommand(program: Command) {
     .description('Generate code for a single model and its related models. Use this if you want to target a specific model, which may be slightly faster than generating the full module.')
     .requiredOption('-n, --name <modelName>', 'Model name (singularName) from the ss_model_metadata table')
     .option('-d, --dryRun', 'Dry run the command')
+    .option('--core', 'Generate solid-core code into $SOLID_CORE_MODULE_PATH, using the code-builder installed in this project')
     .action((options) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
       const solidApiDir = `${projectRoot}/solid-api`;
+      const coreEnv = options.core ? getCoreModeEnv(projectRoot) : {};
 
       const passthroughArgs = [`--name=${options.name}`, ...(options.dryRun ? ['--dryRun=true'] : [])];
 
@@ -26,7 +29,7 @@ export function registerGenerateCommand(program: Command) {
       const result = spawnSync(solidCommand, ['refresh-model', ...passthroughArgs], {
         cwd: solidApiDir,
         stdio: 'inherit',
-        env: getSolidCommandEnv(),
+        env: { ...getSolidCommandEnv(), ...coreEnv },
         shell: process.platform === 'win32' ? true : false,
       });
 
@@ -48,10 +51,12 @@ export function registerGenerateCommand(program: Command) {
     .description('Generate code for an entire module, including all models within it. This is the recommended way to generate code.')
     .requiredOption('-n, --name <moduleName>', 'Module name from the ss_module_metadata table')
     .option('-d, --dryRun', 'Dry run the command')
+    .option('--core', 'Generate solid-core code into $SOLID_CORE_MODULE_PATH, using the code-builder installed in this project')
     .action((options) => {
       validateProjectRoot();
       const projectRoot = process.cwd();
       const solidApiDir = `${projectRoot}/solid-api`;
+      const coreEnv = options.core ? getCoreModeEnv(projectRoot) : {};
 
       const passthroughArgs = [`--name=${options.name}`, ...(options.dryRun ? ['--dryRun=true'] : [])];
 
@@ -60,7 +65,7 @@ export function registerGenerateCommand(program: Command) {
       const result = spawnSync(solidCommand, ['refresh-module', ...passthroughArgs], {
         cwd: solidApiDir,
         stdio: 'inherit',
-        env: getSolidCommandEnv(),
+        env: { ...getSolidCommandEnv(), ...coreEnv },
         shell: process.platform === 'win32' ? true : false,
       });
 
@@ -74,7 +79,9 @@ export function registerGenerateCommand(program: Command) {
         process.exit(result.status ?? 1);
       }
 
-      generateSolidUiModule(projectRoot, kebabCase(options.name));
+      if (!(options.core && kebabCase(options.name) === 'solid-core')) {
+        generateSolidUiModule(projectRoot, kebabCase(options.name));
+      }
 
       console.log('✔ solidctl generate module completed');
     });

@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.1.52] - 2026-11-18
+
+### Other
+
+- Feat/core flag (#88)
+
+## [0.1.52-beta.1] - 2026-11-18
+
+### Other
+
+- Feat/core flag (#88)
+
+## [0.1.52-beta.0] - 2026-11-18
+
+## [0.1.51] - 2026-11-18
+
+### Added
+
+- add --core to generate and seed for core repo development (#84)
+- add log level option to AgentHub manager commands
+- added searxng management sub-commands for agenthub
+- generate APP_ENCRYPTION_KEY in create-app and setup-app
+- add support for passing environment variables to AgentHub command
+- update default port for AgentHub from 9000 to 9001 and adjust tests accordingly
+- update AgentHub command structure and improve error messages
+- add AGENTS.md to create-app boilerplate
+- add AgentHub runtime manager command and update environment handling
+- add solidctl setup for already-bootstrapped projects
+
+### Changed
+
+- rename SOLIDX_AGENTHUB_RUNTIME_PATH to AGENT_HUB_RUNTIME_PATH for consistency (#78)
+
+### Documentation
+
+- add verbose option documentation for seed command
+
+### Other
+
+- Lm migration (#83)
+- (#81)
+- Mobile testing agentic authoring (#82)
+- Mobile testing agentic authoring (#79)
+- setup -> setup-app
+
+## [0.1.51-beta.8] - 2026-11-18
+
+### Added
+
+- add --core to generate and seed for core repo development (#84)
+- add log level option to AgentHub manager commands
+
 ## [0.1.51-beta.7] - 2026-11-16
 
 ### Other
