@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { spawnSync } from 'child_process';
+import { superviseRuntime } from '../helpers/runtime-supervisor';
 import { validateProjectRoot } from '../helper';
 import { checkAgentUpdate, ensureAgentInstalled, ensureAgentInstalledLocal, getAgentVersion, printAgentVersion } from './agent-helper';
 import { buildBridgedEnv, printBridgeSummary } from './mcp-launch';
@@ -25,12 +25,13 @@ export function registerMcpCommand(program: Command) {
   mcp
     .command('start')
     .description('Start the MCP server using Streamable HTTP transport')
+    .option('--plain', 'Disable interactive terminal controls')
     .option('-p, --port <port>', 'Port number', '9000')
     .option('-H, --host <host>', 'Host to bind', '0.0.0.0')
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
     .option('--mount-path <path>', 'Path under which to mount the MCP app', '/mcp')
     .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
-    .action(async (options: { port: string; host: string; logLevel: string; mountPath: string; local?: boolean }) => {
+    .action(async (options: { port: string; host: string; logLevel: string; mountPath: string; plain?: boolean; local?: boolean }) => {
       await checkAgentUpdate({ isLocal: Boolean(options.local) });
       validateProjectRoot();
       const env = buildBridgedEnv();
@@ -51,7 +52,7 @@ export function registerMcpCommand(program: Command) {
       printAgentVersion(agentCommand);
       printBridgeSummary(env);
       console.log(`▶ Starting SolidX MCP Server on ${options.host}:${options.port}`);
-      const result = spawnSync(
+      const status = await superviseRuntime(
         agentCommand,
         [
           'mcp-remote',
@@ -62,20 +63,16 @@ export function registerMcpCommand(program: Command) {
         ],
         {
           cwd: env.SOLIDX_PROJECT_ROOT,
-          stdio: 'inherit',
+          label: 'MCP',
+          plain: options.plain,
           env,
           shell: process.platform === 'win32',
         },
       );
 
-      if (result.error) {
-        console.error('❌ Failed to start MCP server:', result.error.message);
-        process.exit(1);
-      }
-
-      if (result.status !== 0) {
-        console.error('❌ MCP server exited with code', result.status);
-        process.exit(result.status ?? 1);
+      if (status !== 0) {
+        console.error('❌ MCP server exited with code', status);
+        process.exitCode = status;
       }
     });
 
