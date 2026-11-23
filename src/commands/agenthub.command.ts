@@ -1,4 +1,5 @@
-import { spawn, spawnSync } from 'child_process';
+import { superviseRuntime } from '../helpers/runtime-supervisor';
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import { Command } from 'commander';
 import path from 'path';
@@ -12,6 +13,7 @@ export type AgentHubOptions = {
   port: string;
   host?: string;
   local?: boolean;
+  plain?: boolean;
   env?: string[];
   logLevel?: string;
 };
@@ -44,59 +46,10 @@ export function buildAgentHubEnv(projectRoot: string, host?: string): Record<str
 }
 
 export function runAgentHubManager(command: string, projectRoot: string, env: Record<string, string>, port: string,
-                                  logLevel?: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const args = ['manager', '--port', port];
-    if (logLevel) args.push('--log-level', logLevel);
-    const child = spawn(command, args, {
-      cwd: projectRoot,
-      env,
-      stdio: 'inherit',
-      // Give the manager and the agent processes it spawns their own signal group.
-      detached: process.platform !== 'win32',
-    });
-    let stopping = false;
-    let killTimer: NodeJS.Timeout | undefined;
-
-    const signalGroup = (signal: NodeJS.Signals) => {
-      if (!child.pid) return;
-      if (process.platform === 'win32') {
-        spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-      } else {
-        try {
-          process.kill(-child.pid, signal);
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-        }
-      }
-    };
-    const stop = (signal: NodeJS.Signals) => {
-      if (stopping) return;
-      stopping = true;
-      signalGroup(signal);
-      killTimer = setTimeout(() => signalGroup('SIGKILL'), 5_000);
-      killTimer.unref();
-    };
-    const onInterrupt = () => stop('SIGINT');
-    const onTerminate = () => stop('SIGTERM');
-    const cleanup = () => {
-      if (killTimer) clearTimeout(killTimer);
-      process.removeListener('SIGINT', onInterrupt);
-      process.removeListener('SIGTERM', onTerminate);
-    };
-    process.on('SIGINT', onInterrupt);
-    process.on('SIGTERM', onTerminate);
-    child.once('error', (error) => {
-      cleanup();
-      reject(new Error(`Failed to start AgentHub manager: ${error.message}`));
-    });
-    child.once('close', (code) => {
-      cleanup();
-      // The manager does not terminate its subprocesses on exit.
-      signalGroup('SIGKILL');
-      resolve(stopping ? 0 : (code ?? 1));
-    });
-  });
+                                  logLevel?: string, plain?: boolean): Promise<number> {
+  const args = ['manager', '--port', port];
+  if (logLevel) args.push('--log-level', logLevel);
+  return superviseRuntime(command, args, { cwd: projectRoot, env, label: 'AgentHub manager', plain });
 }
 
 export type AgentHubSearxngOptions = {
@@ -172,6 +125,7 @@ export function registerAgentHubCommand(program: Command) {
 
   agenthub.command('start')
     .description('Start the AgentHub runtime manager')
+    .option('--plain', 'Disable interactive terminal controls')
     .option('-p, --port <port>', 'Manager port', '9001')
     .option('-H, --host <host>', 'Manager bind host (default: AGENT_HUB_MANAGER_BIND_HOST or 127.0.0.1)')
     .option('--local', 'Install from AGENT_HUB_RUNTIME_PATH in editable mode')
@@ -203,7 +157,7 @@ export function registerAgentHubCommand(program: Command) {
         const command = ensureAgentHubInstalled(options);
         console.log(`solidx-agenthub-runtime v${getAgentHubVersion(command)}`);
         console.log(`Starting AgentHub manager on ${env.AGENT_HUB_MANAGER_BIND_HOST}:${options.port} (log level ${env.AGENT_HUB_LOG_LEVEL || 'INFO'})`);
-        process.exitCode = await runAgentHubManager(command, projectRoot, env, options.port, logLevel);
+        process.exitCode = await runAgentHubManager(command, projectRoot, env, options.port, logLevel, options.plain);
       } catch (error) {
         if (error instanceof AgentCommandExit) {
           process.exitCode = error.exitCode;

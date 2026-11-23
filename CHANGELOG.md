@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.53-beta.0] - 2026-11-23
+
+### Added
+
+- activate consuming project MCP registrations across clients
+- implement runtime supervision for AgentHub and MCP commands
+
 ## [0.1.52] - 2026-11-18
 
 ### Other
