@@ -6,8 +6,21 @@ import path from 'path';
 import readline from 'readline';
 import { validateProjectRoot, validateProjectScript } from '../helper';
 import { AgentCommandExit } from './agent-helper';
-import { MCP_DEFAULT_OPTIONS, resolveMcpLaunchConfig, spawnMcpServer, type McpLaunchConfig } from './mcp-launch';
-import { type DevPortMap, validateDevPortAssignments } from '../utils/dev-ports';
+import {
+  MCP_DEFAULT_OPTIONS,
+  resolveMcpLaunchConfig,
+  spawnMcpServer,
+  type McpLaunchConfig,
+} from './mcp-launch';
+import {
+  activateMcpForRuntime,
+  describePortState,
+  inspectMcpPort,
+} from './mcp/mcp-lifecycle';
+import {
+  type DevPortMap,
+  validateDevPortAssignments,
+} from '../utils/dev-ports';
 
 type ServiceName = 'api' | 'ui' | 'mcp';
 
@@ -62,6 +75,7 @@ export class StartSupervisor {
   private readonly supportsMcp: boolean;
   private mcpPort: string;
   private mcpLaunchConfig: McpLaunchConfig | null = null;
+  private mcpActivationStarted = false;
   private shuttingDown = false;
   private startupPhase = true;
   private startupAbortInProgress = false;
@@ -119,6 +133,7 @@ export class StartSupervisor {
       this.validatePortAssignments();
 
       if (shouldStartServices && this.activeServices.includes('mcp')) {
+        await this.assertMcpPortAvailable();
         await this.startMcpServer();
         shouldStartServices = !this.shuttingDown;
       }
@@ -130,6 +145,9 @@ export class StartSupervisor {
           this.spawnService(serviceName);
         }
         this.renderFooter();
+        if (this.activeServices.includes('mcp')) {
+          this.startMcpActivation();
+        }
 
         await new Promise<void>((resolve) => {
           const poll = setInterval(() => {
@@ -178,6 +196,39 @@ export class StartSupervisor {
     if (conflict) {
       throw new Error(conflict);
     }
+  }
+
+  /** A taken port must abort before anything starts or any client is switched. */
+  private async assertMcpPortAvailable() {
+    const state = await inspectMcpPort(
+      MCP_DEFAULT_OPTIONS.host,
+      this.mcpPort,
+      this.projectRoot,
+    );
+    if (state.kind !== 'free') {
+      throw new Error(describePortState(state, this.mcpPort));
+    }
+  }
+
+  /** Runs once per supervisor; MCP restarts ('m') keep the existing selection. */
+  private startMcpActivation() {
+    if (this.mcpActivationStarted || !this.mcpLaunchConfig) {
+      return;
+    }
+    this.mcpActivationStarted = true;
+    const args = this.mcpLaunchConfig.args;
+    const argValue = (flag: string, fallback: string) => {
+      const index = args.indexOf(flag);
+      return index >= 0 && index + 1 < args.length ? args[index + 1] : fallback;
+    };
+    void activateMcpForRuntime({
+      projectRoot: this.projectRoot,
+      bindHost: argValue('--host', MCP_DEFAULT_OPTIONS.host),
+      port: this.mcpPort,
+      mountPath: argValue('--mount-path', MCP_DEFAULT_OPTIONS.mountPath),
+      log: (message) => this.printStatus(message),
+      isAlive: () => !this.shuttingDown,
+    });
   }
 
   private async startMcpServer() {

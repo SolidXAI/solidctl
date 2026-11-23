@@ -24,38 +24,12 @@ export interface McpInstallOptions {
   url: string;
   /** MCP server entry name: solidx-<project>-mcp by default */
   serverName: string;
+  /** consuming project root, when known (cwd is the project root) */
+  projectRoot?: string;
   /** Optional explicit subset; undefined = all detected */
   agents?: AgentName[];
   dryRun: boolean;
   force: boolean;
-}
-
-export type InstallStatus = 'installed' | 'skipped' | 'not-detected' | 'error';
-
-export interface AgentInstallResult {
-  agent: AgentName;
-  status: InstallStatus;
-  /** human-readable detail line */
-  message?: string;
-  /** path of backup file written, if any */
-  backupPath?: string;
-}
-
-export interface AgentInstaller {
-  readonly name: AgentName;
-  isDetected(): boolean;
-  install(
-    opts: McpInstallOptions,
-    deps?: InstallDeps,
-  ): Promise<AgentInstallResult>;
-}
-
-/** Optional per-installer dependency injection (home dir, platform, appData, mock CLIs). */
-export interface InstallDeps {
-  injectedHomeDir?: string;
-  platform?: NodeJS.Platform;
-  appData?: string;
-  [key: string]: unknown;
 }
 
 export function parseAgentsList(

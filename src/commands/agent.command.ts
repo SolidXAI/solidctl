@@ -6,8 +6,79 @@ import readline from 'readline';
 import { config as loadDotenv } from 'dotenv';
 import { normalizeDatabaseUrl, validateProjectRoot } from '../helper';
 import { checkAgentUpdate, ensureAgentInstalled, ensureAgentInstalledLocal, ensureAgentUIInstalled, getAgentVersion, printAgentVersion } from './agent-helper';
+import {
+  assertMcpDatabaseUrl,
+  buildBridgedEnv,
+  buildMcpLaunchConfig,
+  MCP_DEFAULT_OPTIONS,
+  spawnMcpServer,
+  type McpLaunchConfig,
+} from './mcp-launch';
+import {
+  activateMcpForRuntime,
+  describePortState,
+  inspectMcpPort,
+} from './mcp/mcp-lifecycle';
 
-type AgentServiceName = 'agent' | 'ui';
+type AgentServiceName = 'agent' | 'ui' | 'mcp';
+
+/**
+ * How `agent start` provides the standalone API-key MCP server used by
+ * installed MCP clients. The agent's own /mcp endpoint (session tokens) is
+ * separate and unaffected.
+ */
+export type AgentMcpSetup =
+  | { mode: 'off' }
+  | { mode: 'reuse'; port: string }
+  | { mode: 'managed'; port: string; launchConfig: McpLaunchConfig };
+
+/**
+ * Reuse this project's MCP server when it is already running, start one when
+ * the port is free, and otherwise run the agent without it (never switching
+ * MCP clients to a project whose server is not the one listening).
+ */
+export async function prepareAgentMcp(
+  projectRoot: string,
+  agentCommand: string,
+  port: string,
+  log: (message: string) => void,
+): Promise<AgentMcpSetup> {
+  const state = await inspectMcpPort(
+    MCP_DEFAULT_OPTIONS.host,
+    port,
+    projectRoot,
+  );
+  if (state.kind === 'same-project') {
+    log(
+      `Reusing the MCP server already running for this project on port ${port}`,
+    );
+    return { mode: 'reuse', port };
+  }
+  if (state.kind !== 'free') {
+    log(
+      `⚠ ${describePortState(state, port)} Starting the agent without the standalone MCP server; MCP clients were not switched.`,
+    );
+    return { mode: 'off' };
+  }
+  const env = buildBridgedEnv(projectRoot);
+  try {
+    assertMcpDatabaseUrl(env);
+  } catch {
+    log(
+      '⚠ DATABASE_URL is not set, so the standalone MCP server was not started and MCP clients were not switched.',
+    );
+    return { mode: 'off' };
+  }
+  return {
+    mode: 'managed',
+    port,
+    launchConfig: buildMcpLaunchConfig(
+      agentCommand,
+      { ...MCP_DEFAULT_OPTIONS, port },
+      env,
+    ),
+  };
+}
 
 type AgentServiceConfig = {
   cwd: string;
@@ -20,6 +91,7 @@ type AgentServiceState = {
   restartRequested: boolean;
   stoppingForShutdown: boolean;
   outputBuffer: string;
+  forceKillTimer: NodeJS.Timeout | null;
 };
 
 type AgentStartOptions = {
@@ -71,6 +143,9 @@ class AgentSupervisor {
   private readonly agentPort: string;
   private readonly agentHost: string;
   private readonly agentLogLevel: string;
+  private readonly mcp: AgentMcpSetup;
+  private readonly services: AgentServiceName[];
+  private mcpActivationStarted = false;
   private shuttingDown = false;
   private exitCode = 0;
   private stdinWasRaw = false;
@@ -80,7 +155,11 @@ class AgentSupervisor {
     agentCommand: string,
     agentUiDir: string,
     options: { port: string; host: string; logLevel: string } & AgentStartOptions,
+    mcp: AgentMcpSetup = { mode: 'off' },
   ) {
+    this.mcp = mcp;
+    this.services =
+      mcp.mode === 'managed' ? ['agent', 'ui', 'mcp'] : ['agent', 'ui'];
     this.projectRoot = projectRoot;
     this.agentCommand = agentCommand;
     this.agentUiDir = agentUiDir;
@@ -101,11 +180,17 @@ class AgentSupervisor {
         label: 'ui',
         color: chalk.magenta,
       },
+      mcp: {
+        cwd: projectRoot,
+        label: 'mcp',
+        color: chalk.blue,
+      },
     };
 
     this.serviceStates = {
       agent: this.createInitialState(),
       ui: this.createInitialState(),
+      mcp: this.createInitialState(),
     };
   }
 
@@ -114,9 +199,11 @@ class AgentSupervisor {
     this.attachKeyboardControls();
 
     this.printStatus('Starting SolidX Agent processes');
-    this.spawnService('agent');
-    this.spawnService('ui');
+    for (const serviceName of this.services) {
+      this.spawnService(serviceName);
+    }
     this.renderFooter();
+    this.startMcpActivation();
 
     await new Promise<void>((resolve) => {
       const poll = setInterval(() => {
@@ -137,7 +224,23 @@ class AgentSupervisor {
       restartRequested: false,
       stoppingForShutdown: false,
       outputBuffer: '',
+      forceKillTimer: null,
     };
+  }
+
+  private startMcpActivation() {
+    if (this.mcp.mode === 'off' || this.mcpActivationStarted) {
+      return;
+    }
+    this.mcpActivationStarted = true;
+    void activateMcpForRuntime({
+      projectRoot: this.projectRoot,
+      bindHost: MCP_DEFAULT_OPTIONS.host,
+      port: this.mcp.port,
+      mountPath: MCP_DEFAULT_OPTIONS.mountPath,
+      log: (message) => this.printStatus(message),
+      isAlive: () => !this.shuttingDown,
+    });
   }
 
   private spawnService(serviceName: AgentServiceName) {
@@ -160,6 +263,11 @@ class AgentSupervisor {
           shell: process.platform === 'win32',
         },
       );
+    } else if (serviceName === 'mcp') {
+      if (this.mcp.mode !== 'managed') {
+        return;
+      }
+      child = spawnMcpServer(this.mcp.launchConfig);
     } else {
       child = spawn(this.npmCommand, ['run', 'dev'], {
         cwd: config.cwd,
@@ -186,6 +294,7 @@ class AgentSupervisor {
     });
 
     child.on('exit', (code, signal) => {
+      this.clearForceKillTimer(serviceName);
       this.flushBuffer(serviceName);
       state.child = null;
 
@@ -292,6 +401,7 @@ class AgentSupervisor {
       'r restart both',
       'a restart Agent',
       'u restart UI',
+      ...(this.mcp.mode === 'managed' ? ['m restart MCP'] : []),
     ].join(chalk.dim(' | '));
 
     const terminalWidth = process.stdout.columns || 80;
@@ -401,6 +511,11 @@ class AgentSupervisor {
         case 'u':
           this.restartService('ui');
           break;
+        case 'm':
+          if (this.mcp.mode === 'managed') {
+            this.restartService('mcp');
+          }
+          break;
         case 'r':
           this.restartService('agent');
           this.restartService('ui');
@@ -435,11 +550,49 @@ class AgentSupervisor {
 
   private stopChild(serviceName: AgentServiceName) {
     const state = this.serviceStates[serviceName];
-    if (!state.child) {
+    const child = state.child;
+    if (!child) {
       return;
     }
 
-    state.child.kill('SIGTERM');
+    if (serviceName !== 'mcp') {
+      child.kill('SIGTERM');
+      return;
+    }
+
+    // The MCP server runs in its own process group (spawnMcpServer detaches it).
+    this.signalProcessGroup(child, 'SIGTERM');
+    this.clearForceKillTimer(serviceName);
+    state.forceKillTimer = setTimeout(() => {
+      if (state.child === child) {
+        this.printStatus('Force killing mcp');
+        this.signalProcessGroup(child, 'SIGKILL');
+      }
+    }, 5_000);
+  }
+
+  private signalProcessGroup(child: ChildProcess, signal: NodeJS.Signals) {
+    try {
+      if (process.platform !== 'win32' && child.pid) {
+        process.kill(-child.pid, signal);
+      } else {
+        child.kill(signal);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+        this.printStatus(
+          `Failed to send ${signal} to mcp: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  private clearForceKillTimer(serviceName: AgentServiceName) {
+    const state = this.serviceStates[serviceName];
+    if (state.forceKillTimer) {
+      clearTimeout(state.forceKillTimer);
+      state.forceKillTimer = null;
+    }
   }
 
   private handleUnexpectedExit(serviceName: AgentServiceName, code: number) {
@@ -447,10 +600,20 @@ class AgentSupervisor {
       return;
     }
 
+    // The standalone MCP server only serves external MCP clients; losing it
+    // should not take the agent and chat UI down with it.
+    if (serviceName === 'mcp') {
+      this.printStatus(
+        'MCP server stopped; the agent keeps running. Press m to restart it.',
+      );
+      this.renderFooter();
+      return;
+    }
+
     this.exitCode = code === 0 ? 1 : code;
     this.shuttingDown = true;
 
-    for (const otherServiceName of Object.keys(this.serviceStates) as AgentServiceName[]) {
+    for (const otherServiceName of this.services) {
       if (otherServiceName === serviceName) {
         continue;
       }
@@ -474,7 +637,7 @@ class AgentSupervisor {
     this.shuttingDown = true;
     this.printStatus('Shutting down');
 
-    for (const serviceName of Object.keys(this.serviceStates) as AgentServiceName[]) {
+    for (const serviceName of this.services) {
       const state = this.serviceStates[serviceName];
       state.stoppingForShutdown = true;
       state.restartRequested = false;
@@ -485,7 +648,7 @@ class AgentSupervisor {
   }
 
   private hasRunningChildren() {
-    return (Object.keys(this.serviceStates) as AgentServiceName[]).some((serviceName) => {
+    return this.services.some((serviceName) => {
       return this.serviceStates[serviceName].child !== null;
     });
   }
@@ -527,13 +690,44 @@ export function registerAgentCommand(program: Command) {
     .option('-p, --port <port>', 'Agent backend port', '8765')
     .option('-H, --host <host>', 'Host to bind', '0.0.0.0')
     .option('-l, --log-level <level>', 'Logging level', 'INFO')
-    .option('--plain', 'Disable interactive controls and print merged logs only')
-    .option('--local', 'Install agent from local source (pip install -e .[full]) instead of PyPI')
-    .action(async (options: { port: string; host: string; logLevel: string; plain?: boolean; local?: boolean }) => {
-      await checkAgentUpdate({ isLocal: Boolean(options.local) });
+    .option(
+      '--plain',
+      'Disable interactive controls and print merged logs only',
+    )
+    .option(
+      '--local',
+      'Install agent from local source (pip install -e .[full]) instead of PyPI',
+    )
+    .option(
+      '--mcp-port <port>',
+      'Port of the standalone MCP server for installed MCP clients',
+      MCP_DEFAULT_OPTIONS.port,
+    )
+    .option(
+      '--no-mcp',
+      'Do not start, reuse or activate the standalone MCP server',
+    )
+    .action(
+      async (options: {
+        port: string;
+        host: string;
+        logLevel: string;
+        plain?: boolean;
+        local?: boolean;
+        mcp: boolean;
+        mcpPort: string;
+      }) => {
+        await checkAgentUpdate({ isLocal: Boolean(options.local) });
 
       validateProjectRoot();
       const projectRoot = process.cwd();
+
+        if (options.mcp && options.mcpPort === options.port) {
+          console.error(
+            `❌ --mcp-port (${options.mcpPort}) must differ from the agent port (${options.port}).`,
+          );
+          process.exit(1);
+        }
 
       // Load consuming project's .env (lives in solid-api/)
       loadDotenv({ path: path.join(projectRoot, 'solid-api', '.env') });
@@ -543,9 +737,25 @@ export function registerAgentCommand(program: Command) {
 
       printAgentVersion(agentCommand);
 
-      const supervisor = new AgentSupervisor(projectRoot, agentCommand, agentUiDir, options);
-      await supervisor.start();
-    });
+        const mcp = options.mcp
+          ? await prepareAgentMcp(
+              projectRoot,
+              agentCommand,
+              options.mcpPort,
+              (message) => console.log(`[solidctl] ${message}`),
+            )
+          : ({ mode: 'off' } as const);
+
+        const supervisor = new AgentSupervisor(
+          projectRoot,
+          agentCommand,
+          agentUiDir,
+          options,
+          mcp,
+        );
+        await supervisor.start();
+      },
+    );
 
   agent
     .command('run')

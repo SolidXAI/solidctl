@@ -116,6 +116,41 @@ export interface McpLaunchConfig {
   env: Record<string, string>;
 }
 
+/** Throws when the bridged env has no DATABASE_URL (MCP cannot validate keys without it). */
+export function assertMcpDatabaseUrl(env: Record<string, string>): void {
+  if (!env.DATABASE_URL) {
+    throw new Error(
+      'DATABASE_URL is required for MCP mode.\n' +
+        '   It is needed to validate API keys and write audit logs.\n' +
+        '   Set it in your solid-api/.env or environment.',
+    );
+  }
+}
+
+/** Launch config for an already-resolved agent runtime and bridged env. */
+export function buildMcpLaunchConfig(
+  agentCommand: string,
+  options: McpOptions,
+  env: Record<string, string>,
+): McpLaunchConfig {
+  return {
+    command: agentCommand,
+    args: [
+      'mcp-remote',
+      '--host',
+      options.host,
+      '--port',
+      options.port,
+      '--log-level',
+      options.logLevel,
+      '--mount-path',
+      options.mountPath,
+    ],
+    cwd: env.SOLIDX_PROJECT_ROOT,
+    env,
+  };
+}
+
 /**
  * Resolve the agent binary, build the bridged env, and return the full launch
  * config for the MCP server. Performs agent update check and install before
@@ -133,36 +168,14 @@ export async function resolveMcpLaunchConfig(
   });
 
   const env = buildBridgedEnv(projectRoot);
-
-  if (!env.DATABASE_URL) {
-    throw new Error(
-      'DATABASE_URL is required for MCP mode.\n' +
-        '   It is needed to validate API keys and write audit logs.\n' +
-        '   Set it in your solid-api/.env or environment.',
-    );
-  }
+  assertMcpDatabaseUrl(env);
 
   const agentCommand = options.local
     ? ensureAgentInstalledLocal('throw')
     : ensureAgentInstalled('throw');
   printAgentVersion(agentCommand);
 
-  return {
-    command: agentCommand,
-    args: [
-      'mcp-remote',
-      '--host',
-      options.host,
-      '--port',
-      options.port,
-      '--log-level',
-      options.logLevel,
-      '--mount-path',
-      options.mountPath,
-    ],
-    cwd: env.SOLIDX_PROJECT_ROOT,
-    env,
-  };
+  return buildMcpLaunchConfig(agentCommand, options, env);
 }
 
 /**

@@ -5,17 +5,22 @@ import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
 import {
-  AgentInstallResult,
-  AgentName,
-  AGENT_NAMES,
   McpInstallOptions,
   parseAgentsList,
   KEBAB_CASE_RE,
 } from './installers/types';
-import { claudeCodeInstaller } from './installers/claude-code';
-import { cursorInstaller } from './installers/cursor';
-import { codexInstaller } from './installers/codex';
-import { claudeDesktopInstaller } from './installers/claude-desktop';
+import {
+  activateMcpRegistration,
+  type ActivationRequest,
+  type ActivationResult,
+} from './activation/activation';
+import { isLocalUrl, parseUrl } from './activation/ownership';
+import { defaultHomeDir, loadRegistry } from './activation/registry';
+import {
+  clientsNeedingReload,
+  formatActivationReport,
+} from './activation/report';
+import { inspectMcpPort } from './mcp-lifecycle';
 
 const DEFAULT_URL = 'http://localhost:9000/mcp';
 
@@ -29,18 +34,19 @@ export interface RawInstallOptions {
   force?: boolean;
 }
 
-const INSTALLERS = {
-  'claude-code': claudeCodeInstaller,
-  cursor: cursorInstaller,
-  codex: codexInstaller,
-  'claude-desktop': claudeDesktopInstaller,
-} as const;
+function isProjectRoot(dir: string): boolean {
+  return (
+    fs.existsSync(path.join(dir, 'solid-api', 'package.json')) &&
+    fs.existsSync(path.join(dir, 'solid-ui', 'package.json'))
+  );
+}
 
 export function resolveInstallOptions(
   raw: RawInstallOptions,
 ): McpInstallOptions {
   // 1. project name
   let projectName: string;
+  let projectRoot: string | undefined;
   if (raw.project) {
     projectName = raw.project;
     if (!KEBAB_CASE_RE.test(projectName)) {
@@ -48,14 +54,16 @@ export function resolveInstallOptions(
         `--project must be kebab-case (e.g. new-todo-app). Got "${projectName}".`,
       );
     }
+    const cwd = process.cwd();
+    if (isProjectRoot(cwd) && kebabCase(path.basename(cwd)) === projectName) {
+      projectRoot = cwd;
+    }
   } else {
     // Derive from cwd basename; require SolidX project root. We inline a
     // throw-based check rather than calling validateProjectRoot() (which
     // hard-exits), so runMcpInstall can catch and print a clean error.
     const cwd = process.cwd();
-    const hasApi = fs.existsSync(path.join(cwd, 'solid-api', 'package.json'));
-    const hasUi = fs.existsSync(path.join(cwd, 'solid-ui', 'package.json'));
-    if (!hasApi || !hasUi) {
+    if (!isProjectRoot(cwd)) {
       throw new Error(
         `Could not derive project name: cwd is not a SolidX project root (missing solid-api/ or solid-ui/). Run from the project root, or pass --project explicitly.`,
       );
@@ -66,6 +74,7 @@ export function resolveInstallOptions(
         `Could not derive a kebab-case project name from cwd "${process.cwd()}". Pass --project explicitly.`,
       );
     }
+    projectRoot = cwd;
   }
 
   // 2. api key (mandatory)
@@ -100,6 +109,9 @@ export function resolveInstallOptions(
   }
 
   const url = raw.url ?? DEFAULT_URL;
+  if (!parseUrl(url)) {
+    throw new Error(`--url must be an absolute URL. Got "${url}".`);
+  }
   const serverName = raw.name ?? `solidx-${projectName}-mcp`;
 
   return {
@@ -107,91 +119,124 @@ export function resolveInstallOptions(
     apiKey,
     url,
     serverName,
+    ...(projectRoot ? { projectRoot } : {}),
     agents: parseAgentsList(raw.agents),
     dryRun: Boolean(raw.dryRun),
     force: Boolean(raw.force),
   };
 }
 
-function statusLabel(status: AgentInstallResult['status']): string {
-  switch (status) {
-    case 'installed':
-      return chalk.green('installed');
-    case 'skipped':
-      return chalk.dim('skipped');
-    case 'not-detected':
-      return chalk.dim('not detected');
-    case 'error':
-      return chalk.red('error');
-  }
+export interface McpInstallDeps {
+  homeDir?: string;
+  log?: (line: string) => void;
+  error?: (line: string) => void;
+  activation?: Pick<ActivationRequest, 'detect' | 'platform' | 'appData'>;
 }
 
-export async function runMcpInstall(raw: RawInstallOptions): Promise<void> {
+/**
+ * Register the project and make it the only active SolidX local MCP
+ * registration in each processed client. Returns the process exit code.
+ */
+export async function executeMcpInstall(
+  raw: RawInstallOptions,
+  deps: McpInstallDeps = {},
+): Promise<number> {
+  const log = deps.log ?? ((line: string) => console.log(line));
+  const error = deps.error ?? ((line: string) => console.error(line));
+  const homeDir = deps.homeDir ?? defaultHomeDir();
+
   let opts: McpInstallOptions;
   try {
     opts = resolveInstallOptions(raw);
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(chalk.red(`❌ ${msg}`));
-    process.exit(1);
+    error(chalk.red(`❌ ${err instanceof Error ? err.message : String(err)}`));
+    return 1;
   }
 
-  const requestedNames: AgentName[] =
-    opts.agents ?? (AGENT_NAMES as AgentName[]);
-  let hadError = false;
-  const results: AgentInstallResult[] = [];
+  let projectRoot = opts.projectRoot;
+  try {
+    projectRoot ??=
+      loadRegistry(homeDir).projects[opts.projectName]?.projectRoot;
+  } catch (err: unknown) {
+    error(chalk.red(`❌ ${err instanceof Error ? err.message : String(err)}`));
+    return 1;
+  }
 
-  for (const name of requestedNames) {
-    const installer = INSTALLERS[name];
-    if (!installer) continue;
-    if (!installer.isDetected()) {
-      results.push({
-        agent: name,
-        status: 'not-detected',
-        message: 'agent not detected on this machine',
-      });
-      continue;
-    }
-    try {
-      const res = await installer.install(opts);
-      results.push(res);
-      if (res.status === 'error') {
-        hadError = true;
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      results.push({
-        agent: name,
-        status: 'error',
-        message: msg,
-      });
-      hadError = true;
+  // Selecting this project while another project's server owns the endpoint
+  // would only move the 401s to this project's key.
+  const endpoint = parseUrl(opts.url);
+  if (!opts.force && projectRoot && endpoint && isLocalUrl(opts.url)) {
+    const port =
+      endpoint.port || (endpoint.protocol === 'https:' ? '443' : '80');
+    const state = await inspectMcpPort(endpoint.hostname, port, projectRoot);
+    if (state.kind === 'other-project') {
+      error(
+        chalk.red(
+          `❌ ${opts.url} is currently served by a different SolidX project's MCP server. ` +
+            `Stop it and start this project's server, or pass --force to select ${opts.projectName} anyway.`,
+        ),
+      );
+      return 1;
     }
   }
 
-  // Summary
-  console.log('');
-  console.log(chalk.cyan(`SolidX MCP install — server "${opts.serverName}"`));
-  for (const r of results) {
-    const label = r.agent.padEnd(15);
-    const detail = r.message ? chalk.dim(`(${r.message})`) : '';
-    console.log(`  ${chalk.magenta(label)} ${statusLabel(r.status)} ${detail}`);
-    if (r.backupPath) console.log(chalk.dim(`        backup: ${r.backupPath}`));
+  let result: ActivationResult;
+  try {
+    result = await activateMcpRegistration(
+      {
+        ...deps.activation,
+        target: {
+          projectName: opts.projectName,
+          serverName: opts.serverName,
+          url: opts.url,
+          apiKey: opts.apiKey,
+          ...(projectRoot ? { projectRoot } : {}),
+        },
+        targetMode: 'install',
+        source: 'install',
+        clients: opts.agents,
+        homeDir,
+        force: opts.force,
+      },
+      { dryRun: opts.dryRun },
+    );
+  } catch (err: unknown) {
+    error(chalk.red(`❌ ${err instanceof Error ? err.message : String(err)}`));
+    return 1;
   }
-  console.log('');
 
+  log('');
+  log(
+    chalk.cyan(
+      `SolidX MCP install — server "${opts.serverName}" (project ${opts.projectName})`,
+    ),
+  );
+  for (const line of formatActivationReport(result)) log(`  ${line}`);
+  log('');
   if (opts.dryRun) {
-    console.log(chalk.yellow('Dry run — no files were modified.'));
+    log(chalk.yellow('Dry run — no files were modified.'));
   }
+  const reload = clientsNeedingReload(result);
+  if (reload.length) {
+    log(
+      chalk.yellow(
+        `Restart or reload these clients to apply the change: ${reload.join(', ')}`,
+      ),
+    );
+  }
+  return result.hadError ? 1 : 0;
+}
 
-  if (hadError) process.exit(1);
+export async function runMcpInstall(raw: RawInstallOptions): Promise<void> {
+  const exitCode = await executeMcpInstall(raw);
+  if (exitCode !== 0) process.exit(exitCode);
 }
 
 export function registerMcpInstallCommand(mcp: Command) {
   mcp
     .command('install')
     .description(
-      'Install the SolidX MCP server into Claude Code, Cursor, Codex, and Claude Desktop globally',
+      'Register this project with Claude Code, Cursor, Codex and Claude Desktop, and make it the only active SolidX local MCP server in each',
     )
     .option(
       '--project <name>',
@@ -210,8 +255,14 @@ export function registerMcpInstallCommand(mcp: Command) {
       '--agents <list>',
       'Comma-separated subset: claude-code,cursor,codex,claude-desktop',
     )
-    .option('--dry-run', 'Print planned changes, touch nothing')
-    .option('--force', 'Re-write even when an identical entry already exists')
+    .option(
+      '--dry-run',
+      'Print the planned activation and deactivation changes, touch nothing',
+    )
+    .option(
+      '--force',
+      "Rewrite entries even when unchanged, and select this project even if another project's MCP server is running on the URL",
+    )
     .action(async (options: RawInstallOptions) => {
       await runMcpInstall(options);
     });
