@@ -315,7 +315,7 @@ export class StartSupervisor {
         cwd: config.cwd,
         env: process.env,
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: false,
+        shell: process.platform === 'win32',
         detached: process.platform !== 'win32',
       });
     }
@@ -605,7 +605,12 @@ export class StartSupervisor {
 
   private terminateChild(serviceName: ServiceName, child: ChildProcess, signal: NodeJS.Signals) {
     try {
-      if (process.platform !== 'win32' && child.pid) {
+      if (process.platform === 'win32' && child.pid) {
+        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+          stdio: 'ignore',
+          windowsHide: true,
+        });
+      } else if (process.platform !== 'win32' && child.pid) {
         process.kill(-child.pid, signal);
       } else {
         child.kill(signal);
