@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.53-beta.1] - 2026-11-25
+
+### Other
+
+- Fix/windows exec (#91)
+
 ## [0.1.53-beta.0] - 2026-11-23
 
 ### Added
