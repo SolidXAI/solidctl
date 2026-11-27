@@ -6,7 +6,15 @@ import os from 'os';
 import path from 'path';
 import * as helper from '../helper';
 import { checkAgentHubUpdate, ensureAgentHubInstalled, getAgentHubVersion } from './agenthub-helper';
-import { buildAgentHubEnv, registerAgentHubCommand, runAgentHubManager } from './agenthub.command';
+import {
+  assembleAgentHubEnv,
+  parseAgentHubLogLevel,
+  parseAgentHubPort,
+  resolveAgentHubLaunchConfig,
+  buildAgentHubEnv,
+  registerAgentHubCommand,
+  runAgentHubManager,
+} from './agenthub.command';
 import { registerStartCommand } from './start.command';
 
 jest.mock('child_process', () => ({ spawn: jest.fn(), spawnSync: jest.fn() }));
@@ -72,6 +80,39 @@ describe('AgentHub startup', () => {
   it('reports missing runtime configuration before installation', () => {
     expect(() => buildAgentHubEnv(project)).toThrow('DATABASE_URL, SOLIDX_API_BASE_URL');
     expect(ensureAgentHubInstalled).not.toHaveBeenCalled();
+  });
+
+  it('validates port and log-level flags', () => {
+    expect(parseAgentHubPort('9001')).toBe('9001');
+    expect(() => parseAgentHubPort('0', '--agenthub-port')).toThrow('--agenthub-port');
+    expect(parseAgentHubLogLevel('debug')).toBe('DEBUG');
+    expect(() => parseAgentHubLogLevel('noisy', '--agenthub-log-level')).toThrow(
+      '--agenthub-log-level',
+    );
+  });
+
+  it('assembles env then refuses to install when required settings are missing', async () => {
+    await expect(
+      resolveAgentHubLaunchConfig(project, { port: '9001' }),
+    ).rejects.toThrow('DATABASE_URL, SOLIDX_API_BASE_URL');
+    expect(checkAgentHubUpdate).not.toHaveBeenCalled();
+    expect(ensureAgentHubInstalled).not.toHaveBeenCalled();
+  });
+
+  it('applies CLI env and log-level after bridging project settings', () => {
+    process.env.DATABASE_URL = 'postgresql://user:pw@localhost/app';
+    process.env.BASE_URL = 'http://localhost:3000';
+    const env = assembleAgentHubEnv(project, {
+      host: '0.0.0.0',
+      env: ['AGENT_HUB_WORKERS=2'],
+      logLevel: 'DEBUG',
+    });
+    expect(env).toMatchObject({
+      AGENT_HUB_MANAGER_BIND_HOST: '0.0.0.0',
+      AGENT_HUB_WORKERS: '2',
+      AGENT_HUB_LOG_LEVEL: 'DEBUG',
+      SOLIDX_API_BASE_URL: 'http://localhost:3000',
+    });
   });
 
   it.each([

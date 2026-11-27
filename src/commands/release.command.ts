@@ -528,8 +528,11 @@ function getReleaseValidationLogPath(cwd: string): string {
   return path.join(logsDir, `start-dev-${formatLogTimestamp(new Date())}.log`);
 }
 
+/** Release tests only need API and UI; MCP and AgentHub stay out of that spawn. */
+export const RELEASE_VALIDATION_START_DEV_ARGS = ['start:dev', '--api', '--ui'] as const;
+
 function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingProject {
-  const commandText = 'solidctl start:dev';
+  const commandText = `solidctl ${RELEASE_VALIDATION_START_DEV_ARGS.join(' ')}`;
 
   if (dryRun) {
     console.log(`[dry-run] (${cwd}) ${commandText}`);
@@ -541,7 +544,7 @@ function startConsumingProject(cwd: string, dryRun: boolean): RunningConsumingPr
   console.log(`Starting consuming project from ${cwd}`);
   console.log(`Consuming project logs: ${logPath}`);
 
-  const child = spawn('solidctl', ['start:dev'], {
+  const child = spawn('solidctl', [...RELEASE_VALIDATION_START_DEV_ARGS], {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,

@@ -228,11 +228,21 @@ solidctl info
 
 ### `start:dev`
 
-Starts both consuming-project dev servers in one supervised terminal session with merged logs by default.
+Starts the consuming-project API and UI, the standalone MCP server, and the AgentHub manager in one supervised terminal session with merged logs by default.
 
 ```bash
 solidctl start:dev
 ```
+
+Limit the session to specific services, or pass namespaced AgentHub options:
+
+```bash
+solidctl start:dev --api --ui
+solidctl start:dev --agenthub
+solidctl start:dev --agenthub-local --agenthub-port 9002 --agenthub-env AGENT_HUB_SEARXNG_AUTOSTART=1
+```
+
+AgentHub starts after the API port is listening. Missing `DATABASE_URL` or `SOLIDX_API_BASE_URL` (or `BASE_URL`) is a hard failure. If the AgentHub runtime cannot be installed, `start:dev` continues with the other services and prints a warning.
 
 Enable the interactive control pane and keyboard shortcuts when you want them:
 
@@ -243,11 +253,13 @@ solidctl start:dev --controls
 Keyboard shortcuts in interactive terminals with `--controls`:
 - `a` restart `solid-api`
 - `u` restart `solid-ui`
-- `r` restart both
+- `m` restart MCP
+- `h` restart AgentHub
+- `r` restart all
 - `c` clear the terminal
-- `q` stop both and quit
+- `q` stop all and quit
 
-This command validates that both `solid-api/package.json` and `solid-ui/package.json` define a `solidx:dev` script before starting either process.
+This command validates that both `solid-api/package.json` and `solid-ui/package.json` define a `solidx:dev` script before starting either process. `--api` / `--ui` skip that check for services that are not selected.
 
 ---
 

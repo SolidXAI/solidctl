@@ -1,8 +1,10 @@
+import { AGENT_HUB_DEFAULT_PORT } from '../commands/agenthub.command';
 import { MCP_DEFAULT_OPTIONS } from '../commands/mcp-launch';
 
 export const MCP_DEV_PORT = MCP_DEFAULT_OPTIONS.port;
+export const AGENT_HUB_DEV_PORT = AGENT_HUB_DEFAULT_PORT;
 
-export type DevServiceName = 'api' | 'ui' | 'mcp';
+export type DevServiceName = 'api' | 'ui' | 'mcp' | 'agenthub';
 
 export type DevPortMap = Partial<Record<DevServiceName, string>>;
 
@@ -10,6 +12,7 @@ const SERVICE_LABELS: Record<DevServiceName, string> = {
   api: 'API',
   ui: 'UI',
   mcp: 'MCP',
+  agenthub: 'AgentHub',
 };
 
 export function isValidPortValue(value: string): boolean {
@@ -27,7 +30,7 @@ export function validatePortInput(value: string): true | string {
 export function findDevPortConflicts(ports: DevPortMap): DevServiceName[][] {
   const byPort = new Map<string, DevServiceName[]>();
 
-  for (const service of ['api', 'ui', 'mcp'] as const) {
+  for (const service of ['api', 'ui', 'mcp', 'agenthub'] as const) {
     const port = ports[service];
     if (!port) {
       continue;
@@ -58,6 +61,13 @@ export function formatDevPortConflictMessage(
       continue;
     }
 
+    if (services.includes('agenthub') && port === AGENT_HUB_DEV_PORT) {
+      lines.push(
+        `  Port ${port} is used by ${labels}. Port ${AGENT_HUB_DEV_PORT} is reserved for the AgentHub manager (start:dev).`,
+      );
+      continue;
+    }
+
     lines.push(`  Port ${port} is assigned to ${labels}.`);
   }
 
@@ -78,11 +88,22 @@ export function validateDevPortAssignments(ports: DevPortMap): string | null {
   return formatDevPortConflictMessage(conflicts, ports);
 }
 
+export function reservedDevPortMessage(port: string): string | null {
+  if (port === MCP_DEV_PORT) {
+    return `Port ${MCP_DEV_PORT} is reserved for the SolidX MCP server (started by start:dev).`;
+  }
+  if (port === AGENT_HUB_DEV_PORT) {
+    return `Port ${AGENT_HUB_DEV_PORT} is reserved for the AgentHub manager (started by start:dev).`;
+  }
+  return null;
+}
+
 export function validateCreateAppPorts(apiPort: string, uiPort: string): string | null {
   return validateDevPortAssignments({
     api: apiPort,
     ui: uiPort,
     mcp: MCP_DEV_PORT,
+    agenthub: AGENT_HUB_DEV_PORT,
   });
 }
 
@@ -92,11 +113,7 @@ export function validateCreateAppApiPort(apiPort: string): true | string {
     return portCheck;
   }
 
-  if (apiPort === MCP_DEV_PORT) {
-    return `Port ${MCP_DEV_PORT} is reserved for the SolidX MCP server (started by start:dev).`;
-  }
-
-  return true;
+  return reservedDevPortMessage(apiPort) ?? true;
 }
 
 export function validateCreateAppUiPort(
@@ -108,8 +125,9 @@ export function validateCreateAppUiPort(
     return portCheck;
   }
 
-  if (uiPort === MCP_DEV_PORT) {
-    return `Port ${MCP_DEV_PORT} is reserved for the SolidX MCP server (started by start:dev).`;
+  const reserved = reservedDevPortMessage(uiPort);
+  if (reserved) {
+    return reserved;
   }
 
   if (uiPort === apiPort) {

@@ -5,7 +5,18 @@ import fs from 'fs-extra';
 import path from 'path';
 import readline from 'readline';
 import { validateProjectRoot, validateProjectScript } from '../helper';
+import { waitForLocalPort } from '../utils/wait-for-port';
 import { AgentCommandExit } from './agent-helper';
+import {
+  AGENT_HUB_DEFAULT_PORT,
+  parseAgentHubLogLevel,
+  parseAgentHubPort,
+  parseEnvAssignments,
+  resolveAgentHubLaunchConfig,
+  spawnAgentHubManager,
+  type AgentHubLaunchConfig,
+} from './agenthub.command';
+import { getAgentHubVersion } from './agenthub-helper';
 import {
   MCP_DEFAULT_OPTIONS,
   resolveMcpLaunchConfig,
@@ -22,12 +33,19 @@ import {
   validateDevPortAssignments,
 } from '../utils/dev-ports';
 
-type ServiceName = 'api' | 'ui' | 'mcp';
+export type StartServiceName = 'api' | 'ui' | 'mcp' | 'agenthub';
 
-/** Services that are launched via an npm script. MCP is spawned directly. */
+type ServiceName = StartServiceName;
+
+/** Services that are launched via an npm script. MCP and AgentHub are spawned directly. */
 export type ScriptServiceName = 'api' | 'ui';
 
 export type ServiceScripts = Record<ScriptServiceName, string>;
+
+export type StartSupervisorFeatures = {
+  supportsMcp?: boolean;
+  supportsAgentHub?: boolean;
+};
 
 type ServiceConfig = {
   cwd: string;
@@ -49,7 +67,32 @@ export type StartOptions = {
   plain?: boolean;
   ui?: boolean;
   mcp?: boolean;
+  agenthub?: boolean;
+  agenthubPort?: string;
+  agenthubHost?: string;
+  agenthubLocal?: boolean;
+  agenthubLogLevel?: string;
+  agenthubEnv?: string[];
 };
+
+export function resolveStartServices(
+  options: StartOptions,
+  features: StartSupervisorFeatures = {},
+): StartServiceName[] {
+  const selected: StartServiceName[] = [];
+  if (options.api) selected.push('api');
+  if (options.ui) selected.push('ui');
+  if (features.supportsMcp && options.mcp) selected.push('mcp');
+  if (features.supportsAgentHub && options.agenthub) selected.push('agenthub');
+  if (selected.length) {
+    return selected;
+  }
+
+  const defaults: StartServiceName[] = ['api', 'ui'];
+  if (features.supportsMcp) defaults.push('mcp');
+  if (features.supportsAgentHub) defaults.push('agenthub');
+  return defaults;
+}
 
 /** Service scripts used by `start:dev` — mirrors the mapping passed to registerSupervisorCommand. */
 export const DEV_SERVICE_SCRIPTS: ServiceScripts = {
@@ -72,10 +115,13 @@ export class StartSupervisor {
   private readonly serviceStates: Record<ServiceName, ServiceState>;
   private readonly isInteractive: boolean;
   private readonly npmCommand: string;
-  private readonly supportsMcp: boolean;
+  private readonly startOptions: StartOptions;
   private mcpPort: string;
+  private agenthubPort: string;
   private mcpLaunchConfig: McpLaunchConfig | null = null;
   private mcpActivationStarted = false;
+  private agenthubLaunchConfig: AgentHubLaunchConfig | null = null;
+  private agenthubCanStart = false;
   private shuttingDown = false;
   private startupPhase = true;
   private startupAbortInProgress = false;
@@ -86,16 +132,21 @@ export class StartSupervisor {
     private readonly projectRoot: string,
     serviceScripts: ServiceScripts,
     options: StartOptions,
-    supportsMcp = false,
+    supportsMcpOrFeatures: boolean | StartSupervisorFeatures = false,
   ) {
+    const features: StartSupervisorFeatures =
+      typeof supportsMcpOrFeatures === 'boolean'
+        ? { supportsMcp: supportsMcpOrFeatures }
+        : supportsMcpOrFeatures;
     this.isInteractive = Boolean(process.stdout.isTTY && process.stdin.isTTY && !options.plain);
     this.npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    this.supportsMcp = supportsMcp;
+    this.startOptions = options;
     this.serviceScripts = serviceScripts;
-    this.activeServices = this.resolveActiveServices(options);
+    this.activeServices = resolveStartServices(options, features);
     this.apiPort = this.resolveApiPort();
     this.uiPort = this.resolveUiPort();
     this.mcpPort = MCP_DEFAULT_OPTIONS.port;
+    this.agenthubPort = options.agenthubPort ?? AGENT_HUB_DEFAULT_PORT;
 
     this.serviceConfigs = {
       api: {
@@ -113,12 +164,18 @@ export class StartSupervisor {
         label: 'mcp',
         color: chalk.green,
       },
+      agenthub: {
+        cwd: projectRoot,
+        label: 'hub',
+        color: chalk.yellow,
+      },
     };
 
     this.serviceStates = {
       api: this.createInitialState(),
       ui: this.createInitialState(),
       mcp: this.createInitialState(),
+      agenthub: this.createInitialState(),
     };
   }
 
@@ -132,6 +189,11 @@ export class StartSupervisor {
     try {
       this.validatePortAssignments();
 
+      if (shouldStartServices && this.activeServices.includes('agenthub')) {
+        await this.prepareAgentHub();
+        shouldStartServices = !this.shuttingDown;
+      }
+
       if (shouldStartServices && this.activeServices.includes('mcp')) {
         await this.assertMcpPortAvailable();
         await this.startMcpServer();
@@ -142,12 +204,14 @@ export class StartSupervisor {
         this.startupPhase = false;
         this.attachKeyboardControls();
         for (const serviceName of this.activeServices) {
+          if (serviceName === 'agenthub') continue;
           this.spawnService(serviceName);
         }
         this.renderFooter();
         if (this.activeServices.includes('mcp')) {
           this.startMcpActivation();
         }
+        await this.startAgentHubWhenReady();
 
         await new Promise<void>((resolve) => {
           const poll = setInterval(() => {
@@ -190,6 +254,10 @@ export class StartSupervisor {
 
     if (this.activeServices.includes('mcp')) {
       ports.mcp = this.mcpPort;
+    }
+
+    if (this.activeServices.includes('agenthub')) {
+      ports.agenthub = this.agenthubPort;
     }
 
     const conflict = validateDevPortAssignments(ports);
@@ -256,6 +324,71 @@ export class StartSupervisor {
     }
   }
 
+  /**
+   * Env missing is a hard failure. Runtime install/update failures are skipped
+   * when other services will still run, so start:dev can continue.
+   */
+  private async prepareAgentHub() {
+    const logLevel = parseAgentHubLogLevel(
+      this.startOptions.agenthubLogLevel,
+      '--agenthub-log-level',
+    );
+    parseEnvAssignments(this.startOptions.agenthubEnv, '--agenthub-env');
+    this.printStatus('Preparing AgentHub manager');
+    try {
+      this.agenthubLaunchConfig = await resolveAgentHubLaunchConfig(this.projectRoot, {
+        port: this.agenthubPort,
+        host: this.startOptions.agenthubHost,
+        local: this.startOptions.agenthubLocal,
+        env: this.startOptions.agenthubEnv,
+        logLevel,
+      });
+      this.agenthubPort = this.agenthubLaunchConfig.port;
+      this.printStatus(
+        `AgentHub config resolved (solidx-agenthub-runtime v${getAgentHubVersion(this.agenthubLaunchConfig.command)}, port ${this.agenthubPort})`,
+      );
+    } catch (error) {
+      if (this.shuttingDown) {
+        return;
+      }
+      if (error instanceof AgentCommandExit) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      const envMissing = /AgentHub requires /.test(message);
+      if (envMissing || this.activeServices.every((service) => service === 'agenthub')) {
+        throw error instanceof Error ? error : new Error(message);
+      }
+      this.printStatus(`⚠ AgentHub setup failed; continuing without it. ${message}`);
+      this.agenthubLaunchConfig = null;
+    }
+  }
+
+  private async startAgentHubWhenReady() {
+    if (!this.activeServices.includes('agenthub') || !this.agenthubLaunchConfig) {
+      return;
+    }
+
+    if (this.activeServices.includes('api')) {
+      this.printStatus(`Waiting for API on port ${this.apiPort} before starting AgentHub`);
+      const ready = await waitForLocalPort(Number(this.apiPort), {
+        isAlive: () => !this.shuttingDown,
+      });
+      if (!ready || this.shuttingDown) {
+        if (!this.shuttingDown) {
+          this.printStatus(
+            `API did not become ready on port ${this.apiPort}; AgentHub was not started`,
+          );
+        }
+        return;
+      }
+    }
+
+    this.agenthubCanStart = true;
+    this.spawnService('agenthub');
+    this.renderFooter();
+  }
+
   private createInitialState(): ServiceState {
     return {
       child: null,
@@ -264,33 +397,6 @@ export class StartSupervisor {
       outputBuffer: '',
       forceKillTimer: null,
     };
-  }
-
-  private resolveActiveServices(options: StartOptions): ServiceName[] {
-    const selectedServices: ServiceName[] = [];
-
-    if (options.api) {
-      selectedServices.push('api');
-    }
-
-    if (options.ui) {
-      selectedServices.push('ui');
-    }
-
-    if (this.supportsMcp && options.mcp) {
-      selectedServices.push('mcp');
-    }
-
-    if (selectedServices.length) {
-      return selectedServices;
-    }
-
-    // No explicit selection: default to all available services.
-    const defaults: ServiceName[] = ['api', 'ui'];
-    if (this.supportsMcp) {
-      defaults.push('mcp');
-    }
-    return defaults;
   }
 
   private spawnService(serviceName: ServiceName) {
@@ -309,6 +415,22 @@ export class StartSupervisor {
         return;
       }
       child = spawnMcpServer(this.mcpLaunchConfig);
+    } else if (serviceName === 'agenthub') {
+      if (!this.agenthubLaunchConfig) {
+        this.printStatus('AgentHub is not available');
+        return;
+      }
+      if (!this.agenthubCanStart) {
+        this.printStatus('AgentHub will start after the API is ready');
+        return;
+      }
+      child = spawnAgentHubManager(
+        this.agenthubLaunchConfig.command,
+        this.projectRoot,
+        this.agenthubLaunchConfig.env,
+        this.agenthubLaunchConfig.port,
+        this.agenthubLaunchConfig.logLevel,
+      );
     } else {
       const scriptName = this.serviceScripts[serviceName as ScriptServiceName];
       child = spawn(this.npmCommand, ['run', scriptName], {
@@ -421,6 +543,10 @@ export class StartSupervisor {
 
     if (this.activeServices.includes('mcp')) {
       serviceSegments.push(`MCP (m restart, :${this.mcpPort})`);
+    }
+
+    if (this.activeServices.includes('agenthub')) {
+      serviceSegments.push(`Hub (h restart, :${this.agenthubPort})`);
     }
 
     if (this.activeServices.length > 1) {
@@ -547,6 +673,11 @@ export class StartSupervisor {
         case 'm':
           if (this.activeServices.includes('mcp')) {
             this.restartService('mcp');
+          }
+          break;
+        case 'h':
+          if (this.activeServices.includes('agenthub')) {
+            this.restartService('agenthub');
           }
           break;
         case 'r':
@@ -797,7 +928,7 @@ export function registerStartCommand(program: Command) {
     commandName: string,
     description: string,
     serviceScripts: ServiceScripts,
-    supportsMcp = false,
+    features: StartSupervisorFeatures = {},
   ) => {
     const command = program
       .command(commandName)
@@ -807,31 +938,58 @@ export function registerStartCommand(program: Command) {
       .option('--plain', 'Disable interactive controls and print merged logs only')
       .option('--ui', 'Only supervise solid-ui');
 
-    if (supportsMcp) {
+    if (features.supportsMcp) {
       command.option('--mcp', 'Only supervise the MCP server');
+    }
+
+    if (features.supportsAgentHub) {
+      command
+        .option('--agenthub', 'Only supervise the AgentHub manager')
+        .option(
+          '--agenthub-port <port>',
+          'AgentHub manager port',
+          AGENT_HUB_DEFAULT_PORT,
+        )
+        .option(
+          '--agenthub-host <host>',
+          'AgentHub manager bind host (default: AGENT_HUB_MANAGER_BIND_HOST or 127.0.0.1)',
+        )
+        .option(
+          '--agenthub-local',
+          'Install AgentHub from AGENT_HUB_RUNTIME_PATH in editable mode',
+        )
+        .option(
+          '--agenthub-log-level <level>',
+          'AgentHub logging verbosity: CRITICAL, ERROR, WARNING, INFO, or DEBUG',
+        )
+        .option(
+          '--agenthub-env <KEY=VALUE>',
+          'Pass an environment variable to AgentHub (repeatable)',
+          (value, previous: string[] = []) => [...previous, value],
+          [],
+        );
     }
 
     command.action(async (options: StartOptions) => {
         validateProjectRoot();
 
-        const selectedServices = [
-          ...(options.api ? (['api'] as const) : []),
-          ...(options.ui ? (['ui'] as const) : []),
-          ...(supportsMcp && options.mcp ? (['mcp'] as const) : []),
-        ];
-        const activeServices = selectedServices.length ? selectedServices : (
-          supportsMcp ? (['api', 'ui', 'mcp'] as const) : (['api', 'ui'] as const)
-        );
+        if (features.supportsAgentHub) {
+          parseAgentHubPort(options.agenthubPort ?? AGENT_HUB_DEFAULT_PORT, '--agenthub-port');
+          parseAgentHubLogLevel(options.agenthubLogLevel, '--agenthub-log-level');
+          parseEnvAssignments(options.agenthubEnv, '--agenthub-env');
+        }
+
+        const activeServices = resolveStartServices(options, features);
 
         for (const serviceName of activeServices) {
-          if (serviceName === 'mcp') continue;
+          if (serviceName === 'mcp' || serviceName === 'agenthub') continue;
           validateProjectScript(
             serviceName === 'api' ? 'solid-api' : 'solid-ui',
             serviceScripts[serviceName as ScriptServiceName],
           );
         }
 
-        const supervisor = new StartSupervisor(process.cwd(), serviceScripts, options, supportsMcp);
+        const supervisor = new StartSupervisor(process.cwd(), serviceScripts, options, features);
         await supervisor.start();
       });
     return command;
@@ -839,15 +997,15 @@ export function registerStartCommand(program: Command) {
 
   registerSupervisorCommand(
     'start:dev',
-    'Start solid-api, solid-ui, and MCP dev processes in a single supervisor',
+    'Start solid-api, solid-ui, MCP, and AgentHub dev processes in a single supervisor',
     DEV_SERVICE_SCRIPTS,
-    true,
+    { supportsMcp: true, supportsAgentHub: true },
   );
 
   registerSupervisorCommand(
     'start',
     'Start solid-api, solid-ui, and MCP standard processes in a single supervisor',
     START_SERVICE_SCRIPTS,
-    true,
+    { supportsMcp: true },
   );
 }

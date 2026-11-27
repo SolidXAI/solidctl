@@ -202,31 +202,40 @@ Without `--core`, behaviour is unchanged.
 
 ### 6) start:dev
 
-Runs both consuming-project dev servers in one supervised terminal session.
+Runs the consuming-project API and UI, the standalone MCP server, and the AgentHub manager in one supervised terminal session.
 
 Usage:
 
 ```bash
 solidctl start:dev [--controls]
+solidctl start:dev --api --ui
+solidctl start:dev --agenthub-local --agenthub-port 9002 --agenthub-env AGENT_HUB_SEARXNG_AUTOSTART=1
 ```
 
-What it runs:
+What it runs by default:
 
 - `npm run solidx:dev` in `solid-api`
 - `npm run solidx:dev` in `solid-ui`
+- standalone MCP server (`mcp-remote`)
+- AgentHub manager (after the API port is listening)
+
+Namespaced AgentHub flags: `--agenthub`, `--agenthub-port`, `--agenthub-host`, `--agenthub-local`, `--agenthub-log-level`, `--agenthub-env`. `solidctl start` does not start AgentHub. `solidctl agenthub start` remains a standalone command.
 
 Interactive shortcuts with `--controls`:
 
 - `a` restart API only
 - `u` restart UI only
-- `r` restart both
+- `m` restart MCP
+- `h` restart AgentHub
+- `r` restart all
 - `c` clear the terminal
 - `q` quit
 
 Notes:
 
 - Must be run from the SolidX project root.
-- Both `solid-api/package.json` and `solid-ui/package.json` must define `scripts.solidx:dev`.
+- Both `solid-api/package.json` and `solid-ui/package.json` must define `scripts.solidx:dev` when API or UI is selected.
+- AgentHub requires `DATABASE_URL` and `SOLIDX_API_BASE_URL` (or `BASE_URL`). Runtime install failures are skipped with a warning when other services are running.
 - By default, logs are printed without the pinned control footer.
 - `--controls` enables the pinned control footer and keyboard shortcuts in interactive terminals.
 

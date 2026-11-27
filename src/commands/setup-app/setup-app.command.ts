@@ -589,7 +589,7 @@ async function runSetup(options: SetupOptions) {
     projectRoot,
     DEV_SERVICE_SCRIPTS,
     {},
-    true,
+    { supportsMcp: true, supportsAgentHub: true },
   );
   await supervisor.start();
 }
