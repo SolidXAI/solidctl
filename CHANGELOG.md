@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.53-beta.2] - 2026-11-27
+
+### Added
+
+- added agenthub start as part of start:dev
+
 ## [0.1.53-beta.1] - 2026-11-25
 
 ### Other
